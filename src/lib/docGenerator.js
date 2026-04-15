@@ -15,10 +15,8 @@ import {
   VerticalAlign,
   ImageRun,
   PageNumber,
-  SimpleField,
   UnderlineType,
   convertMillimetersToTwip as mm,
-  HeightRule,
   TableLayoutType,
 } from 'docx';
 
@@ -294,12 +292,24 @@ export async function generateDocument(data) {
   const cfg = DOC_TYPES[data.doc_type] ?? DOC_TYPES.group4;
 
   // ── Logo ─────────────────────────────────────────────────────────────────
+  // Logo path must account for Vite's base path (/nir-reports/ in production)
   let logoBuffer = null;
-  try {
-    const res = await fetch('/logo.png');
-    if (res.ok) logoBuffer = await res.arrayBuffer();
-  } catch (_) {
-    // skip logo if unavailable
+  const logoPaths = [
+    `${import.meta.env.BASE_URL}logo.png`,
+    `${import.meta.env.BASE_URL}logo.svg`,
+    '/logo.png',
+  ];
+  for (const path of logoPaths) {
+    try {
+      const res = await fetch(path);
+      if (res.ok) {
+        // Convert to Uint8Array – ArrayBuffer is not supported by all docx versions
+        logoBuffer = new Uint8Array(await res.arrayBuffer());
+        break;
+      }
+    } catch (_) {
+      // try next path
+    }
   }
 
   // ── Header ───────────────────────────────────────────────────────────────
@@ -320,15 +330,16 @@ export async function generateDocument(data) {
   }
 
   // Page number line: "עמוד PAGE מתוך NUMPAGES"
+  // Use TextRun.children with PageNumber enum – the correct docx v8 API
   headerChildren.push(
     new Paragraph({
       alignment: AlignmentType.RIGHT,
       bidirectional: true,
       children: [
         new TextRun({ text: ' ', font: FONT, size: 7 * 2 }),
-        new SimpleField('PAGE', { font: FONT, size: 7 * 2 }),
+        new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 7 * 2 }),
         new TextRun({ text: ' מתוך ', font: FONT, size: 7 * 2, rtl: true }),
-        new SimpleField('NUMPAGES', { font: FONT, size: 7 * 2 }),
+        new TextRun({ children: [PageNumber.TOTAL_PAGES], font: FONT, size: 7 * 2 }),
         new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rtl: true }),
       ],
     })

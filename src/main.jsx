@@ -1,3 +1,4 @@
+import './polyfills.js'   // must be first – patches Buffer.toBase64 before docx loads
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
