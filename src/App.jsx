@@ -9,6 +9,10 @@ import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
 import './index.css';
 
+// ── Asset paths (must include Vite base URL for GitHub Pages) ─────────────────
+const LOGO_PNG = `${import.meta.env.BASE_URL}logo.png`;
+const LOGO_SVG = `${import.meta.env.BASE_URL}logo.svg`;
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const isoToDisplay = (iso) => {
@@ -305,10 +309,10 @@ export default function App() {
           )}
           <div className="header-title">
             <img
-              src="/logo.png"
+              src={LOGO_PNG}
               alt="ניר הנדסה"
               className="header-logo-img"
-              onError={e => { e.target.onerror = null; e.target.src = '/logo.svg'; }}
+              onError={e => { e.target.onerror = null; e.target.src = LOGO_SVG; }}
             />
             <span className="header-app-name">ניר הנדסה</span>
           </div>
@@ -365,7 +369,7 @@ export default function App() {
       {mode === 'home' && (
         <div className="home-screen">
           <div className="home-logo">
-            <img src="/logo.png" alt="ניר הנדסה" onError={e => { e.target.onerror = null; e.target.src = '/logo.svg'; }} />
+            <img src={LOGO_PNG} alt="ניר הנדסה" onError={e => { e.target.onerror = null; e.target.src = LOGO_SVG; }} />
             <span className="home-logo-name">ניר הנדסה</span>
           </div>
 
