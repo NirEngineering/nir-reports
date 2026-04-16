@@ -232,9 +232,9 @@ function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
 
   const headerRow = new TableRow({ children: headerCells, tableHeader: true });
 
-  // Data rows
-  const dataRows = rows.map((row, rowIdx) => {
-    const bg = rowIdx % 2 === 0 ? 'FFFFFF' : 'F9FBFF';
+  // Data rows – all white (no alternating tint)
+  const dataRows = rows.map((row) => {
+    const bg = 'FFFFFF';
 
     const cells = row.map((cellText, colIdx) => {
       const text = String(cellText ?? '');
@@ -289,6 +289,11 @@ function getImageDimensions(dataUrl) {
 
 export async function generateDocument(data) {
   const cfg = DOC_TYPES[data.doc_type] ?? DOC_TYPES.group4;
+
+  // Use client name as fallback when location is empty
+  const effectiveData = (data.location || '').trim()
+    ? data
+    : { ...data, location: (data.client || '').trim() };
 
   // ── Logo ─────────────────────────────────────────────────────────────────
   // Logo path must account for Vite's base path (/nir-reports/ in production)
@@ -346,9 +351,9 @@ export async function generateDocument(data) {
 
   const docHeader = new Header({ children: headerChildren });
 
-  // Shared spacing helpers
-  const SP_BODY    = { line: 276, lineRule: 'AUTO', after: 60 };   // single-spaced + 3pt after
-  const SP_SECTION = { before: 120, after: 60 };                    // 6pt before section title
+  // Shared spacing helpers  (lineRule must be lowercase 'auto' = LineRuleType.AUTO)
+  const SP_BODY    = { line: 276, lineRule: 'auto', after: 120 };  // single-spaced + 6pt after
+  const SP_SECTION = { before: 160, after: 80 };                    // 8pt before section title
 
   // ── Date paragraph (left-aligned, not RTL) ────────────────────────────────
   const dateStr  = formatDate(data.date);
@@ -371,8 +376,8 @@ export async function generateDocument(data) {
 
   // ── Intro text ────────────────────────────────────────────────────────────
   const introText = data.intro_extra
-    ? cfg.introTemplate(data) + '\n' + data.intro_extra
-    : cfg.introTemplate(data);
+    ? cfg.introTemplate(effectiveData) + '\n' + data.intro_extra
+    : cfg.introTemplate(effectiveData);
 
   const introParas = introText.split('\n').map((line) =>
     mkPara([mkRun(line, { size: FS_INTRO })], { spacing: SP_BODY })
@@ -480,10 +485,10 @@ export async function generateDocument(data) {
         // Compute display dimensions in cm
         let dispW, dispH;
         if (isPortrait) {
-          dispH = 8; // cm
+          dispH = 8; // cm absolute height
           dispW = natW > 0 ? (natW / natH) * dispH : 6;
         } else {
-          dispW = 7.5; // cm
+          dispW = 8; // cm absolute width
           dispH = natH > 0 ? (natH / natW) * dispW : 5;
         }
 

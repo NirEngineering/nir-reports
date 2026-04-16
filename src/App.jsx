@@ -7,7 +7,32 @@ import { generateDocument } from './lib/docGenerator';
 import { importDocx, exportDocx } from './lib/docImporter';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
+import clientsData from './data/clients.json';
 import './index.css';
+
+// ── Pre-processed global lists (computed once at module load) ─────────────────
+
+/** All client names, excluding pure-number entries, sorted Hebrew-first */
+const ALL_CLIENTS = clientsData
+  .filter(c => !/^\d+$/.test(c.trim()))
+  .sort((a, b) => a.localeCompare(b, 'he'));
+
+/** All elements merged across ALL doc types, deduplicated, excluding pure-number entries */
+const ALL_ELEMENTS = [...new Set(
+  Object.values(elementsData).flat().filter(e => !/^\d+$/.test(e.trim()))
+)].sort((a, b) => a.localeCompare(b, 'he'));
+
+/** All findings merged across ALL doc types, keyed by element name */
+const ALL_FINDINGS = (() => {
+  const merged = {};
+  Object.values(findingsData).forEach(typeFindings => {
+    Object.entries(typeFindings).forEach(([key, arr]) => {
+      if (!merged[key]) merged[key] = new Set();
+      arr.forEach(f => merged[key].add(f));
+    });
+  });
+  return Object.fromEntries(Object.entries(merged).map(([k, v]) => [k, [...v]]));
+})();
 
 // ── Asset paths (must include Vite base URL for GitHub Pages) ─────────────────
 const LOGO_PNG = `${import.meta.env.BASE_URL}logo.png`;
@@ -293,7 +318,6 @@ export default function App() {
   // ── Validation ─────────────────────────────────────────────────────────────
   const validateDetails = () => {
     if (!form.client.trim()) return setError('יש למלא שם לקוח'), false;
-    if (!form.location.trim()) return setError('יש למלא מיקום'), false;
     setError('');
     return true;
   };
@@ -447,7 +471,7 @@ export default function App() {
                   <SearchDropdown
                     value={form.client}
                     onChange={v => setField('client', v)}
-                    options={[]}
+                    options={ALL_CLIENTS}
                     placeholder="שם הלקוח..."
                   />
                 </Field>
@@ -461,12 +485,12 @@ export default function App() {
                   />
                 </Field>
 
-                <Field label="מיקום" required>
+                <Field label="מיקום">
                   <input
                     className="form-input"
                     value={form.location}
                     onChange={e => setField('location', e.target.value)}
-                    placeholder="שם המוסד / מיקום..."
+                    placeholder="שם המוסד / מיקום (ריק = שם הלקוח)..."
                     dir="rtl"
                   />
                 </Field>
@@ -552,8 +576,8 @@ export default function App() {
                   rowPhotos={rowPhotos}
                   onRowPhotosChange={setRowPhotos}
                   docType={docType}
-                  elements={elementsData[docType] || []}
-                  findings={findingsData[docType] || {}}
+                  elements={ALL_ELEMENTS}
+                  findings={ALL_FINDINGS}
                 />
               </div>
 
@@ -575,8 +599,8 @@ export default function App() {
                     rowPhotos={defectsRowPhotos}
                     onRowPhotosChange={setDefectsRowPhotos}
                     docType={docType}
-                    elements={elementsData[docType] || []}
-                    findings={findingsData[docType] || {}}
+                    elements={ALL_ELEMENTS}
+                    findings={ALL_FINDINGS}
                   />
                 </div>
               )}
