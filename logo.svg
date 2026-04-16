@@ -22,14 +22,15 @@
   <line x1="205" y1="65" x2="205" y2="145" stroke="#4a5568" stroke-width="3.5"/>
 
   <!-- Hebrew text: ניר הנדסה – large bold -->
+  <!-- No direction="rtl" needed – Hebrew Unicode chars render RTL automatically via BiDi -->
   <text x="460" y="235" font-family="Arial, sans-serif" font-size="88" font-weight="bold"
-        fill="#4a5568" text-anchor="end" direction="rtl">ניר הנדסה</text>
+        fill="#4a5568" text-anchor="end">ניר הנדסה</text>
 
   <!-- Subtitle line 1 -->
   <text x="460" y="285" font-family="Arial, sans-serif" font-size="30"
-        fill="#718096" text-anchor="end" direction="rtl">הנדסה אזרחית, מבנים, בטיחות</text>
+        fill="#718096" text-anchor="end">הנדסה אזרחית, מבנים, בטיחות</text>
 
   <!-- Subtitle line 2 -->
   <text x="460" y="320" font-family="Arial, sans-serif" font-size="25"
-        fill="#a0aec0" text-anchor="end" direction="rtl">תכנון  |  פיקוח  |  ניהול  |  ייעוץ הנדסי</text>
+        fill="#a0aec0" text-anchor="end">תכנון  |  פיקוח  |  ניהול  |  ייעוץ הנדסי</text>
 </svg>
