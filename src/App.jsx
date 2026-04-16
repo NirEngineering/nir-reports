@@ -198,6 +198,12 @@ export default function App() {
     if (mode === 'new' && docType) saveDraft();
   }, [mode, step, docType, form, tableRows, defectsRows]);
 
+  // ── Auto-detect defects from main table rows ──────────────────────────────
+  // Recalculate whenever tableRows changes
+  const autoHasDefects = tableRows.some(row =>
+    row.some(cell => String(cell || '').startsWith('לא תקין'))
+  );
+
   // ── Generate ───────────────────────────────────────────────────────────────
   const handleGenerate = async () => {
     setLoading(true); setError(''); setSuccess('');
@@ -215,9 +221,13 @@ export default function App() {
       });
       photos.forEach(ph => mergedPhotos.push({ data: ph.data, caption: ph.caption || '' }));
 
+      // has_defects: auto-detected OR manually forced on
+      const hasDefects = autoHasDefects || form.has_defects;
+
       const payload = {
         doc_type: docType,
         ...form,
+        has_defects: hasDefects,
         inspection_date: isoToDisplay(form.inspection_date),
         table_rows: tableRows,
         defects_rows: defectsRows,
@@ -498,7 +508,7 @@ export default function App() {
                   />
                 </Field>
 
-                <Field label="הכנס ליקויים נפרדים">
+                <Field label='טבלת ליקויים נפרדת'>
                   <label className="toggle-row">
                     <span className="toggle">
                       <input
@@ -508,16 +518,10 @@ export default function App() {
                       />
                       <span className="toggle-slider" />
                     </span>
-                    <span className="toggle-label">{form.has_defects ? 'כן' : 'לא'}</span>
+                    <span className="toggle-label" style={{ fontSize: 13, color: '#64748b' }}>
+                      {form.has_defects ? 'כן – תוצג בשלב הטבלה' : 'לא (מזוהה אוטומטית מהטבלה)'}
+                    </span>
                   </label>
-                </Field>
-
-                <Field label="הערות מסכמות">
-                  <RichTextarea
-                    value={form.notes_custom}
-                    onChange={v => setField('notes_custom', v)}
-                    placeholder="הערות נוספות לסיכום..."
-                  />
                 </Field>
               </div>
 
@@ -553,10 +557,17 @@ export default function App() {
                 />
               </div>
 
-              {/* Defects table (optional, shown when has_defects) */}
-              {form.has_defects && DEFECTS_COLUMNS[docType] && (
+              {/* Defects table – shown when auto-detected OR manually enabled */}
+              {(autoHasDefects || form.has_defects) && DEFECTS_COLUMNS[docType] && (
                 <div className="card">
-                  <div className="card-title">⚠️ טבלת ליקויים</div>
+                  <div className="card-title">
+                    ⚠️ טבלת ליקויים
+                    {autoHasDefects && (
+                      <span style={{ fontSize: 11, fontWeight: 400, color: '#c55a11', marginRight: 8 }}>
+                        (זוהתה אוטומטית)
+                      </span>
+                    )}
+                  </div>
                   <TableEditor
                     columns={DEFECTS_COLUMNS[docType]}
                     rows={defectsRows}
@@ -570,11 +581,43 @@ export default function App() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-outline" onClick={() => setStep(1)}>◀ חזור</button>
-                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setStep(3)}>
-                  המשך ▶
+              {/* Notes & conclusions quick-edit */}
+              <div className="card">
+                <div className="card-title">📝 הערות ומסקנות</div>
+                <Field label="הערות והנחיות (אופציונלי)">
+                  <RichTextarea
+                    value={form.notes_custom}
+                    onChange={v => setField('notes_custom', v)}
+                    placeholder="השאר ריק לשימוש בהערות ברירת המחדל..."
+                    rows={3}
+                  />
+                </Field>
+                <Field label="מסקנות (אופציונלי)">
+                  <textarea
+                    className="form-textarea"
+                    value={form.conclusion_custom}
+                    onChange={e => setField('conclusion_custom', e.target.value)}
+                    placeholder={autoHasDefects || form.has_defects ? 'ברירת מחדל: נמצאו ליקויים הדורשים טיפול...' : 'ברירת מחדל: הכל תקין...'}
+                    rows={2}
+                    dir="rtl"
+                  />
+                </Field>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
+                <button
+                  className="btn btn-success btn-lg generate-btn"
+                  onClick={handleGenerate}
+                  disabled={loading}
+                >
+                  {loading ? '⏳ יוצר...' : '⬇️ צור מסמך ללא תמונות'}
                 </button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-outline" onClick={() => setStep(1)}>◀ חזור</button>
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setStep(3)}>
+                    המשך עם תמונות ▶
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -589,11 +632,15 @@ export default function App() {
                 <PhotoUpload photos={photos} onChange={setPhotos} />
               </div>
 
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-outline" onClick={() => setStep(2)}>◀ חזור</button>
-                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setStep(4)}>
-                  המשך ▶
+              <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
+                <button
+                  className="btn btn-success btn-lg generate-btn"
+                  onClick={handleGenerate}
+                  disabled={loading}
+                >
+                  {loading ? '⏳ יוצר...' : '⬇️ צור והורד מסמך'}
                 </button>
+                <button className="btn btn-outline" onClick={() => setStep(2)}>◀ חזור לטבלה</button>
               </div>
             </div>
           )}
@@ -604,8 +651,7 @@ export default function App() {
               <StepBar step={3} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} />
 
               <div className="card">
-                <div className="card-title">📄 סיכום ויצירת מסמך</div>
-
+                <div className="card-title">📄 סיכום</div>
                 <div className="summary-grid">
                   <div className="summary-item">
                     <span className="summary-label">לקוח</span>
@@ -626,12 +672,14 @@ export default function App() {
                     </span>
                   </div>
                   <div className="summary-item">
-                    <span className="summary-label">תאריך ביקור</span>
-                    <span className="summary-value">{isoToDisplay(form.inspection_date)}</span>
+                    <span className="summary-label">ליקויים</span>
+                    <span className="summary-value" style={{ color: (autoHasDefects || form.has_defects) ? '#c00000' : '#059669' }}>
+                      {(autoHasDefects || form.has_defects) ? `כן (${defectsRows.length} שורות)` : 'לא נמצאו'}
+                    </span>
                   </div>
                   <div className="summary-item">
-                    <span className="summary-label">נושא</span>
-                    <span className="summary-value" style={{ fontSize: 12 }}>{form.subject || '—'}</span>
+                    <span className="summary-label">תאריך ביקור</span>
+                    <span className="summary-value">{isoToDisplay(form.inspection_date)}</span>
                   </div>
                 </div>
               </div>

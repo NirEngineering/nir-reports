@@ -195,34 +195,42 @@ const THIN_BORDER = {
 };
 
 /**
+ * Column headers whose cells should be right-aligned (free-text / data columns).
+ * All other columns default to center-aligned.
+ */
+const RIGHT_ALIGN_RE = /נתונים|ממצאים|ממצאי|פירוט|ליקויים|הערות|טיפול|תיאור|פירוט/;
+
+/**
  * Create an RTL data table.
  * headers: string[]
  * rows: string[][] (each cell may be a string)
  * colWidthsCm: number[] (cm per column)
  * headerBg: hex color string without '#'
+ *
+ * Column alignment rules:
+ *   - Header row: always CENTER
+ *   - Data cells: RIGHT for text-heavy columns (matched by RIGHT_ALIGN_RE), CENTER otherwise
  */
 function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
   const colWidths = colWidthsCm.map((w) => cm(w));
 
-  // Header row
+  // Pre-compute per-column alignment for data cells
+  const colAlign = headers.map((h) =>
+    RIGHT_ALIGN_RE.test(h) ? AlignmentType.RIGHT : AlignmentType.CENTER
+  );
+
+  // Header row – always centered
   const headerCells = headers.map((h, i) =>
     new TableCell({
       width: { size: colWidths[i], type: WidthType.DXA },
       verticalAlign: VerticalAlign.CENTER,
       shading: { type: ShadingType.CLEAR, fill: headerBg },
       borders: THIN_BORDER,
-      children: [
-        mkPara([mkRun(h, { size: FS_TABLE, bold: true })], {
-          alignment: AlignmentType.CENTER,
-        }),
-      ],
+      children: [mkPara([mkRun(h, { size: FS_TABLE, bold: true })], { alignment: AlignmentType.CENTER })],
     })
   );
 
-  const headerRow = new TableRow({
-    children: headerCells,
-    tableHeader: true,
-  });
+  const headerRow = new TableRow({ children: headerCells, tableHeader: true });
 
   // Data rows
   const dataRows = rows.map((row, rowIdx) => {
@@ -230,31 +238,22 @@ function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
 
     const cells = row.map((cellText, colIdx) => {
       const text = String(cellText ?? '');
-      const isNotOk =
-        text === 'לא תקין' || text.startsWith('לא תקין');
-      const isWatchOk =
-        text === 'תקין - דורש מעקב' || text.startsWith('תקין - דורש מעקב');
+      const isNotOk   = text === 'לא תקין'          || text.startsWith('לא תקין');
+      const isWatchOk = text === 'תקין - דורש מעקב' || text.startsWith('תקין - דורש מעקב');
 
       let color;
       let bold = false;
-      if (isNotOk) {
-        color = 'C00000';
-        bold  = true;
-      } else if (isWatchOk) {
-        color = 'C55A11';
-        bold  = true;
-      }
+      if (isNotOk)        { color = 'C00000'; bold = true; }
+      else if (isWatchOk) { color = 'C55A11'; bold = true; }
+
+      const alignment = colAlign[colIdx] ?? AlignmentType.CENTER;
 
       return new TableCell({
-        width: { size: colWidths[colIdx] ?? colWidths[colWidths.length - 1], type: WidthType.DXA },
+        width:         { size: colWidths[colIdx] ?? colWidths[colWidths.length - 1], type: WidthType.DXA },
         verticalAlign: VerticalAlign.CENTER,
-        shading: { type: ShadingType.CLEAR, fill: bg },
-        borders: THIN_BORDER,
-        children: [
-          mkPara([mkRun(text, { size: FS_TABLE, bold, color })], {
-            alignment: AlignmentType.CENTER,
-          }),
-        ],
+        shading:       { type: ShadingType.CLEAR, fill: bg },
+        borders:       THIN_BORDER,
+        children: [mkPara([mkRun(text, { size: FS_TABLE, bold, color })], { alignment })],
       });
     });
 
@@ -347,23 +346,27 @@ export async function generateDocument(data) {
 
   const docHeader = new Header({ children: headerChildren });
 
+  // Shared spacing helpers
+  const SP_BODY    = { line: 276, lineRule: 'AUTO', after: 60 };   // single-spaced + 3pt after
+  const SP_SECTION = { before: 120, after: 60 };                    // 6pt before section title
+
   // ── Date paragraph (left-aligned, not RTL) ────────────────────────────────
-  const dateStr = formatDate(data.date);
+  const dateStr  = formatDate(data.date);
   const datePara = new Paragraph({
     alignment: AlignmentType.LEFT,
+    spacing: { after: 0 },
     children: [mkRun(dateStr, { size: FS_DATE, rtl: false })],
   });
 
   // ── Client block ─────────────────────────────────────────────────────────
-  const toLabel  = mkPara([mkRun('לכבוד', { size: FS_CLIENT })]);
-  const clientPara = mkPara([mkRun(data.client ?? '', { size: FS_CLIENT, bold: false })]);
-  const orgPara    = mkPara([mkRun(data.organization ?? '', { size: FS_CLIENT, underline: true })]);
-  const gapPara    = mkPara([mkRun('')]);
+  const toLabel    = mkPara([mkRun('לכבוד',                   { size: FS_CLIENT })],         { spacing: { after: 0 } });
+  const clientPara = mkPara([mkRun(data.client ?? '',          { size: FS_CLIENT })],         { spacing: { after: 0 } });
+  const orgPara    = mkPara([mkRun(data.organization ?? '',    { size: FS_CLIENT, underline: true })], { spacing: { after: 80 } });
 
   // ── Subject ───────────────────────────────────────────────────────────────
   const subjectPara = mkPara(
     [mkRun(`הנדון: ${data.subject ?? ''}`, { size: FS_TITLE, bold: true, underline: true })],
-    { alignment: AlignmentType.CENTER }
+    { alignment: AlignmentType.CENTER, spacing: { before: 40, after: 160 } }
   );
 
   // ── Intro text ────────────────────────────────────────────────────────────
@@ -372,15 +375,14 @@ export async function generateDocument(data) {
     : cfg.introTemplate(data);
 
   const introParas = introText.split('\n').map((line) =>
-    mkPara([mkRun(line, { size: FS_INTRO })], {
-      spacing: { line: Math.round(276 * 1.15), lineRule: 'AUTO' }, // 276 = single line in twips
-    })
+    mkPara([mkRun(line, { size: FS_INTRO })], { spacing: SP_BODY })
   );
 
-  const gapPara2 = mkPara([mkRun('')]);
-
   // ── Section title ─────────────────────────────────────────────────────────
-  const sectionTitlePara = mkPara([mkRun(cfg.sectionTitle, { size: FS_HEADING, bold: true })]);
+  const sectionTitlePara = mkPara(
+    [mkRun(cfg.sectionTitle, { size: FS_HEADING, bold: true })],
+    { spacing: SP_SECTION }
+  );
 
   // ── Main data table ───────────────────────────────────────────────────────
   const tableRows = Array.isArray(data.table_rows) ? data.table_rows : [];
@@ -389,10 +391,11 @@ export async function generateDocument(data) {
     mainTable = mkTable(cfg.tableColumns, tableRows, cfg.colWidths);
   }
 
-  const gapPara3 = mkPara([mkRun('')]);
-
   // ── Notes ─────────────────────────────────────────────────────────────────
-  const notesTitlePara = mkPara([mkRun(cfg.notesTitle, { size: FS_HEADING, bold: true })]);
+  const notesTitlePara = mkPara(
+    [mkRun(cfg.notesTitle, { size: FS_HEADING, bold: true })],
+    { spacing: SP_SECTION }
+  );
 
   const notesSource = Array.isArray(data.notes_custom) && data.notes_custom.length > 0
     ? data.notes_custom
@@ -401,17 +404,18 @@ export async function generateDocument(data) {
   // For group1: add validity note
   if (data.doc_type === 'group1' && cfg.validityMonths) {
     const validUntil = addDays(data.inspection_date, 365);
-    notesSource.push(
-      `תוקף האישור לשנה מיום הבדיקה ועד לתאריך ${validUntil} בכפוף למסקנות.`
-    );
+    notesSource.push(`תוקף האישור לשנה מיום הבדיקה ועד לתאריך ${validUntil} בכפוף למסקנות.`);
   }
 
   const notesParas = notesSource.map((note, i) =>
-    mkPara([mkRun(`${i + 1}. ${note}`, { size: FS_BODY })], {})
+    mkPara([mkRun(`${i + 1}. ${note}`, { size: FS_BODY })], { spacing: SP_BODY })
   );
 
   // ── Conclusions ───────────────────────────────────────────────────────────
-  const conclusionsTitlePara = mkPara([mkRun('מסקנות הבדיקה:', { size: FS_HEADING, bold: true })]);
+  const conclusionsTitlePara = mkPara(
+    [mkRun('מסקנות הבדיקה:', { size: FS_HEADING, bold: true })],
+    { spacing: SP_SECTION }
+  );
 
   let conclusionLines;
   if (data.conclusion_custom && String(data.conclusion_custom).trim()) {
@@ -423,7 +427,7 @@ export async function generateDocument(data) {
   }
 
   const conclusionParas = conclusionLines.map((line, i) =>
-    mkPara([mkRun(`${i + 1}. ${line}`, { size: FS_BODY })], {})
+    mkPara([mkRun(`${i + 1}. ${line}`, { size: FS_BODY })], { spacing: SP_BODY })
   );
 
   // ── Defects table (appendix) ──────────────────────────────────────────────
@@ -555,11 +559,8 @@ export async function generateDocument(data) {
     toLabel,
     clientPara,
     orgPara,
-    gapPara,
     subjectPara,
-    mkPara([mkRun('')]),
     ...introParas,
-    gapPara2,
     sectionTitlePara,
   ];
 
@@ -568,10 +569,8 @@ export async function generateDocument(data) {
   }
 
   bodyChildren.push(
-    gapPara3,
     notesTitlePara,
     ...notesParas,
-    mkPara([mkRun('')]),
     conclusionsTitlePara,
     ...conclusionParas,
     ...defectsSection,
