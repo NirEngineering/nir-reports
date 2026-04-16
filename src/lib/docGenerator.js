@@ -112,8 +112,11 @@ const DOC_TYPES = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Convert cm to twips (docx unit). 1 cm = 567 twips */
+/** Convert cm to twips (docx unit). 1 cm = 567 twips — used for table widths and page margins */
 const cm = (v) => Math.round(v * 567);
+
+/** Convert cm to pixels at 96 DPI — used ONLY for ImageRun.transformation (docx expects px there) */
+const cmPx = (v) => Math.round(v / 2.54 * 96);
 
 /** Format a date string YYYY-MM-DD → D.M.YYYY */
 function formatDate(isoOrStr) {
@@ -296,24 +299,20 @@ export async function generateDocument(data) {
     : { ...data, location: (data.client || '').trim() };
 
   // ── Logo ─────────────────────────────────────────────────────────────────
-  // Logo path must account for Vite's base path (/nir-reports/ in production)
+  // Only try PNG — docx cannot embed SVG.  Account for Vite base path on GitHub Pages.
   let logoBuffer = null;
-  const logoPaths = [
+  for (const path of [
     `${import.meta.env.BASE_URL}logo.png`,
-    `${import.meta.env.BASE_URL}logo.svg`,
+    '/nir-reports/logo.png',
     '/logo.png',
-  ];
-  for (const path of logoPaths) {
+  ]) {
     try {
       const res = await fetch(path);
       if (res.ok) {
-        // Convert to Uint8Array – ArrayBuffer is not supported by all docx versions
         logoBuffer = new Uint8Array(await res.arrayBuffer());
         break;
       }
-    } catch (_) {
-      // try next path
-    }
+    } catch (_) { /* try next */ }
   }
 
   // ── Header ───────────────────────────────────────────────────────────────
@@ -325,7 +324,7 @@ export async function generateDocument(data) {
         [
           new ImageRun({
             data: logoBuffer,
-            transformation: { width: cm(4), height: cm(2.5) },
+            transformation: { width: cmPx(4), height: cmPx(2.5) },
           }),
         ],
         { alignment: AlignmentType.RIGHT }
@@ -513,8 +512,8 @@ export async function generateDocument(data) {
           new ImageRun({
             data: p.imgData,
             transformation: {
-              width:  cm(p.dispW),
-              height: cm(p.dispH),
+              width:  cmPx(p.dispW),
+              height: cmPx(p.dispH),
             },
           }),
         ], { alignment: AlignmentType.CENTER });
@@ -584,6 +583,26 @@ export async function generateDocument(data) {
 
   // ── Build Document ────────────────────────────────────────────────────────
   const doc = new Document({
+    // Set document-level RTL default so Word renders Hebrew correctly in all views
+    styles: {
+      default: {
+        document: {
+          run: { font: { name: FONT } },
+        },
+      },
+      paragraphStyles: [
+        {
+          id: 'Normal',
+          name: 'Normal',
+          quickFormat: true,
+          paragraph: {
+            bidirectional: true,
+            alignment: AlignmentType.RIGHT,
+          },
+          run: { font: { name: FONT } },
+        },
+      ],
+    },
     sections: [
       {
         properties: {
