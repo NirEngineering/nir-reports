@@ -316,9 +316,9 @@ export async function generateDocument(data) {
     ],
   });
 
-  // Logo: 9.5 cm wide, square PNG → 9.5 cm tall, centered
-  const LOGO_W_CM = 9.5;
-  const LOGO_H_CM = 9.5;  // logo.png is 512×512 (square)
+  // Logo: square PNG — show at 3.5 cm to match proportions of original report header
+  const LOGO_W_CM = 3.5;
+  const LOGO_H_CM = 3.5;  // logo.png is 512×512 (square), maintain aspect ratio
   const logoPara = logoBuffer
     ? mkPara(
         [new ImageRun({ data: logoBuffer, transformation: { width: cmPx(LOGO_W_CM), height: cmPx(LOGO_H_CM) } })],
@@ -641,8 +641,8 @@ export async function generateDocument(data) {
           page: {
             size: { width: mm(210), height: mm(297) },
             margin: {
-              // header starts 0.5 cm from top; logo is 9.5 cm tall → body starts at ~10.5 cm
-              top:    mm(107),
+              // header starts 0.5 cm from top; logo is 3.5 cm tall → body starts at ~4.5 cm
+              top:    mm(50),
               bottom: mm(25),
               left:   mm(20),
               right:  mm(20),
