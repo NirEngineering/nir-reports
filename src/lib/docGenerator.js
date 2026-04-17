@@ -110,6 +110,11 @@ const DOC_TYPES = {
   },
 };
 
+// ── Firm contact details (footer) ────────────────────────────────────────────
+const FOOTER_ADDRESS = 'מעגל השלום 3, ראשל"צ';
+const FOOTER_EMAIL   = 'Nir@eng-nir.co.il';
+const FOOTER_PHONE   = '050-4325915';
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Convert cm to twips (docx unit). 1 cm = 567 twips — used for table widths and page margins */
@@ -198,29 +203,12 @@ const THIN_BORDER = {
 };
 
 /**
- * Column headers whose cells should be right-aligned (free-text / data columns).
- * All other columns default to center-aligned.
- */
-const RIGHT_ALIGN_RE = /נתונים|ממצאים|ממצאי|פירוט|ליקויים|הערות|טיפול|תיאור|פירוט/;
-
-/**
  * Create an RTL data table.
- * headers: string[]
- * rows: string[][] (each cell may be a string)
- * colWidthsCm: number[] (cm per column)
- * headerBg: hex color string without '#'
- *
- * Column alignment rules:
- *   - Header row: always CENTER
- *   - Data cells: RIGHT for text-heavy columns (matched by RIGHT_ALIGN_RE), CENTER otherwise
+ * - Header row: always CENTER
+ * - Data cells: always RIGHT (matches original document style)
  */
 function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
   const colWidths = colWidthsCm.map((w) => cm(w));
-
-  // Pre-compute per-column alignment for data cells
-  const colAlign = headers.map((h) =>
-    RIGHT_ALIGN_RE.test(h) ? AlignmentType.RIGHT : AlignmentType.CENTER
-  );
 
   // Header row – always centered
   const headerCells = headers.map((h, i) =>
@@ -249,7 +237,7 @@ function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
       if (isNotOk)        { color = 'C00000'; bold = true; }
       else if (isWatchOk) { color = 'C55A11'; bold = true; }
 
-      const alignment = colAlign[colIdx] ?? AlignmentType.CENTER;
+      const alignment = AlignmentType.RIGHT;
 
       return new TableCell({
         width:         { size: colWidths[colIdx] ?? colWidths[colWidths.length - 1], type: WidthType.DXA },
@@ -315,40 +303,84 @@ export async function generateDocument(data) {
     } catch (_) { /* try next */ }
   }
 
-  // ── Header ───────────────────────────────────────────────────────────────
-  const headerChildren = [];
+  // ── Header: page-number line (right) + logo (centered) ───────────────────
+  const pageNumPara = new Paragraph({
+    alignment: AlignmentType.RIGHT,
+    bidirectional: true,
+    spacing: { after: 0 },
+    children: [
+      new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rtl: true }),
+      new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 7 * 2 }),
+      new TextRun({ text: ' מתוך ', font: FONT, size: 7 * 2, rtl: true }),
+      new TextRun({ children: [PageNumber.TOTAL_PAGES], font: FONT, size: 7 * 2 }),
+    ],
+  });
 
-  if (logoBuffer) {
-    headerChildren.push(
-      mkPara(
-        [
-          new ImageRun({
-            data: logoBuffer,
-            transformation: { width: cmPx(4), height: cmPx(2.5) },
+  // Logo: 9.5 cm wide, square PNG → 9.5 cm tall, centered
+  const LOGO_W_CM = 9.5;
+  const LOGO_H_CM = 9.5;  // logo.png is 512×512 (square)
+  const logoPara = logoBuffer
+    ? mkPara(
+        [new ImageRun({ data: logoBuffer, transformation: { width: cmPx(LOGO_W_CM), height: cmPx(LOGO_H_CM) } })],
+        { alignment: AlignmentType.CENTER, spacing: { after: 0 } }
+      )
+    : null;
+
+  const docHeader = new Header({
+    children: [pageNumPara, ...(logoPara ? [logoPara] : [])],
+  });
+
+  // ── Footer: thin top-line + address | email | phone ───────────────────────
+  const CELL_W = cm(17 / 3);  // three equal cells across 17 cm content width
+  const footerBorderTop = { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' };
+  const footerNoBorder  = { style: BorderStyle.NONE, size: 0, color: 'auto' };
+  const footerCellBorder = {
+    top: footerBorderTop, bottom: footerNoBorder,
+    left: footerNoBorder, right: footerNoBorder,
+  };
+
+  const docFooter = new Footer({
+    children: [
+      new Table({
+        visuallyRightToLeft: true,
+        layout: TableLayoutType.FIXED,
+        rows: [
+          new TableRow({
+            children: [
+              // Right cell: address
+              new TableCell({
+                width: { size: CELL_W, type: WidthType.DXA },
+                borders: footerCellBorder,
+                children: [mkPara(
+                  [mkRun(`📍 ${FOOTER_ADDRESS}`, { size: 8 })],
+                  { alignment: AlignmentType.RIGHT, spacing: { before: 40 } }
+                )],
+              }),
+              // Center cell: email
+              new TableCell({
+                width: { size: CELL_W, type: WidthType.DXA },
+                borders: footerCellBorder,
+                children: [mkPara(
+                  [mkRun(`✉ ${FOOTER_EMAIL}`, { size: 8 })],
+                  { alignment: AlignmentType.CENTER, spacing: { before: 40 } }
+                )],
+              }),
+              // Left cell: phone
+              new TableCell({
+                width: { size: CELL_W, type: WidthType.DXA },
+                borders: footerCellBorder,
+                children: [new Paragraph({
+                  alignment: AlignmentType.LEFT,
+                  spacing: { before: 40 },
+                  children: [mkRun(`📞 ${FOOTER_PHONE}`, { size: 8, rtl: false })],
+                })],
+              }),
+            ],
           }),
         ],
-        { alignment: AlignmentType.RIGHT }
-      )
-    );
-  }
-
-  // Page number line: "עמוד PAGE מתוך NUMPAGES"
-  // Use TextRun.children with PageNumber enum – the correct docx v8 API
-  headerChildren.push(
-    new Paragraph({
-      alignment: AlignmentType.RIGHT,
-      bidirectional: true,
-      children: [
-        new TextRun({ text: ' ', font: FONT, size: 7 * 2 }),
-        new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 7 * 2 }),
-        new TextRun({ text: ' מתוך ', font: FONT, size: 7 * 2, rtl: true }),
-        new TextRun({ children: [PageNumber.TOTAL_PAGES], font: FONT, size: 7 * 2 }),
-        new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rtl: true }),
-      ],
-    })
-  );
-
-  const docHeader = new Header({ children: headerChildren });
+      }),
+    ],
+  });
 
   // Shared spacing helpers  (lineRule must be lowercase 'auto' = LineRuleType.AUTO)
   const SP_BODY    = { line: 276, lineRule: 'auto', after: 120 };  // single-spaced + 6pt after
@@ -607,19 +639,20 @@ export async function generateDocument(data) {
       {
         properties: {
           page: {
-            size: {
-              width:  mm(210),   // A4 width
-              height: mm(297),   // A4 height
-            },
+            size: { width: mm(210), height: mm(297) },
             margin: {
-              top:    mm(42),    // 4.2 cm — room for logo header
-              bottom: mm(8),
+              // header starts 0.5 cm from top; logo is 9.5 cm tall → body starts at ~10.5 cm
+              top:    mm(107),
+              bottom: mm(25),
               left:   mm(20),
               right:  mm(20),
+              header: mm(5),
+              footer: mm(5),
             },
           },
         },
         headers: { default: docHeader },
+        footers: { default: docFooter },
         children: bodyChildren,
       },
     ],
