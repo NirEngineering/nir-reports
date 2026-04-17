@@ -110,10 +110,6 @@ const DOC_TYPES = {
   },
 };
 
-// ── Firm contact details (footer) ────────────────────────────────────────────
-const FOOTER_ADDRESS = 'מעגל השלום 3, ראשל"צ';
-const FOOTER_EMAIL   = 'Nir@eng-nir.co.il';
-const FOOTER_PHONE   = '050-4325915';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -316,75 +312,33 @@ export async function generateDocument(data) {
     ],
   });
 
-  // Logo: square PNG — show at 3.5 cm to match proportions of original report header
-  const LOGO_W_CM = 3.5;
-  const LOGO_H_CM = 3.5;  // logo.png is 512×512 (square), maintain aspect ratio
-  const logoPara = logoBuffer
-    ? mkPara(
-        [new ImageRun({ data: logoBuffer, transformation: { width: cmPx(LOGO_W_CM), height: cmPx(LOGO_H_CM) } })],
-        { alignment: AlignmentType.CENTER, spacing: { after: 0 } }
-      )
-    : null;
-
-  const docHeader = new Header({
-    children: [pageNumPara, ...(logoPara ? [logoPara] : [])],
+  // Square PNG at 3.5 cm — NO bidirectional on image paragraphs (prevents Word from mirroring the image)
+  const LOGO_CM = 3.5;
+  const mkLogoPara = (buf) => new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 0, after: 0 },
+    children: [new ImageRun({ data: buf, transformation: { width: cmPx(LOGO_CM), height: cmPx(LOGO_CM) } })],
   });
 
-  // ── Footer: thin top-line + address | email | phone ───────────────────────
-  const CELL_W = cm(17 / 3);  // three equal cells across 17 cm content width
-  const footerBorderTop = { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' };
-  const footerNoBorder  = { style: BorderStyle.NONE, size: 0, color: 'auto' };
-  const footerCellBorder = {
-    top: footerBorderTop, bottom: footerNoBorder,
-    left: footerNoBorder, right: footerNoBorder,
-  };
+  const docHeader = new Header({
+    children: [
+      pageNumPara,
+      ...(logoBuffer ? [mkLogoPara(logoBuffer)] : []),
+    ],
+  });
 
+  // ── Footer: logo image centered (same as header logo) ────────────────────
   const docFooter = new Footer({
     children: [
-      new Table({
-        visuallyRightToLeft: true,
-        layout: TableLayoutType.FIXED,
-        rows: [
-          new TableRow({
-            children: [
-              // Right cell: address
-              new TableCell({
-                width: { size: CELL_W, type: WidthType.DXA },
-                borders: footerCellBorder,
-                children: [mkPara(
-                  [mkRun(`📍 ${FOOTER_ADDRESS}`, { size: 8 })],
-                  { alignment: AlignmentType.RIGHT, spacing: { before: 40 } }
-                )],
-              }),
-              // Center cell: email
-              new TableCell({
-                width: { size: CELL_W, type: WidthType.DXA },
-                borders: footerCellBorder,
-                children: [mkPara(
-                  [mkRun(`✉ ${FOOTER_EMAIL}`, { size: 8 })],
-                  { alignment: AlignmentType.CENTER, spacing: { before: 40 } }
-                )],
-              }),
-              // Left cell: phone
-              new TableCell({
-                width: { size: CELL_W, type: WidthType.DXA },
-                borders: footerCellBorder,
-                children: [new Paragraph({
-                  alignment: AlignmentType.LEFT,
-                  spacing: { before: 40 },
-                  children: [mkRun(`📞 ${FOOTER_PHONE}`, { size: 8, rtl: false })],
-                })],
-              }),
-            ],
-          }),
-        ],
-      }),
+      logoBuffer
+        ? mkLogoPara(logoBuffer)
+        : new Paragraph({ children: [] }),
     ],
   });
 
   // Shared spacing helpers  (lineRule must be lowercase 'auto' = LineRuleType.AUTO)
-  const SP_BODY    = { line: 276, lineRule: 'auto', after: 120 };  // single-spaced + 6pt after
-  const SP_SECTION = { before: 160, after: 80 };                    // 8pt before section title
+  const SP_BODY    = { line: 276, lineRule: 'auto', after: 200 };  // single-spaced + ~10pt after
+  const SP_SECTION = { before: 280, after: 120 };                   // generous space around section titles
 
   // ── Date paragraph (left-aligned, not RTL) ────────────────────────────────
   const dateStr  = formatDate(data.date);
@@ -641,15 +595,18 @@ export async function generateDocument(data) {
           page: {
             size: { width: mm(210), height: mm(297) },
             margin: {
-              // header starts 0.5 cm from top; logo is 3.5 cm tall → body starts at ~4.5 cm
+              // header: 0.5cm from top + page-num (~5mm) + logo (3.5cm) = ~4.5cm → top: 5cm
               top:    mm(50),
-              bottom: mm(25),
+              // footer: 0.5cm from bottom + logo (3.5cm) = ~4cm → bottom: 4.5cm
+              bottom: mm(45),
               left:   mm(20),
               right:  mm(20),
               header: mm(5),
               footer: mm(5),
             },
           },
+          // RTL section flag — makes Word default all paragraphs to right-to-left
+          bidi: true,
         },
         headers: { default: docHeader },
         footers: { default: docFooter },
