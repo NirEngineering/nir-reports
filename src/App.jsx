@@ -9,10 +9,16 @@ import {
 } from './constants';
 import { generateDocument, generateFieldNotesDocument } from './lib/docGenerator';
 import { importDocx, exportDocx } from './lib/docImporter';
+import {
+  generateSyncCode, subscribeFieldNotes, pushFieldNote, deleteFieldNote,
+  subscribeDrafts, pushDraft, deleteDraft,
+} from './lib/sync';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
 import clientsData from './data/clients.json';
 import './index.css';
+
+const SYNC_CODE_KEY = 'nir_v2_synccode';
 
 // ── Share Target IndexedDB helpers ───────────────────────────────────────────
 
@@ -263,6 +269,13 @@ export default function App() {
   const [fnCurrent, setFnCurrent]     = useState(null);   // current note being edited
   const [fnLoading, setFnLoading]     = useState(false);
 
+  // Sync state
+  const [syncCode, setSyncCode]       = useState(() => localStorage.getItem(SYNC_CODE_KEY) || '');
+  const [syncStatus, setSyncStatus]   = useState('idle'); // 'idle' | 'syncing' | 'ok' | 'error'
+  const [showSyncPanel, setShowSyncPanel] = useState(false);
+  const [syncCodeInput, setSyncCodeInput] = useState('');
+  const fromFirestore = useRef(false);
+
   // ── Init: load draft / drafts / archive ───────────────────────────────────
   useEffect(() => {
     const d = lsGet(DRAFT_KEY, null);
@@ -290,6 +303,51 @@ export default function App() {
       }).catch(console.error);
     }
   }, []);
+
+  // ── Firebase sync ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!syncCode) return;
+    setSyncStatus('syncing');
+
+    const unsubFn = subscribeFieldNotes(syncCode, ({ remote, removed }) => {
+      fromFirestore.current = true;
+      setFieldNotes(prev => {
+        // Preserve local photos; merge remote text
+        const map = new Map(prev.map(n => [n.id, n]));
+        removed.forEach(id => map.delete(id));
+        remote.forEach(r => {
+          const local = map.get(r.id);
+          if (!local || (r.updatedAt || '') >= (local.updated_at || '')) {
+            map.set(r.id, { ...r, photos: local?.photos || [] });
+          }
+        });
+        const merged = Array.from(map.values())
+          .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+        lsSet(FIELDNOTES_KEY, merged);
+        return merged;
+      });
+      fromFirestore.current = false;
+      setSyncStatus('ok');
+    });
+
+    const unsubDr = subscribeDrafts(syncCode, ({ remote, removed }) => {
+      fromFirestore.current = true;
+      setDrafts(prev => {
+        const map = new Map(prev.map(d => [d.id, d]));
+        removed.forEach(id => map.delete(id));
+        remote.forEach(r => {
+          const local = map.get(r.id);
+          if (!local || (r.updatedAt || '') >= (local.updatedAt || '')) map.set(r.id, r);
+        });
+        const merged = Array.from(map.values());
+        lsSet(DRAFTS_KEY, merged);
+        return merged;
+      });
+      fromFirestore.current = false;
+    });
+
+    return () => { unsubFn(); unsubDr(); };
+  }, [syncCode]);
 
   // ── Auto-save current draft ───────────────────────────────────────────────
   useEffect(() => {
@@ -552,6 +610,7 @@ export default function App() {
     const list = [updated, ...lsGet(FIELDNOTES_KEY, []).filter(n => n.id !== updated.id)].slice(0, 50);
     lsSet(FIELDNOTES_KEY, list);
     setFieldNotes(list);
+    if (syncCode) pushFieldNote(syncCode, updated).catch(console.warn);
     return updated;
   };
 
@@ -559,6 +618,7 @@ export default function App() {
     const list = fieldNotes.filter(n => n.id !== id);
     lsSet(FIELDNOTES_KEY, list);
     setFieldNotes(list);
+    if (syncCode) deleteFieldNote(syncCode, id).catch(console.warn);
   };
 
   const fnGenerate = async (note) => {
@@ -759,6 +819,59 @@ export default function App() {
               ⬆️ ייבא גיבוי JSON
             </button>
           </div>
+
+          {/* ── Sync panel ── */}
+          <div className="sync-bar" onClick={() => { setSyncCodeInput(syncCode); setShowSyncPanel(p => !p); }}>
+            <span className={`sync-dot ${syncCode ? (syncStatus === 'ok' ? 'ok' : syncStatus === 'error' ? 'err' : 'spin') : 'off'}`} />
+            <span className="sync-label">
+              {syncCode ? `סנכרון פעיל · ${syncCode.slice(0,4)}···` : 'סנכרון כבוי — לחץ להפעלה'}
+            </span>
+            <span style={{ opacity: 0.5, fontSize: 12 }}>{showSyncPanel ? '▲' : '▼'}</span>
+          </div>
+
+          {showSyncPanel && (
+            <div className="sync-panel">
+              <p className="sync-hint">קוד הסנכרון מחבר בין הטלפון למחשב. הזן את אותו קוד בכל המכשירים שלך.</p>
+              {syncCode && (
+                <div className="sync-code-display" onClick={() => { navigator.clipboard?.writeText(syncCode); }}>
+                  <span>{syncCode}</span>
+                  <span style={{ fontSize: 11, opacity: 0.6 }}>לחץ להעתקה</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <input
+                  className="form-input"
+                  placeholder="הזן קוד סנכרון..."
+                  value={syncCodeInput}
+                  onChange={e => setSyncCodeInput(e.target.value.toUpperCase())}
+                  style={{ flex: 1, direction: 'ltr', letterSpacing: 2 }}
+                />
+                <button className="btn btn-primary btn-sm" onClick={() => {
+                  const code = syncCodeInput.trim();
+                  if (code.length < 8) return;
+                  localStorage.setItem(SYNC_CODE_KEY, code);
+                  setSyncCode(code);
+                  setShowSyncPanel(false);
+                }}>חבר</button>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => {
+                  const code = generateSyncCode();
+                  localStorage.setItem(SYNC_CODE_KEY, code);
+                  setSyncCode(code);
+                  setSyncCodeInput(code);
+                }}>צור קוד חדש</button>
+                {syncCode && (
+                  <button className="btn btn-sm" style={{ flex: 1, background: '#fee2e2', color: '#991b1b' }} onClick={() => {
+                    if (!confirm('לנתק סנכרון?')) return;
+                    localStorage.removeItem(SYNC_CODE_KEY);
+                    setSyncCode('');
+                    setShowSyncPanel(false);
+                  }}>נתק</button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
