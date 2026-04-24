@@ -11,7 +11,7 @@ import { generateDocument, generateFieldNotesDocument } from './lib/docGenerator
 import { importDocx, exportDocx } from './lib/docImporter';
 import {
   generateSyncCode, subscribeFieldNotes, pushFieldNote, deleteFieldNote,
-  subscribeDrafts, pushDraft, deleteDraft,
+  subscribeDrafts, pushDraft, deleteDraft as fbDeleteDraft,
 } from './lib/sync';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
@@ -391,6 +391,7 @@ export default function App() {
     const list = [entry, ...lsGet(DRAFTS_KEY, [])].slice(0, 30);
     lsSet(DRAFTS_KEY, list);
     setDrafts(list);
+    if (syncCode) pushDraft(syncCode, entry).catch(console.warn);
     setShowDraftModal(false);
     setSuccess('✅ הטיוטה נשמרה!');
     setTimeout(() => setSuccess(''), 2500);
@@ -405,6 +406,7 @@ export default function App() {
     const list = drafts.filter(d => d.id !== id);
     lsSet(DRAFTS_KEY, list);
     setDrafts(list);
+    if (syncCode) fbDeleteDraft(syncCode, id).catch(console.warn);
   };
 
   // ── Archive helpers ────────────────────────────────────────────────────────
