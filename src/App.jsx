@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import TableEditor from './components/TableEditor';
 import PhotoUpload from './components/PhotoUpload';
 import SearchDropdown from './components/SearchDropdown';
+import FieldNotesEditor from './components/FieldNotesEditor';
 import {
   DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS,
-  DRAFT_KEY, DRAFTS_KEY, ARCHIVE_KEY,
+  DRAFT_KEY, DRAFTS_KEY, ARCHIVE_KEY, FIELDNOTES_KEY,
 } from './constants';
-import { generateDocument } from './lib/docGenerator';
+import { generateDocument, generateFieldNotesDocument } from './lib/docGenerator';
 import { importDocx, exportDocx } from './lib/docImporter';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
@@ -218,12 +219,19 @@ export default function App() {
   // Archive search
   const [archiveSearch, setArchiveSearch] = useState('');
 
+  // Field Notes state
+  const [fieldNotes, setFieldNotes]   = useState([]);
+  const [fnMode, setFnMode]           = useState('list'); // 'list' | 'edit'
+  const [fnCurrent, setFnCurrent]     = useState(null);   // current note being edited
+  const [fnLoading, setFnLoading]     = useState(false);
+
   // ── Init: load draft / drafts / archive ───────────────────────────────────
   useEffect(() => {
     const d = lsGet(DRAFT_KEY, null);
     if (d?.mode === 'new') setHasDraft(true);
     setDrafts(lsGet(DRAFTS_KEY, []));
     setArchive(lsGet(ARCHIVE_KEY, []));
+    setFieldNotes(lsGet(FIELDNOTES_KEY, []));
   }, []);
 
   // ── Auto-save current draft ───────────────────────────────────────────────
@@ -454,7 +462,67 @@ export default function App() {
     }
   };
 
-  const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
+  const setField = (key, val) => setForm(f => {
+    const next = { ...f, [key]: val };
+    // Location defaults to client name unless user has typed something different
+    if (key === 'client' && (f.location === '' || f.location === f.client)) {
+      next.location = val;
+    }
+    return next;
+  });
+
+  // ── Field Notes helpers ────────────────────────────────────────────────────
+  const defaultFn = () => ({
+    id: uid(),
+    created_at: new Date().toISOString().split('T')[0],
+    updated_at: nowLabel(),
+    client:   '',
+    location: '',
+    title:    '',
+    content:  '',
+    photos:   [],
+  });
+
+  const fnSave = (note) => {
+    const updated = { ...note, updated_at: nowLabel() };
+    const list = [updated, ...lsGet(FIELDNOTES_KEY, []).filter(n => n.id !== updated.id)].slice(0, 50);
+    lsSet(FIELDNOTES_KEY, list);
+    setFieldNotes(list);
+    return updated;
+  };
+
+  const fnDelete = (id) => {
+    const list = fieldNotes.filter(n => n.id !== id);
+    lsSet(FIELDNOTES_KEY, list);
+    setFieldNotes(list);
+  };
+
+  const fnGenerate = async (note) => {
+    setFnLoading(true); setError('');
+    try {
+      const blob = await generateFieldNotesDocument({
+        date:     note.created_at,
+        title:    note.title,
+        client:   note.client,
+        location: note.location,
+        content:  note.content,
+        photos:   note.photos,
+      });
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href    = url;
+      a.download = `${note.title || 'יומן שטח'} - ${note.client || note.location || 'ניר הנדסה'}.docx`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setSuccess('✅ המסמך נוצר!');
+      setTimeout(() => setSuccess(''), 2500);
+    } catch (e) {
+      setError(`שגיאה: ${e.message}`);
+    } finally {
+      setFnLoading(false);
+    }
+  };
 
   // ── Reset / navigation ─────────────────────────────────────────────────────
   const goHome = () => {
@@ -607,6 +675,14 @@ export default function App() {
               <div className="home-card-title">ארכיון</div>
               <div className="home-card-sub">
                 {archive.length > 0 ? `${archive.length} מסמכים שנוצרו` : 'אין מסמכים'}
+              </div>
+            </div>
+
+            <div className="home-card" onClick={() => { setMode('fieldnotes'); setFnMode('list'); setError(''); setSuccess(''); }}>
+              <div className="home-card-icon">📓</div>
+              <div className="home-card-title">יומן שטח</div>
+              <div className="home-card-sub">
+                {fieldNotes.length > 0 ? `${fieldNotes.length} רשומות שמורות` : 'רשימות ותמונות מהשטח'}
               </div>
             </div>
           </div>
@@ -930,6 +1006,156 @@ export default function App() {
                   {loading ? '⏳ יוצר...' : '⬇️ צור והורד מסמך'}
                 </button>
                 <StepNav back={3} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          FIELD NOTES MODE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mode === 'fieldnotes' && (
+        <div className="app-body">
+          {fnLoading && (
+            <div className="loading-overlay">
+              <div className="spinner-lg" />
+              <div>יוצר מסמך...</div>
+            </div>
+          )}
+
+          {/* List of field notes */}
+          {fnMode === 'list' && (
+            <div>
+              <div className="section-header">
+                <span className="section-icon">📓</span>
+                <span className="section-title">יומן שטח</span>
+              </div>
+
+              <button
+                className="btn btn-primary"
+                style={{ width: '100%', marginBottom: 16 }}
+                onClick={() => { setFnCurrent(defaultFn()); setFnMode('edit'); }}
+              >
+                ➕ רשומה חדשה
+              </button>
+
+              {fieldNotes.length === 0 ? (
+                <div className="empty-state">
+                  <div style={{ fontSize: 40 }}>📓</div>
+                  <div>אין רשומות שמורות</div>
+                  <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
+                    לחץ "רשומה חדשה" כדי להתחיל
+                  </div>
+                </div>
+              ) : (
+                <div className="archive-list">
+                  {fieldNotes.map(note => (
+                    <div key={note.id} className="archive-item">
+                      <div className="archive-item-info">
+                        <div className="archive-item-title">{note.title || note.client || 'ללא כותרת'}</div>
+                        <div className="archive-item-sub">
+                          {note.client && <span>{note.client} • </span>}
+                          {note.created_at} • {note.updated_at}
+                        </div>
+                        {note.photos?.length > 0 && (
+                          <div className="archive-item-subject" style={{ color: '#64748b' }}>
+                            📷 {note.photos.length} תמונות
+                          </div>
+                        )}
+                      </div>
+                      <div className="archive-item-actions">
+                        <button className="btn btn-sm btn-primary" onClick={() => { setFnCurrent({...note}); setFnMode('edit'); }}>ערוך</button>
+                        <button className="btn btn-sm btn-outline" onClick={() => fnGenerate(note)} title="צור מסמך Word">⬇️</button>
+                        <button className="btn btn-sm btn-outline" style={{ color:'#ef4444', borderColor:'#ef4444' }} onClick={() => fnDelete(note.id)}>מחק</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Edit / create a field note */}
+          {fnMode === 'edit' && fnCurrent && (
+            <div>
+              <div className="section-header">
+                <span className="section-icon">✏️</span>
+                <span className="section-title">{fnCurrent.id && fieldNotes.some(n => n.id === fnCurrent.id) ? 'עריכת רשומה' : 'רשומה חדשה'}</span>
+              </div>
+
+              <div className="card">
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input
+                    className="form-input"
+                    placeholder="כותרת..."
+                    value={fnCurrent.title}
+                    onChange={e => setFnCurrent(n => ({ ...n, title: e.target.value }))}
+                    dir="rtl"
+                    style={{ flex: 2 }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input
+                    className="form-input"
+                    placeholder="לקוח..."
+                    value={fnCurrent.client}
+                    onChange={e => setFnCurrent(n => {
+                      const next = { ...n, client: e.target.value };
+                      if (!n.location || n.location === n.client) next.location = e.target.value;
+                      return next;
+                    })}
+                    dir="rtl"
+                    style={{ flex: 1 }}
+                  />
+                  <input
+                    className="form-input"
+                    placeholder="מיקום..."
+                    value={fnCurrent.location}
+                    onChange={e => setFnCurrent(n => ({ ...n, location: e.target.value }))}
+                    dir="rtl"
+                    style={{ flex: 1 }}
+                  />
+                </div>
+
+                <FieldNotesEditor
+                  content={fnCurrent.content}
+                  onChange={v => setFnCurrent(n => ({ ...n, content: v }))}
+                />
+              </div>
+
+              <div className="card">
+                <div className="card-title">📷 תמונות</div>
+                <PhotoUpload
+                  photos={fnCurrent.photos || []}
+                  onChange={photos => setFnCurrent(n => ({ ...n, photos }))}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, flexDirection: 'column', marginTop: 4 }}>
+                <button
+                  className="btn btn-success btn-lg"
+                  onClick={() => {
+                    const saved = fnSave(fnCurrent);
+                    setFnCurrent(saved);
+                    setSuccess('✅ נשמר!');
+                    setTimeout(() => setSuccess(''), 2000);
+                  }}
+                >
+                  💾 שמור רשומה
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => fnGenerate(fnSave(fnCurrent))}
+                >
+                  ⬇️ שמור וצור מסמך Word
+                </button>
+                <button
+                  className="btn btn-outline"
+                  onClick={() => setFnMode('list')}
+                >
+                  ◀ חזור לרשימה
+                </button>
               </div>
             </div>
           )}

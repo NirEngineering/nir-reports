@@ -264,19 +264,16 @@ function mkRun(text, opts = {}) {
     size: size * 2,
     bold,
     color,
+    ...(rtl ? { language: { bidi: 'he-IL' } } : {}),
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
   });
   if (rtl) injectRtl(run);
   return run;
 }
 
-/**
- * Build a RTL paragraph. bidirectional:true adds <w:bidi/> to pPr so Word
- * correctly right-aligns Hebrew paragraphs (not just aligns text but positions
- * the whole text block on the right side of the page).
- */
+/** Build an RTL paragraph. */
 function mkPara(runs, { alignment = AlignmentType.RIGHT, spacing } = {}) {
-  return new Paragraph({ children: runs, alignment, spacing, bidirectional: true });
+  return new Paragraph({ children: runs, alignment, bidirectional: true, spacing });
 }
 
 // Border specs
@@ -309,6 +306,7 @@ function mkTable(headers, rows, colWidthsCm, mergeCol = -1, headerBg = 'EAF1DD')
         children: [new Paragraph({
           alignment: AlignmentType.CENTER,
           bidirectional: true,
+
           spacing: CELL_SPACING,
           children: [mkRun(h, { size: FS_TABLE, bold: true })],
         })],
@@ -509,6 +507,7 @@ export async function generateDocument(data) {
     new Paragraph({
       alignment: AlignmentType.RIGHT,
       bidirectional: true,
+
       spacing: { before: 0, after: pt(2) },
       children: [
         injectRtl(new TextRun({ text: 'עמוד ', font: FONT, size: FS_PAGE_NUM * 2 })),
@@ -525,6 +524,7 @@ export async function generateDocument(data) {
     headerParas.push(new Paragraph({
       alignment: AlignmentType.CENTER,
       bidirectional: true,
+
       spacing: { before: 0, after: 0 },
       children: [new ImageRun({
         data: headerLogo.buf,
@@ -542,6 +542,7 @@ export async function generateDocument(data) {
     footerParas.push(new Paragraph({
       alignment: AlignmentType.CENTER,
       bidirectional: true,
+
       spacing: { before: 0, after: 0 },
       children: [new ImageRun({
         data: footerLogo.buf,
@@ -550,7 +551,7 @@ export async function generateDocument(data) {
       })],
     }));
   } else {
-    footerParas.push(new Paragraph({ children: [], bidirectional: true }));
+    footerParas.push(new Paragraph({ children: [] }));
   }
 
   // ── Date — LEFT aligned, LTR run (explicitly non-RTL paragraph) ──────────
@@ -573,6 +574,7 @@ export async function generateDocument(data) {
   const subjectPara = new Paragraph({
     alignment: AlignmentType.CENTER,
     bidirectional: true,
+
     spacing: { before: 0, after: pt(14) },
     children: [mkRun(`הנדון: ${data.subject ?? ''}`, { size: FS_TITLE, bold: true, underline: true })],
   });
@@ -587,12 +589,12 @@ export async function generateDocument(data) {
     .map(l => new Paragraph({
       alignment: AlignmentType.RIGHT,
       bidirectional: true,
+
       spacing: { before: 0, after: pt(3), line: lsTwips(LS_INTRO), lineRule: 'auto' },
       children: [mkRun(l.trim(), { size: FS_INTRO })],
     }));
 
   const gapAfterIntro = new Paragraph({
-    bidirectional: true,
     spacing: { before: 0, after: pt(4) },
     children: [],
   });
@@ -601,6 +603,7 @@ export async function generateDocument(data) {
   const sectionTitlePara = new Paragraph({
     alignment: AlignmentType.RIGHT,
     bidirectional: true,
+
     spacing: { before: 0, after: pt(4), line: lsTwips(LS_BODY), lineRule: 'auto' },
     children: [mkRun(cfg.sectionTitle, { size: FS_HEADING, bold: true })],
   });
@@ -625,6 +628,7 @@ export async function generateDocument(data) {
   const notesTitlePara = new Paragraph({
     alignment: AlignmentType.RIGHT,
     bidirectional: true,
+
     spacing: { before: pt(4), after: pt(2), line: lsTwips(LS_BODY), lineRule: 'auto' },
     children: [mkRun(cfg.notesTitle, { size: FS_HEADING, bold: true })],
   });
@@ -645,6 +649,7 @@ export async function generateDocument(data) {
     .map((n, i) => new Paragraph({
       alignment: AlignmentType.RIGHT,
       bidirectional: true,
+
       spacing: { before: 0, after: pt(3), line: lsTwips(LS_BODY), lineRule: 'auto' },
       children: [mkRun(`${i + 1}. ${String(n).trim()}`, { size: FS_BODY })],
     }));
@@ -653,6 +658,7 @@ export async function generateDocument(data) {
   const conclusionsTitlePara = new Paragraph({
     alignment: AlignmentType.RIGHT,
     bidirectional: true,
+
     spacing: { before: pt(4), after: pt(2), line: lsTwips(LS_BODY), lineRule: 'auto' },
     children: [mkRun('מסקנות הבדיקה:', { size: FS_HEADING, bold: true })],
   });
@@ -669,6 +675,7 @@ export async function generateDocument(data) {
   const conclusionParas = conclusionLines.map((l, i) => new Paragraph({
     alignment: AlignmentType.RIGHT,
     bidirectional: true,
+
     spacing: { before: 0, after: pt(3), line: lsTwips(LS_BODY), lineRule: 'auto' },
     children: [mkRun(`${i + 1}. ${l.trim()}`, { size: FS_BODY })],
   }));
@@ -683,6 +690,7 @@ export async function generateDocument(data) {
       new Paragraph({
         alignment: AlignmentType.RIGHT,
         bidirectional: true,
+
         pageBreakBefore: true,
         spacing: { before: 0, after: pt(6) },
         children: [mkRun('נספח טבלת ליקויים:', { size: FS_HEADING, bold: true })],
@@ -725,6 +733,7 @@ export async function generateDocument(data) {
       photosSection.push(new Paragraph({
         alignment: AlignmentType.RIGHT,
         bidirectional: true,
+
         pageBreakBefore: true,
         spacing: { before: 0, after: pt(6) },
         children: [mkRun('נספח תמונות:', { size: FS_HEADING, bold: true })],
@@ -740,6 +749,7 @@ export async function generateDocument(data) {
           children: [new Paragraph({
             alignment: AlignmentType.CENTER,
             bidirectional: true,
+
             spacing: { before: pt(4), after: pt(2) },
             children: [mkRun(p.caption, { size: FS_PHOTO })],
           })],
@@ -751,6 +761,7 @@ export async function generateDocument(data) {
           children: [new Paragraph({
             alignment: AlignmentType.CENTER,
             bidirectional: true,
+
             spacing: { before: 0, after: pt(4) },
             children: [new ImageRun({
               data: p.imgArr,
@@ -762,7 +773,7 @@ export async function generateDocument(data) {
         const emptyCell = () => new TableCell({
           width: { size: cm(8.5), type: WidthType.DXA },
           borders: NO_BORDER,
-          children: [new Paragraph({ children: [], bidirectional: true })],
+          children: [new Paragraph({ children: [] })],
         });
 
         const pairTable = new Table({
@@ -774,7 +785,7 @@ export async function generateDocument(data) {
         });
         photosSection.push(pairTable);
         photosSection.push(new Paragraph({
-          bidirectional: true,
+
           spacing: { before: 0, after: pt(6) },
           children: [],
         }));
@@ -786,13 +797,14 @@ export async function generateDocument(data) {
   const appendixSection = [];
   if (data.doc_type === 'group3' && cfg.appendixTitles) {
     appendixSection.push(
-      new Paragraph({ bidirectional: true, spacing: { before: pt(6), after: 0 }, children: [] }),
+      new Paragraph({ spacing: { before: pt(6), after: 0 }, children: [] }),
     );
     for (const title of cfg.appendixTitles) {
       if (title) {
         appendixSection.push(new Paragraph({
           alignment: AlignmentType.RIGHT,
           bidirectional: true,
+
           spacing: { before: 0, after: pt(3) },
           children: [mkRun(title, { size: FS_BODY, bold: true })],
         }));
@@ -813,7 +825,6 @@ export async function generateDocument(data) {
   if (mainTable) {
     bodyChildren.push(mainTable);
     bodyChildren.push(new Paragraph({
-      bidirectional: true,
       spacing: { before: 0, after: pt(6) },
       children: [],
     }));
@@ -856,6 +867,234 @@ export async function generateDocument(data) {
       headers: { default: new Header({ children: headerParas }) },
       footers: { default: new Footer({ children: footerParas }) },
       children: bodyChildren,
+    }],
+  });
+
+  return Packer.toBlob(doc);
+}
+
+// ── Field-notes document generator ──────────────────────────────────────────
+
+function parseHtmlToDocxChildren(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html || '';
+  const paras = [];
+
+  function alignFromStyle(el) {
+    const ta = el.style?.textAlign || '';
+    if (ta === 'left')   return AlignmentType.LEFT;
+    if (ta === 'center') return AlignmentType.CENTER;
+    return AlignmentType.RIGHT;
+  }
+
+  function runsFromNode(node) {
+    const runs = [];
+    node.childNodes.forEach(child => {
+      if (child.nodeType === Node.TEXT_NODE) {
+        const t = child.textContent;
+        if (t) runs.push(mkRun(t));
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const tag = child.tagName.toUpperCase();
+        const inner = child.textContent || '';
+        if (!inner.trim() && tag !== 'BR') return;
+        const bold = tag === 'B' || tag === 'STRONG' || child.style?.fontWeight === 'bold';
+        const underline = tag === 'U';
+        if (tag === 'BR') {
+          runs.push(new TextRun({ break: 1 }));
+        } else {
+          runs.push(mkRun(inner, { bold, underline }));
+        }
+      }
+    });
+    if (runs.length === 0) runs.push(mkRun(''));
+    return runs;
+  }
+
+  const blocks = div.childNodes.length ? div.childNodes : [div];
+
+  blocks.forEach(node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const t = (node.textContent || '').trim();
+      if (t) paras.push(mkPara([mkRun(t)]));
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const tag = node.tagName.toUpperCase();
+    const align = alignFromStyle(node);
+
+    if (tag === 'UL' || tag === 'OL') {
+      node.querySelectorAll('li').forEach((li, idx) => {
+        const prefix = tag === 'OL' ? `${idx + 1}. ` : '• ';
+        paras.push(mkPara([mkRun(prefix + (li.textContent || '').trim())], { alignment: align }));
+      });
+    } else {
+      const runs = runsFromNode(node);
+      paras.push(mkPara(runs, { alignment: align }));
+    }
+  });
+
+  return paras.length ? paras : [mkPara([mkRun('')])];
+}
+
+export async function generateFieldNotesDocument(data) {
+  const base = import.meta.env.BASE_URL;
+  const [headerLogo, footerLogo] = await Promise.all([
+    fetchLogo(base + 'letterhead_main.jpg', 5.0),
+    fetchLogo(base + 'footer_logo.png', 5.0),
+  ]);
+
+  const headerParas = [];
+  if (headerLogo) {
+    const logoW = 9.5;
+    const logoH = logoW / headerLogo.aspectRatio;
+    headerParas.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      bidirectional: true,
+      spacing: { before: 0, after: 0 },
+      children: [new ImageRun({
+        data: headerLogo.buf,
+        transformation: { width: cmPx(logoW), height: cmPx(logoH) },
+        type: headerLogo.type,
+      })],
+    }));
+  }
+
+  const footerParas = [];
+  if (footerLogo) {
+    const fW = 14;
+    const fH = fW / footerLogo.aspectRatio;
+    footerParas.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      bidirectional: true,
+      spacing: { before: 0, after: 0 },
+      children: [new ImageRun({
+        data: footerLogo.buf,
+        transformation: { width: cmPx(fW), height: cmPx(fH) },
+        type: footerLogo.type,
+      })],
+    }));
+  } else {
+    footerParas.push(new Paragraph({ children: [] }));
+  }
+
+  const datePara = new Paragraph({
+    alignment: AlignmentType.LEFT,
+    spacing: { before: 0, after: 0 },
+    children: [mkRun(formatDate(data.date), { size: FS_DATE, rtl: false })],
+  });
+
+  const titlePara = new Paragraph({
+    alignment: AlignmentType.CENTER,
+    bidirectional: true,
+    spacing: { before: 0, after: pt(14) },
+    children: [mkRun(data.title || 'יומן שטח', { size: FS_TITLE, bold: true, underline: true })],
+  });
+
+  const metaParas = [];
+  if (data.client) {
+    metaParas.push(mkPara([mkRun(data.client, { size: FS_CLIENT })], { spacing: { before: 0, after: 0 } }));
+  }
+  if (data.location && data.location !== data.client) {
+    metaParas.push(mkPara([mkRun(data.location, { size: FS_CLIENT })], { spacing: { before: 0, after: pt(8) } }));
+  }
+
+  const contentParas = parseHtmlToDocxChildren(data.content);
+
+  // Photos
+  const photosSection = [];
+  const photos = Array.isArray(data.photos) ? data.photos : [];
+  if (photos.length > 0) {
+    const loaded = [];
+    for (let i = 0; i < photos.length; i++) {
+      const ph = photos[i];
+      try {
+        const dataUrl = ph.data;
+        if (!dataUrl) continue;
+        const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        const imgArr = b64ToArr(b64);
+        const { w: natW, h: natH } = await imgDims(dataUrl);
+        const isPortrait = natH > natW;
+        let dispW, dispH;
+        if (isPortrait) { dispH = 8; dispW = natW > 0 ? (natW / natH) * dispH : 6; }
+        else { dispW = 7.5; dispH = natH > 0 ? (natH / natW) * dispW : 5.625; }
+        const mimeM = dataUrl.match(/^data:image\/(jpeg|jpg|png|gif|webp);/);
+        const imgType = mimeM?.[1] === 'png' ? 'png' : 'jpg';
+        const caption = ph.caption || `תמונה ${i + 1}`;
+        loaded.push({ imgArr, dispW, dispH, imgType, caption });
+      } catch (_) {}
+    }
+    if (loaded.length > 0) {
+      photosSection.push(new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        bidirectional: true,
+        pageBreakBefore: true,
+        spacing: { before: 0, after: pt(6) },
+        children: [mkRun('תמונות:', { size: FS_HEADING, bold: true })],
+      }));
+      for (let i = 0; i < loaded.length; i += 2) {
+        const left = loaded[i];
+        const right = loaded[i + 1] ?? null;
+        const capCell = (p) => new TableCell({
+          width: { size: cm(8.5), type: WidthType.DXA },
+          borders: NO_BORDER,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            bidirectional: true,
+            spacing: { before: pt(4), after: pt(2) },
+            children: [mkRun(p.caption, { size: FS_PHOTO })],
+          })],
+        });
+        const imgCell = (p) => new TableCell({
+          width: { size: cm(8.5), type: WidthType.DXA },
+          verticalAlign: VerticalAlign.TOP,
+          borders: NO_BORDER,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            bidirectional: true,
+            spacing: { before: 0, after: pt(4) },
+            children: [new ImageRun({
+              data: p.imgArr,
+              transformation: { width: cmPx(p.dispW), height: cmPx(p.dispH) },
+              type: p.imgType,
+            })],
+          })],
+        });
+        const emptyCell = () => new TableCell({
+          width: { size: cm(8.5), type: WidthType.DXA },
+          borders: NO_BORDER,
+          children: [new Paragraph({ children: [] })],
+        });
+        photosSection.push(new Table({
+          layout: TableLayoutType.FIXED,
+          rows: [
+            new TableRow({ children: [capCell(left), right ? capCell(right) : emptyCell()] }),
+            new TableRow({ children: [imgCell(left), right ? imgCell(right) : emptyCell()] }),
+          ],
+        }));
+        photosSection.push(new Paragraph({ spacing: { before: 0, after: pt(6) }, children: [] }));
+      }
+    }
+  }
+
+  const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run:       { font: { name: FONT }, size: FS_BODY * 2 },
+          paragraph: { alignment: AlignmentType.RIGHT },
+        },
+      },
+    },
+    sections: [{
+      properties: {
+        page: {
+          size: { width: mm(210), height: mm(297) },
+          margin: { top: mm(42.5), bottom: mm(7.5), left: mm(20), right: mm(20), header: mm(3), footer: mm(0) },
+        },
+      },
+      headers: { default: new Header({ children: headerParas }) },
+      footers: { default: new Footer({ children: footerParas }) },
+      children: [datePara, titlePara, ...metaParas, ...contentParas, ...photosSection],
     }],
   });
 

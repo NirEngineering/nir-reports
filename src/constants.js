@@ -62,9 +62,10 @@ export const KNOWN_CLIENTS = [];
 export const KNOWN_LOCATIONS = [];
 export const KNOWN_ADDRESSES = [];
 
-export const DRAFT_KEY   = 'nir_v2_draft';
-export const DRAFTS_KEY  = 'nir_v2_drafts';
-export const ARCHIVE_KEY = 'nir_v2_archive';
+export const DRAFT_KEY        = 'nir_v2_draft';
+export const DRAFTS_KEY       = 'nir_v2_drafts';
+export const ARCHIVE_KEY      = 'nir_v2_archive';
+export const FIELDNOTES_KEY   = 'nir_v2_fieldnotes';
 
 // ── Status & Priority options ─────────────────────────────────────────────────
 export const STATUS_OPTIONS = [
