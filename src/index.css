@@ -1595,3 +1595,59 @@ html, body {
   margin-bottom: 14px;
   color: var(--gray-900);
 }
+
+/* ── Field Notes Editor ─────────────────────────────────────────────────────── */
+.fn-editor-wrap {
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.fn-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  align-items: center;
+}
+.fn-tool-btn {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  min-width: 34px;
+  text-align: center;
+  transition: background 0.15s;
+}
+.fn-tool-btn:hover { background: var(--primary-light); border-color: var(--primary); }
+.fn-tool-select {
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+}
+.fn-tool-sep { width: 1px; height: 22px; background: var(--gray-200); margin: 0 2px; }
+.fn-editor-content {
+  min-height: 200px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.7;
+  outline: none;
+  direction: rtl;
+  text-align: right;
+  font-family: inherit;
+}
+.fn-editor-content:empty::before {
+  content: attr(data-placeholder);
+  color: var(--gray-400);
+  pointer-events: none;
+}
+.fn-editor-content ul, .fn-editor-content ol {
+  padding-right: 20px;
+  padding-left: 0;
+}
