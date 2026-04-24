@@ -14,6 +14,44 @@ import findingsData from './data/findings_by_type.json';
 import clientsData from './data/clients.json';
 import './index.css';
 
+// ── Share Target IndexedDB helpers ───────────────────────────────────────────
+
+const SHARE_DB   = 'nir-share';
+const SHARE_STORE = 'pending-images';
+
+function openShareDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(SHARE_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(SHARE_STORE, { autoIncrement: true });
+    req.onsuccess  = () => resolve(req.result);
+    req.onerror    = () => reject(req.error);
+  });
+}
+
+async function popSharedImages() {
+  const db = await openShareDb();
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(SHARE_STORE, 'readwrite');
+    const store = tx.objectStore(SHARE_STORE);
+    const files = [];
+    const req   = store.openCursor();
+    req.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) { files.push(cursor.value); store.delete(cursor.key); cursor.continue(); }
+    };
+    tx.oncomplete = () => resolve(files);
+    tx.onerror    = () => reject(tx.error);
+  });
+}
+
+async function filesToDataUrls(files) {
+  return Promise.all(files.map(f => new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.readAsDataURL(f);
+  })));
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const isoToDisplay = (iso) => {
@@ -231,7 +269,26 @@ export default function App() {
     if (d?.mode === 'new') setHasDraft(true);
     setDrafts(lsGet(DRAFTS_KEY, []));
     setArchive(lsGet(ARCHIVE_KEY, []));
-    setFieldNotes(lsGet(FIELDNOTES_KEY, []));
+    const notes = lsGet(FIELDNOTES_KEY, []);
+    setFieldNotes(notes);
+
+    // Handle images shared via Share Target API
+    if (new URLSearchParams(window.location.search).get('shared') === '1') {
+      window.history.replaceState({}, '', window.location.pathname);
+      popSharedImages().then(async (files) => {
+        if (!files.length) return;
+        const dataUrls = await filesToDataUrls(files);
+        const compressed = await Promise.all(dataUrls.map(u => compressImage(u)));
+        const newNote = {
+          id: uid(), title: '', client: '', location: '',
+          content: '', photos: compressed,
+          createdAt: new Date().toISOString(),
+        };
+        setFnCurrent(newNote);
+        setFnMode('edit');
+        setMode('fieldnotes');
+      }).catch(console.error);
+    }
   }, []);
 
   // ── Auto-save current draft ───────────────────────────────────────────────
