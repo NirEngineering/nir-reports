@@ -24,6 +24,12 @@ export const DOC_TYPES_CONFIG = {
     name: 'סככות',
     subject_default: 'בדיקת סככות',
   },
+  group6: {
+    id: 'group6',
+    icon: '🏢',
+    name: 'סקר מבנים\nואלמנטים',
+    subject_default: 'סקר יציבות מבנים ואלמנטים',
+  },
 };
 
 export const TABLE_COLUMNS = {
@@ -31,6 +37,7 @@ export const TABLE_COLUMNS = {
   group3: ['מיקום/חדר', 'סוג התקרה', 'תקין/לא תקין', 'קדימות ליקויים', 'הערות'],
   group4: ['האלמנט/המבנה הנבדק', 'נתונים ופירוט', 'הערות', 'תקין/לא תקין'],
   group5: ["מס'", 'מיקום', 'סוג הסככה', "מידות (מ') ונתונים", 'תקין/לא תקין', 'קדימות ליקויים', 'תמונה'],
+  group6: ['האלמנט/המבנה הנבדק', 'מיקום', 'סוג / האלמנט', 'נתונים וממצאים', 'תקין/לא תקין', 'קדימות'],
 };
 
 export const DEFECTS_COLUMNS = {
@@ -55,7 +62,9 @@ export const KNOWN_CLIENTS = [];
 export const KNOWN_LOCATIONS = [];
 export const KNOWN_ADDRESSES = [];
 
-export const DRAFT_KEY = 'nir_v2_draft';
+export const DRAFT_KEY   = 'nir_v2_draft';
+export const DRAFTS_KEY  = 'nir_v2_drafts';
+export const ARCHIVE_KEY = 'nir_v2_archive';
 
 // ── Status & Priority options ─────────────────────────────────────────────────
 export const STATUS_OPTIONS = [

@@ -229,7 +229,7 @@ function CardPhotoSection({ photos, onChange }) {
 // ── Single row card ──────────────────────────────────────────────────────────
 function RowCard({
   rowIdx, columns, row, onCellChange, photos, onPhotosChange,
-  onDelete, onMoveUp, onMoveDown, isFirst, isLast,
+  onDelete, onMoveUp, onMoveDown, onClone, isFirst, isLast,
   elementOptions, elementFindings, prevLocation,
 }) {
   // Find element value to look up suggestions
@@ -405,6 +405,7 @@ function RowCard({
           {!isLast && (
             <button className="btn-icon" onClick={onMoveDown} title="הזז למטה">↓</button>
           )}
+          <button className="btn-icon" onClick={onClone} title="שכפל שורה">⧉</button>
           <button className="btn-icon del" onClick={onDelete} title="מחק שורה">🗑</button>
         </div>
       </div>
@@ -470,6 +471,15 @@ export default function TableEditor({
     onRowPhotosChange?.(newPhotos);
   };
 
+  const cloneRow = (idx) => {
+    const newRows = [...rows];
+    const newPhotos = [...rowPhotos];
+    newRows.splice(idx + 1, 0, [...rows[idx]]);
+    newPhotos.splice(idx + 1, 0, []);
+    onChange(newRows);
+    onRowPhotosChange?.(newPhotos);
+  };
+
   const updateRowPhotos = (rowIdx, photos) => {
     const updated = [...rowPhotos];
     while (updated.length <= rowIdx) updated.push([]);
@@ -513,6 +523,7 @@ export default function TableEditor({
               photos={rowPhotos[rowIdx] || []}
               onPhotosChange={(photos) => updateRowPhotos(rowIdx, photos)}
               onDelete={() => removeRow(rowIdx)}
+              onClone={() => cloneRow(rowIdx)}
               onMoveUp={() => moveRow(rowIdx, -1)}
               onMoveDown={() => moveRow(rowIdx, 1)}
               isFirst={rowIdx === 0}

@@ -14,181 +14,278 @@ import {
   ShadingType,
   VerticalAlign,
   ImageRun,
-  PageNumber,
   SimpleField,
   UnderlineType,
   convertMillimetersToTwip as mm,
-  HeightRule,
   TableLayoutType,
+  VerticalMergeType,
 } from 'docx';
 
-// ── Font / size constants ────────────────────────────────────────────────────
-const FONT       = 'Arial';
-const FS_DATE    = 8;
-const FS_CLIENT  = 8;
-const FS_TITLE   = 15;
-const FS_INTRO   = 9;
-const FS_HEADING = 9;
-const FS_BODY    = 8;
-const FS_TABLE   = 9;
-const FS_PHOTO_NUM = 9;
-const FS_PHOTO_CAP = 9;
+// ── Constants (match V1 doc_generator.py exactly) ────────────────────────────
+const FONT        = 'Arial';
+const FS_DATE     = 8;
+const FS_CLIENT   = 8;
+const FS_TITLE    = 15;
+const FS_INTRO    = 9;
+const FS_HEADING  = 9;
+const FS_BODY     = 8;
+const FS_TABLE    = 9;
+const FS_PHOTO    = 9;
+const FS_PAGE_NUM = 7;
 
-// ── Doc-type configuration ───────────────────────────────────────────────────
+const LS_BODY  = 1.5;
+const LS_INTRO = 1.15;
+const lsTwips = (m) => Math.round(240 * m);
+const pt = (v) => v * 20;
+
+// ── Notes ────────────────────────────────────────────────────────────────────
+const NOTES_HANGING = [
+  'על כל שינוי קונסטרוקטיבי ועיוותים באופן חיבור/תליות האלמנטים (סדקים, עיוותים, שקיעות, ניתוקים, חלודה, אלמנטים רופפים, חוסרים/תוספות וכדומה) יש לדווח ולזמן לבדיקה חוזרת.',
+  'אין להעמיס עומסים על האלמנטים שנבדקו שאינם מיועדים לכך.',
+  'הבדיקה הינה ויזואלית ונכונה ליום הבדיקה.',
+];
+
+const NOTES_CEILING = [
+  'על כל שינוי קונסטרוקטיבי בתקרות ורכיביהן, הוספה ו/או הפחתת רכיבים, עיוותים באופן חיבור, קורוזיה, כפף, שבר, סדק, תזוזות וכו\' - יש לזמן לבדיקה חוזרת.',
+  'אין לטפס, להיתלות ו/או להעמיס עומסים על התקרות שנבדקו.',
+  'תוקף הדו"ח הינו לחמש שנים מיום הבדיקה בכפוף למסקנות הבדיקה.',
+];
+
+const NOTES_SURVEY = [
+  'על כל שינוי קונסטרוקטיבי, הוספה ו/או הפחתת רכיבים, עיוותים באופן חיבור, קורוזיה, כפף, שבר, סדק, תזוזות וכו\' - יש לזמן לבדיקה חוזרת.',
+  'ממצאי סקר זה הם כפי שהועברו לח"מ ע"י בעלי התפקידים באתר ומציגים מצב קיים ביום הסיור בלבד.',
+  'מצורפת טבלת ליקויים בהמשך המסמך הכוללת את מיקום הליקוי, פירוט הממצא, דרישות/הנחיות לטיפול ותמונות.',
+  'מקרא קדימות לטיפול בליקויים:',
+  'קדימות 1 – "ליקוי חמור" - ליקוי/מפגע המחייב הסרתו/תיקונו וטיפולו המיידי.',
+  'קדימות 2 – "ליקוי בינוני" - ליקוי/מפגע המחייב טיפול בתכנית עבודה עד 3 חודשים מתאריך דו"ח זה.',
+  'קדימות 3 – "ליקוי קל" - ליקוי/מפגע המחייב טיפול בתכנית עבודה עד 6 חודשים מתאריך דו"ח זה.',
+];
+
+const NOTES_BUILDINGS = [
+  'על כל שינוי קונסטרוקטיבי במבנים ובמתקנים, הוספה ו/או הפחתת רכיבים, עיוותים באופן חיבור/תליות האלמנטים שנבדקו, קורוזיה, כפף, שבר, סדק, תזוזות וכו\' – יש לזמן לבדיקה חוזרת וטיפול מתאים עפ"י הממצאים.',
+  'אין לטפס, להיתלות ו/או להעמיס עומסים על האלמנטים והמתקנים שנבדקו.',
+  'תוקף הדו"ח הינו לשנה מיום הבדיקה בכפוף למסקנות הבדיקה.',
+  'מקרא קדימות לטיפול בליקויים:',
+  'קדימות 1 – ליקוי/מפגע המחייב הסרתו/תיקונו המיידי.',
+  'קדימות 2 – ליקוי/מפגע המחייב טיפול בתכנית עבודה ועד 3 חודשים מיום דו"ח זה.',
+];
+
+const NOTES_SHADES = [
+  'על כל שינוי קונסטרוקטיבי בסככות ורכיביהן, הוספה ו/או הפחתת רכיבים, עיוותים באופן חיבור, קורוזיה, כפף, שבר, סדק, תזוזות וכו\' - יש לזמן לבדיקה חוזרת.',
+  'אין לטפס, להיתלות, לפרוש שלטים/מפרשי רוח ו/או להעמיס עומסים על הסככות שנבדקו.',
+  'תוקף הדו"ח הינו לשנה מיום הבדיקה בכפוף למסקנות הבדיקה.',
+];
+
+// ── Doc-type configuration ────────────────────────────────────────────────────
 const DOC_TYPES = {
   group1: {
-    name: 'אלמנטים תלויים',
+    logoFile: 'letterhead_main.jpg',
     tableColumns: ['מיקום', 'האלמנט/המתקן', 'נתונים וממצאים', 'הערות'],
-    colWidths: [3.5, 4.5, 6.0, 3.0],
+    colWidths: [3.5, 4.0, 7.0, 2.5],
+    defectsColumns: null,
+    defectsColWidths: null,
     sectionTitle: 'נתונים וממצאים:',
     notesTitle: 'הערות והנחיות:',
-    defaultNotes: [
-      'אין לתלות עומסים נוספים מעל האלמנטים הנבדקים ללא אישור מהנדס.',
-      'כל פגם או שינוי שיתגלה יש לדווח מיידית למהנדס האחראי.',
-      'יש לבצע בדיקות תחזוקה שוטפות אחת לשלושה חודשים.',
-    ],
-    conclusionOk: 'האלמנטים הנבדקים תקינים ובטוחים לשימוש.',
-    conclusionDefects: 'נמצאו ליקויים הדורשים טיפול מיידי כמפורט בטבלה.',
-    introTemplate: (d) =>
-      `בתאריך ${d.inspection_date} בוצע סיור בדיקה ב${d.location}${d.address ? ', ' + d.address : ''}.\nהבדיקה בוצעה על ידי מהנדס מוסמך מטעם ניר הנדסה.\nלהלן ממצאי הבדיקה:`,
-    validityMonths: 12,
+    defaultNotes: NOTES_HANGING,
+    hasValidityNote: true,
     hasDefectsTable: false,
+    conclusionOk:      'האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
+    conclusionDefects: 'בחלק מהאלמנטים שנבדקו נמצאו ליקויים – ראה פירוט בטבלה.',
+    introTemplate: (d) => {
+      const loc = d.address ? `${d.location}, ${d.address}` : d.location;
+      return `בתאריך ${d.inspection_date} ערכתי סיור בדיקה ב${loc} ובדקתי את יציבות האלמנטים והמתקנים התלויים במתחם.`;
+    },
   },
   group3: {
-    name: 'תקרות תותב',
+    logoFile: 'letterhead_main.jpg',
     tableColumns: ['מיקום/חדר', 'סוג התקרה', 'תקין/לא תקין', 'קדימות ליקויים', 'הערות'],
-    colWidths: [3.5, 3.5, 3.0, 3.0, 4.0],
+    colWidths: [3.5, 4.5, 2.5, 2.5, 4.0],
+    defectsColumns: ["מס'", 'מיקום', 'ממצאים וליקויים', 'טיפול נדרש', 'תמונות', 'קדימות'],
+    defectsColWidths: [1.0, 2.5, 4.5, 4.5, 2.0, 2.0],
     sectionTitle: 'הקדמה:',
     notesTitle: 'הנחיות:',
-    defaultNotes: [
-      'יש לתקן את הליקויים שצוינו בהתאם לסדר הקדימות.',
-      'בדיקה חוזרת תבוצע לאחר ביצוע התיקונים.',
-      'אין להוסיף עומסים על תקרות התותב ללא אישור מהנדס.',
-    ],
-    conclusionOk: 'תקרות התותב תקינות ובטוחות לשימוש.',
-    conclusionDefects: 'נמצאו ליקויים בתקרות התותב הדורשים תיקון דחוף.',
-    introTemplate: (d) =>
-      `בתאריך ${d.inspection_date} בוצע סיור בדיקת תקרות תותב ב${d.location}.\nלהלן ממצאי הבדיקה:`,
+    defaultNotes: NOTES_CEILING,
+    hasValidityNote: false,
     hasDefectsTable: true,
-    defectsColumns: ["מס'", 'מיקום', 'ממצאים וליקויים', 'טיפול נדרש', 'תמונות', 'קדימות'],
-    defectsColWidths: [1.5, 3.0, 5.0, 4.0, 2.0, 2.0],
+    appendixTitles: [
+      'נספח דרישות לתכן והתקנה של תקרות תותב פריקות לפי ת"י 5103',
+      'נספח דרישות לתכן והתקנה של תקרות תותב לא פריקות לפי ת"י 1924',
+    ],
+    conclusionOk:      'התקרות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה ומיום הבדיקה.',
+    conclusionDefects: 'נמצאו ליקויים בתקרות – ראה פירוט בנספח טבלת הליקויים בהמשך.',
+    introTemplate: (d) =>
+      `סקר זה מתייחס למצב קיים של התשתיות במבנה (תשתית תקרות התותב שנבדקו) והצגת הפערים הקיימים בין המצב בשטח לבין הדרישות הרלוונטיות.\nהסקר בוצע לבקשת ${d.client} ב${d.location} בתאריך ${d.inspection_date}.`,
   },
   group4: {
-    name: 'סקר שנתי',
+    logoFile: 'letterhead_scouts.png',
     tableColumns: ['האלמנט/המבנה הנבדק', 'נתונים ופירוט', 'הערות', 'תקין/לא תקין'],
-    colWidths: [4.5, 6.0, 4.0, 2.5],
+    colWidths: [4.0, 6.0, 4.5, 2.5],
+    defectsColumns: ["מס'", 'מיקום', 'ממצאי הסיור', 'טיפול נדרש', 'תמונות', 'קדימות'],
+    defectsColWidths: [1.0, 2.5, 4.5, 4.5, 2.0, 2.0],
     sectionTitle: 'נתונים וממצאים:',
     notesTitle: 'הערות והנחיות:',
-    defaultNotes: [
-      'הסקר בוצע על ידי מהנדס מוסמך.',
-      'יש לטפל בממצאים בהתאם לסדר הקדימות שנקבע.',
-      'בדיקה חוזרת מומלצת בתום ביצוע התיקונים.',
-    ],
-    conclusionOk: 'המצב הכללי תקין.',
-    conclusionDefects: 'נמצאו ליקויים הדורשים טיפול.',
-    introTemplate: (d) =>
-      `בתאריך ${d.inspection_date} בוצע סקר שנתי ב${d.location}.\nלהלן ממצאי הסקר:`,
+    defaultNotes: NOTES_SURVEY,
+    hasValidityNote: false,
     hasDefectsTable: true,
-    defectsColumns: ["מס'", 'מיקום', 'ממצאי הסיור', 'טיפול נדרש', 'תמונות', 'קדימות ליקוי'],
-    defectsColWidths: [1.5, 3.0, 5.0, 4.0, 2.0, 2.0],
+    conclusionOk:      'שאר האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
+    conclusionDefects: 'יש לטפל בליקויים הקיימים עפ"י ההערות בטבלה.',
+    introTemplate: (d) => {
+      const loc = d.address ? `${d.location}, ${d.address}` : d.location;
+      return `בתאריך ${d.inspection_date} ביקרתי ב${loc} ובדקתי את יציבות ותקינות מספר אלמנטים ומתקנים במתחם.`;
+    },
+  },
+  group6: {
+    logoFile: 'letterhead_main.jpg',
+    tableColumns: ['האלמנט/המבנה הנבדק', 'מיקום', 'סוג / האלמנט', 'נתונים וממצאים', 'תקין/לא תקין', 'קדימות'],
+    colWidths: [1247, 891, 992, 2300, 2694, 835, 692],
+    defectsColumns: null,
+    defectsColWidths: null,
+    sectionTitle: 'נתונים וממצאים:',
+    notesTitle: 'הערות והנחיות:',
+    defaultNotes: NOTES_BUILDINGS,
+    hasValidityNote: false,
+    hasDefectsTable: false,
+    conclusionOk:      'שאר האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
+    conclusionDefects: 'יש לטפל בליקויים שנמצאו וצויינו במסמך.',
+    conclusionExtra:   'נדרשת בדיקה חוזרת לאחר תיקון הליקויים לאישור / נדרש עדכון ביצוע לאישור.',
+    pageMargin: { top: 2410, right: 1800, bottom: 568, left: 1260, header: 142, footer: 0 },
+    introTemplate: (d) => {
+      const loc = d.address ? `${d.location}, ${d.address}` : d.location;
+      return `בתאריך ${d.inspection_date} ביקרתי ב${loc} ובדקתי את יציבות ותקינות מספר אלמנטים ומתקנים שונים במתחם.`;
+    },
   },
   group5: {
-    name: 'סככות',
+    logoFile: 'letterhead_main.jpg',
     tableColumns: ["מס'", 'מיקום', 'סוג הסככה', "מידות (מ') ונתונים", 'תקין/לא תקין', 'קדימות ליקויים', 'תמונה'],
-    colWidths: [1.5, 2.5, 3.0, 4.0, 2.5, 2.5, 1.5],
+    colWidths: [1.0, 2.5, 3.0, 4.5, 2.5, 2.0, 1.5],
+    defectsColumns: ['מספר סככה', 'מיקום', 'ממצאי ליקויים ודרישות', 'תמונות הליקוי', 'קדימות'],
+    defectsColWidths: [2.0, 2.5, 6.5, 4.0, 2.0],
     sectionTitle: 'הקדמה:',
     notesTitle: 'הנחיות:',
-    defaultNotes: [
-      'יש לוודא שאין עומסים על גג הסככה מעבר לתכן.',
-      'בדיקה עונתית מומלצת לפני עונת הגשמים.',
-    ],
-    conclusionOk: 'הסככות תקינות ובטוחות לשימוש.',
-    conclusionDefects: 'נמצאו ליקויים בסככות הדורשים טיפול.',
-    introTemplate: (d) =>
-      `בתאריך ${d.inspection_date} בוצע סיור בדיקת סככות ב${d.location}.\nלהלן ממצאי הבדיקה:`,
+    defaultNotes: NOTES_SHADES,
+    hasValidityNote: false,
     hasDefectsTable: true,
-    defectsColumns: ['מספר סככה', 'מיקום', 'ממצאי ליקויים ודרישות', 'תמונות הליקוי', 'קדימות'],
-    defectsColWidths: [2.0, 3.0, 6.0, 4.0, 2.0],
+    conclusionOk:      'הסככות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה ומיום הבדיקה.',
+    conclusionDefects: 'במספר סככות נמצאו ליקויים – ראה פירוט הליקויים בנספח טבלת הליקויים המצורפת.',
+    introTemplate: (d) =>
+      `סקר זה מתייחס למצב קיים של תשתיות הסככות והצגת הפערים הקיימים בין המצב בשטח לבין הדרישות הרלוונטיות.\nהסקר בוצע לבקשת ${d.client} ב${d.location} בתאריך ${d.inspection_date}.`,
   },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Convert cm to twips (docx unit). 1 cm = 567 twips */
-const cm = (v) => Math.round(v * 567);
+const cm   = (v) => Math.round(v * 567);
+const cmPx = (v) => Math.round(v * 37.795275591);
 
-/** Format a date string YYYY-MM-DD → D.M.YYYY */
-function formatDate(isoOrStr) {
-  if (!isoOrStr) return '';
-  const m = String(isoOrStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${parseInt(m[3])}.${parseInt(m[2])}.${m[1]}`;
-  return isoOrStr;
+function formatDate(s) {
+  if (!s) return '';
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${parseInt(m[3])}.${parseInt(m[2])}.${m[1]}` : s;
 }
 
-/** Add N days to an ISO date string, return D.M.YYYY */
-function addDays(isoOrStr, days) {
-  if (!isoOrStr) return '';
-  const d = new Date(isoOrStr);
+function addDays(s, days) {
+  if (!s) return '';
+  const d = new Date(s);
   if (isNaN(d.getTime())) return '';
   d.setDate(d.getDate() + days);
   return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
 }
 
-/**
- * Create a TextRun with RTL, Arial font and specified options.
- * opts: { size, bold, color, underline, rtl, italic }
- */
-function mkRun(text, opts = {}) {
-  const {
-    size   = FS_BODY,
-    bold   = false,
-    color  = undefined,
-    underline = false,
-    rtl    = true,
-    italic = false,
-  } = opts;
+async function fetchLogo(url, fallbackAspect = 4.0) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const rawBuf = await res.arrayBuffer();
+    const ext = url.split('.').pop().toLowerCase();
+    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+    const type = ext === 'png' ? 'png' : 'jpg';
 
-  return new TextRun({
+    const blob = new Blob([rawBuf], { type: mimeType });
+    const blobUrl = URL.createObjectURL(blob);
+
+    const { buf, aspectRatio } = await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth || 800;
+        const h = img.naturalHeight || Math.round(800 / fallbackAspect);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (outBlob) => {
+            outBlob.arrayBuffer().then((outBuf) =>
+              resolve({ buf: outBuf, aspectRatio: w / h })
+            );
+          },
+          mimeType,
+          0.95,
+        );
+      };
+      img.onerror = () => resolve({ buf: rawBuf, aspectRatio: fallbackAspect });
+      img.src = blobUrl;
+    });
+
+    URL.revokeObjectURL(blobUrl);
+    return { buf, type, aspectRatio };
+  } catch (_) { return null; }
+}
+
+function b64ToArr(b64) {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+function imgDims(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve({ w: 4, h: 3 });
+    img.src = dataUrl;
+  });
+}
+
+// ── Core paragraph builder ────────────────────────────────────────────────────
+
+/** Inject <w:rtl/> into a TextRun's rPr. */
+function injectRtl(run) {
+  const rPr = run.root.find((r) => r?.rootKey === 'w:rPr');
+  if (rPr) rPr.root.push({ 'w:rtl': {} });
+  return run;
+}
+
+function mkRun(text, opts = {}) {
+  const { size = FS_BODY, bold = false, color, underline = false, rtl = true } = opts;
+  const run = new TextRun({
     text,
     font: FONT,
-    size: size * 2,           // docx uses half-points
+    size: size * 2,
     bold,
     color,
-    rtl,
-    italics: italic,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
   });
+  if (rtl) injectRtl(run);
+  return run;
 }
 
 /**
- * Create a Paragraph with bidirectional RTL support.
- * opts: { alignment, spacing, indent, pageBreak }
+ * Build a RTL paragraph. bidirectional:true adds <w:bidi/> to pPr so Word
+ * correctly right-aligns Hebrew paragraphs (not just aligns text but positions
+ * the whole text block on the right side of the page).
  */
-function mkPara(children = [], opts = {}) {
-  const {
-    alignment = AlignmentType.RIGHT,
-    spacing   = undefined,
-    pageBreak = false,
-  } = opts;
-
-  return new Paragraph({
-    children,
-    bidirectional: true,
-    alignment,
-    spacing,
-    pageBreakBefore: pageBreak,
-  });
+function mkPara(runs, { alignment = AlignmentType.RIGHT, spacing } = {}) {
+  return new Paragraph({ children: runs, alignment, spacing, bidirectional: true });
 }
 
-/** No-border spec used for photo tables */
+// Border specs
 const NO_BORDER = {
   top:    { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
   bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
   left:   { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
   right:  { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
 };
-
-/** Thin border spec for data tables */
 const THIN_BORDER = {
   top:    { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' },
   bottom: { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' },
@@ -196,67 +293,88 @@ const THIN_BORDER = {
   right:  { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' },
 };
 
-/**
- * Create an RTL data table.
- * headers: string[]
- * rows: string[][] (each cell may be a string)
- * colWidthsCm: number[] (cm per column)
- * headerBg: hex color string without '#'
- */
-function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
-  const colWidths = colWidthsCm.map((w) => cm(w));
-
-  // Header row
-  const headerCells = headers.map((h, i) =>
-    new TableCell({
-      width: { size: colWidths[i], type: WidthType.DXA },
-      verticalAlign: VerticalAlign.CENTER,
-      shading: { type: ShadingType.CLEAR, fill: headerBg },
-      borders: THIN_BORDER,
-      children: [
-        mkPara([mkRun(h, { size: FS_TABLE, bold: true })], {
-          alignment: AlignmentType.CENTER,
-        }),
-      ],
-    })
-  );
+// ── Table builder ─────────────────────────────────────────────────────────────
+function mkTable(headers, rows, colWidthsCm, mergeCol = -1, headerBg = 'EAF1DD') {
+  const colW = colWidthsCm.map((w) => cm(w));
+  const CELL_SPACING = { before: pt(2), after: pt(2) };
 
   const headerRow = new TableRow({
-    children: headerCells,
     tableHeader: true,
+    children: headers.map((h, i) =>
+      new TableCell({
+        width: { size: colW[i], type: WidthType.DXA },
+        verticalAlign: VerticalAlign.CENTER,
+        shading: { type: ShadingType.CLEAR, fill: headerBg },
+        borders: THIN_BORDER,
+        children: [new Paragraph({
+          alignment: AlignmentType.CENTER,
+          bidirectional: true,
+          spacing: CELL_SPACING,
+          children: [mkRun(h, { size: FS_TABLE, bold: true })],
+        })],
+      })
+    ),
   });
 
-  // Data rows
-  const dataRows = rows.map((row, rowIdx) => {
-    const bg = rowIdx % 2 === 0 ? 'FFFFFF' : 'F9FBFF';
+  let mergeMarks = rows.map(() => 'restart');
+  if (mergeCol >= 0 && rows.length >= 2) {
+    const effective = [];
+    let prev = '';
+    for (const row of rows) {
+      const val = String(row[mergeCol] ?? '').trim();
+      effective.push(val || prev);
+      if (val) prev = val;
+    }
+    mergeMarks = effective.map((v, i) =>
+      i > 0 && v === effective[i - 1] ? 'continue' : 'restart'
+    );
+  }
 
-    const cells = row.map((cellText, colIdx) => {
-      const text = String(cellText ?? '');
-      const isNotOk =
-        text === 'לא תקין' || text.startsWith('לא תקין');
-      const isWatchOk =
-        text === 'תקין - דורש מעקב' || text.startsWith('תקין - דורש מעקב');
+  const RIGHT_COL_KEYWORDS = ['נתונים וממצאים', 'נתונים ופירוט'];
+  const isRightCol = (h) => RIGHT_COL_KEYWORDS.some((kw) => h?.includes(kw));
 
-      let color;
-      let bold = false;
-      if (isNotOk) {
-        color = 'C00000';
-        bold  = true;
-      } else if (isWatchOk) {
-        color = 'C55A11';
-        bold  = true;
+  const dataRows = rows.map((row, rIdx) => {
+    const bg = 'FFFFFF';
+
+    const cells = row.map((cellText, cIdx) => {
+      const text       = String(cellText ?? '');
+      const isNotOk   = text === 'לא תקין' || text.startsWith('לא תקין');
+      const isWatch   = text === 'תקין - דורש מעקב' || text === 'דורש בדיקה חוזרת';
+      const isPrio1   = text === '1' && cIdx < headers.length && headers[cIdx].includes('קדימות');
+      let color, bold = false;
+      if (isNotOk || isPrio1) { color = 'C00000'; bold = true; }
+      if (isWatch)            { color = 'C55A11'; bold = true; }
+
+      const cellAlign = isRightCol(headers[cIdx]) ? AlignmentType.RIGHT : AlignmentType.CENTER;
+
+      if (cIdx === mergeCol) {
+        const isCont = mergeMarks[rIdx] === 'continue';
+        return new TableCell({
+          width: { size: colW[cIdx] ?? colW[colW.length - 1], type: WidthType.DXA },
+          verticalAlign: VerticalAlign.CENTER,
+          shading: { type: ShadingType.CLEAR, fill: bg },
+          borders: THIN_BORDER,
+          verticalMerge: isCont ? VerticalMergeType.CONTINUE : VerticalMergeType.RESTART,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            bidirectional: true,
+            spacing: CELL_SPACING,
+            children: isCont ? [] : [mkRun(text, { size: FS_TABLE, bold, color })],
+          })],
+        });
       }
 
       return new TableCell({
-        width: { size: colWidths[colIdx] ?? colWidths[colWidths.length - 1], type: WidthType.DXA },
+        width: { size: colW[cIdx] ?? colW[colW.length - 1], type: WidthType.DXA },
         verticalAlign: VerticalAlign.CENTER,
         shading: { type: ShadingType.CLEAR, fill: bg },
         borders: THIN_BORDER,
-        children: [
-          mkPara([mkRun(text, { size: FS_TABLE, bold, color })], {
-            alignment: AlignmentType.CENTER,
-          }),
-        ],
+        children: [new Paragraph({
+          alignment: cellAlign,
+          bidirectional: true,
+          spacing: CELL_SPACING,
+          children: [mkRun(text, { size: FS_TABLE, bold, color })],
+        })],
       });
     });
 
@@ -270,326 +388,476 @@ function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
   });
 }
 
-/** Convert base64 string to Uint8Array */
-function base64ToUint8Array(b64) {
-  const bin = atob(b64);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  return arr;
-}
+// ── Survey table (group6) ─────────────────────────────────────────────────────
+function mkSurveyTable(buildingData, buildingStatus, buildingPriority, rows) {
+  const COL = [1247, 891, 992, 2300, 2694, 835, 692];
+  const HEADER_BG = 'C5E0B3';
+  const SUBHDR_BG = 'DBDBDB';
+  const DATA_BG   = 'F7CAAC';
 
-/** Detect image dimensions from a base64 data-URL. Returns { width, height } in pixels. */
-function getImageDimensions(dataUrl) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => resolve({ width: 1, height: 1 });
-    img.src = dataUrl;
+  const CELL_SPACING = { before: pt(2), after: pt(2) };
+
+  const mkCell = (text, {
+    width, span = 1, bg = DATA_BG, bold = false, color,
+    align = AlignmentType.CENTER, vMerge = null, fontSize = FS_TABLE,
+  } = {}) => new TableCell({
+    width: { size: width, type: WidthType.DXA },
+    ...(span > 1 ? { columnSpan: span } : {}),
+    verticalAlign: VerticalAlign.CENTER,
+    shading: { type: ShadingType.CLEAR, fill: bg },
+    borders: THIN_BORDER,
+    ...(vMerge === 'continue' ? { verticalMerge: VerticalMergeType.CONTINUE } : {}),
+    ...(vMerge === 'restart' ? { verticalMerge: VerticalMergeType.RESTART } : {}),
+    children: [new Paragraph({
+      alignment: align,
+      bidirectional: true,
+      spacing: CELL_SPACING,
+      children: vMerge === 'continue' ? [] : [mkRun(text, { size: fontSize, bold, color })],
+    })],
+  });
+
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: [
+      mkCell('האלמנט/המבנה הנבדק', { width: COL[0],                    bg: HEADER_BG, bold: true }),
+      mkCell('נתונים ופירוט',       { width: COL[1]+COL[2]+COL[3], span: 3, bg: HEADER_BG, bold: true }),
+      mkCell('הערות',               { width: COL[4],                    bg: HEADER_BG, bold: true }),
+      mkCell('תקין/לא תקין',        { width: COL[5],                    bg: HEADER_BG, bold: true }),
+      mkCell('קדימות ליקוי',        { width: COL[6],                    bg: HEADER_BG, bold: true }),
+    ],
+  });
+
+  const bldText   = String(buildingData || '');
+  const bldStatus = String(buildingStatus || 'לא תקין');
+  const bldPrio   = String(buildingPriority || '2');
+  const bldNotOk  = bldStatus.startsWith('לא תקין');
+  const buildingRow = new TableRow({
+    children: [
+      mkCell('יציבות מבנה', { width: COL[0],                    bg: DATA_BG, bold: true }),
+      mkCell(bldText,        { width: COL[1]+COL[2]+COL[3], span: 3, bg: DATA_BG, align: AlignmentType.RIGHT }),
+      mkCell('',             { width: COL[4],                    bg: DATA_BG }),
+      mkCell(bldStatus,      { width: COL[5], bg: DATA_BG, color: bldNotOk ? 'C00000' : undefined, bold: bldNotOk }),
+      mkCell(bldPrio,        { width: COL[6],                    bg: DATA_BG }),
+    ],
+  });
+
+  const subHdrRow = new TableRow({
+    children: [
+      mkCell('האלמנט/המבנה הנבדק', { width: COL[0],            bg: SUBHDR_BG, bold: true }),
+      mkCell('מיקום',               { width: COL[1],            bg: SUBHDR_BG, bold: true }),
+      mkCell('סוג / האלמנט',        { width: COL[2],            bg: SUBHDR_BG, bold: true }),
+      mkCell('נתונים וממצאים',      { width: COL[3]+COL[4], span: 2, bg: SUBHDR_BG, bold: true }),
+      mkCell('תקין/לא תקין',        { width: COL[5]+COL[6], span: 2, bg: SUBHDR_BG, bold: true }),
+    ],
+  });
+
+  let prevElement = null;
+  const dataRows = (Array.isArray(rows) ? rows : []).map((row) => {
+    const [element, location, type, dataText, status, priority] = row;
+    const elemStr   = String(element  ?? '');
+    const locStr    = String(location ?? '');
+    const typeStr   = String(type     ?? '');
+    const dataStr   = String(dataText ?? '');
+    const statusStr = String(status   ?? '');
+    const prioStr   = String(priority ?? '');
+
+    const isNotOk = statusStr.startsWith('לא תקין');
+    const isPrio1 = prioStr === '1';
+    const statusColor = (isNotOk || isPrio1) ? 'C00000' : undefined;
+    const statusBold  = isNotOk || isPrio1;
+
+    const vMerge = (elemStr && elemStr === prevElement) ? 'continue' : 'restart';
+    if (elemStr) prevElement = elemStr;
+
+    return new TableRow({ children: [
+      mkCell(elemStr,  { width: COL[0],            bg: DATA_BG, bold: true, vMerge }),
+      mkCell(locStr,   { width: COL[1],            bg: DATA_BG }),
+      mkCell(typeStr,  { width: COL[2],            bg: DATA_BG }),
+      mkCell(dataStr,  { width: COL[3]+COL[4], span: 2, bg: DATA_BG, align: AlignmentType.RIGHT }),
+      mkCell(statusStr,{ width: COL[5],            bg: DATA_BG, color: statusColor, bold: statusBold }),
+      mkCell(prioStr,  { width: COL[6],            bg: DATA_BG, color: isPrio1 ? 'C00000' : undefined, bold: isPrio1 }),
+    ]});
+  });
+
+  return new Table({
+    visuallyRightToLeft: true,
+    layout: TableLayoutType.FIXED,
+    rows: [headerRow, buildingRow, subHdrRow, ...dataRows],
   });
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
-
 export async function generateDocument(data) {
-  const cfg = DOC_TYPES[data.doc_type] ?? DOC_TYPES.group4;
+  const cfg  = DOC_TYPES[data.doc_type] ?? DOC_TYPES.group4;
+  const base = import.meta.env.BASE_URL;
 
-  // ── Logo ─────────────────────────────────────────────────────────────────
-  let logoBuffer = null;
-  try {
-    const res = await fetch('/logo.png');
-    if (res.ok) logoBuffer = await res.arrayBuffer();
-  } catch (_) {
-    // skip logo if unavailable
+  const [headerLogo, footerLogo] = await Promise.all([
+    fetchLogo(base + cfg.logoFile, 5.0),
+    fetchLogo(base + 'footer_logo.png', 5.0),
+  ]);
+
+  function mkPageField(instr) {
+    const sf = new SimpleField(instr);
+    const resultRun = new TextRun({ text: '1', font: FONT, size: FS_PAGE_NUM * 2 });
+    injectRtl(resultRun);
+    sf.root.push(resultRun);
+    return sf;
   }
 
-  // ── Header ───────────────────────────────────────────────────────────────
-  const headerChildren = [];
-
-  if (logoBuffer) {
-    headerChildren.push(
-      mkPara(
-        [
-          new ImageRun({
-            data: logoBuffer,
-            transformation: { width: cm(4), height: cm(2.5) },
-          }),
-        ],
-        { alignment: AlignmentType.RIGHT }
-      )
-    );
-  }
-
-  // Page number line: "עמוד PAGE מתוך NUMPAGES"
-  headerChildren.push(
+  // ── Header: page number (right, 7pt) + logo (center, 9.5cm) ──────────────
+  const headerParas = [
     new Paragraph({
       alignment: AlignmentType.RIGHT,
       bidirectional: true,
+      spacing: { before: 0, after: pt(2) },
       children: [
-        new TextRun({ text: ' ', font: FONT, size: 7 * 2 }),
-        new SimpleField('PAGE', { font: FONT, size: 7 * 2 }),
-        new TextRun({ text: ' מתוך ', font: FONT, size: 7 * 2, rtl: true }),
-        new SimpleField('NUMPAGES', { font: FONT, size: 7 * 2 }),
-        new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rtl: true }),
+        injectRtl(new TextRun({ text: 'עמוד ', font: FONT, size: FS_PAGE_NUM * 2 })),
+        mkPageField('PAGE'),
+        injectRtl(new TextRun({ text: ' מתוך ', font: FONT, size: FS_PAGE_NUM * 2 })),
+        mkPageField('NUMPAGES'),
       ],
-    })
-  );
+    }),
+  ];
 
-  const docHeader = new Header({ children: headerChildren });
+  if (headerLogo) {
+    const logoW = 9.5;
+    const logoH = logoW / headerLogo.aspectRatio;
+    headerParas.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      bidirectional: true,
+      spacing: { before: 0, after: 0 },
+      children: [new ImageRun({
+        data: headerLogo.buf,
+        transformation: { width: cmPx(logoW), height: cmPx(logoH) },
+        type: headerLogo.type,
+      })],
+    }));
+  }
 
-  // ── Date paragraph (left-aligned, not RTL) ────────────────────────────────
-  const dateStr = formatDate(data.date);
+  // ── Footer: logo centered (14cm) ──────────────────────────────────────────
+  const footerParas = [];
+  if (footerLogo) {
+    const fW = 14;
+    const fH = fW / footerLogo.aspectRatio;
+    footerParas.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      bidirectional: true,
+      spacing: { before: 0, after: 0 },
+      children: [new ImageRun({
+        data: footerLogo.buf,
+        transformation: { width: cmPx(fW), height: cmPx(fH) },
+        type: footerLogo.type,
+      })],
+    }));
+  } else {
+    footerParas.push(new Paragraph({ children: [], bidirectional: true }));
+  }
+
+  // ── Date — LEFT aligned, LTR run (explicitly non-RTL paragraph) ──────────
   const datePara = new Paragraph({
     alignment: AlignmentType.LEFT,
-    children: [mkRun(dateStr, { size: FS_DATE, rtl: false })],
+    spacing: { before: 0, after: 0 },
+    children: [mkRun(formatDate(data.date), { size: FS_DATE, rtl: false })],
   });
 
-  // ── Client block ─────────────────────────────────────────────────────────
-  const toLabel  = mkPara([mkRun('לכבוד', { size: FS_CLIENT })]);
-  const clientPara = mkPara([mkRun(data.client ?? '', { size: FS_CLIENT, bold: false })]);
-  const orgPara    = mkPara([mkRun(data.organization ?? '', { size: FS_CLIENT, underline: true })]);
-  const gapPara    = mkPara([mkRun('')]);
+  // ── Client block ──────────────────────────────────────────────────────────
+  const clientBlock = [
+    mkPara([mkRun('לכבוד', { size: FS_CLIENT })], { spacing: { before: 0, after: 0 } }),
+    ...(data.client ? [mkPara([mkRun(data.client, { size: FS_CLIENT })], { spacing: { before: 0, after: 0 } })] : []),
+    mkPara([mkRun(data.organization ?? '', { size: FS_CLIENT, underline: true })], {
+      spacing: { before: 0, after: pt(6) },
+    }),
+  ];
 
   // ── Subject ───────────────────────────────────────────────────────────────
-  const subjectPara = mkPara(
-    [mkRun(`הנדון: ${data.subject ?? ''}`, { size: FS_TITLE, bold: true, underline: true })],
-    { alignment: AlignmentType.CENTER }
-  );
+  const subjectPara = new Paragraph({
+    alignment: AlignmentType.CENTER,
+    bidirectional: true,
+    spacing: { before: 0, after: pt(14) },
+    children: [mkRun(`הנדון: ${data.subject ?? ''}`, { size: FS_TITLE, bold: true, underline: true })],
+  });
 
-  // ── Intro text ────────────────────────────────────────────────────────────
-  const introText = data.intro_extra
+  // ── Intro ─────────────────────────────────────────────────────────────────
+  const introRaw = data.intro_extra
     ? cfg.introTemplate(data) + '\n' + data.intro_extra
     : cfg.introTemplate(data);
 
-  const introParas = introText.split('\n').map((line) =>
-    mkPara([mkRun(line, { size: FS_INTRO })], {
-      spacing: { line: Math.round(276 * 1.15), lineRule: 'AUTO' }, // 276 = single line in twips
-    })
-  );
+  const introParas = introRaw.split('\n')
+    .filter(l => l.trim())
+    .map(l => new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      bidirectional: true,
+      spacing: { before: 0, after: pt(3), line: lsTwips(LS_INTRO), lineRule: 'auto' },
+      children: [mkRun(l.trim(), { size: FS_INTRO })],
+    }));
 
-  const gapPara2 = mkPara([mkRun('')]);
+  const gapAfterIntro = new Paragraph({
+    bidirectional: true,
+    spacing: { before: 0, after: pt(4) },
+    children: [],
+  });
 
   // ── Section title ─────────────────────────────────────────────────────────
-  const sectionTitlePara = mkPara([mkRun(cfg.sectionTitle, { size: FS_HEADING, bold: true })]);
+  const sectionTitlePara = new Paragraph({
+    alignment: AlignmentType.RIGHT,
+    bidirectional: true,
+    spacing: { before: 0, after: pt(4), line: lsTwips(LS_BODY), lineRule: 'auto' },
+    children: [mkRun(cfg.sectionTitle, { size: FS_HEADING, bold: true })],
+  });
 
-  // ── Main data table ───────────────────────────────────────────────────────
+  // ── Main table ────────────────────────────────────────────────────────────
   const tableRows = Array.isArray(data.table_rows) ? data.table_rows : [];
   let mainTable = null;
-  if (tableRows.length > 0) {
-    mainTable = mkTable(cfg.tableColumns, tableRows, cfg.colWidths);
-  }
 
-  const gapPara3 = mkPara([mkRun('')]);
+  if (data.doc_type === 'group6') {
+    mainTable = mkSurveyTable(
+      data.building_stability_data   ?? '',
+      data.building_stability_status ?? 'לא תקין',
+      data.building_stability_priority ?? '2',
+      tableRows,
+    );
+  } else if (tableRows.length > 0) {
+    const mergeColIdx = data.doc_type === 'group5' ? -1 : 0;
+    mainTable = mkTable(cfg.tableColumns, tableRows, cfg.colWidths, mergeColIdx);
+  }
 
   // ── Notes ─────────────────────────────────────────────────────────────────
-  const notesTitlePara = mkPara([mkRun(cfg.notesTitle, { size: FS_HEADING, bold: true })]);
+  const notesTitlePara = new Paragraph({
+    alignment: AlignmentType.RIGHT,
+    bidirectional: true,
+    spacing: { before: pt(4), after: pt(2), line: lsTwips(LS_BODY), lineRule: 'auto' },
+    children: [mkRun(cfg.notesTitle, { size: FS_HEADING, bold: true })],
+  });
 
-  const notesSource = Array.isArray(data.notes_custom) && data.notes_custom.length > 0
-    ? data.notes_custom
-    : [...cfg.defaultNotes];
-
-  // For group1: add validity note
-  if (data.doc_type === 'group1' && cfg.validityMonths) {
-    const validUntil = addDays(data.inspection_date, 365);
-    notesSource.push(
-      `תוקף האישור לשנה מיום הבדיקה ועד לתאריך ${validUntil} בכפוף למסקנות.`
-    );
+  let notesSource;
+  if (Array.isArray(data.notes_custom) && data.notes_custom.length > 0) {
+    notesSource = data.notes_custom;
+  } else {
+    notesSource = [...cfg.defaultNotes];
+    if (cfg.hasValidityNote) {
+      const expiry = addDays(data.inspection_date_raw || data.inspection_date, 365);
+      notesSource.push(`תוקף האישור לשנה מיום הבדיקה ועד לתאריך ${expiry} בכפוף למסקנות.`);
+    }
   }
 
-  const notesParas = notesSource.map((note, i) =>
-    mkPara([mkRun(`${i + 1}. ${note}`, { size: FS_BODY })], {})
-  );
+  const notesParas = notesSource
+    .filter(n => n && String(n).trim())
+    .map((n, i) => new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      bidirectional: true,
+      spacing: { before: 0, after: pt(3), line: lsTwips(LS_BODY), lineRule: 'auto' },
+      children: [mkRun(`${i + 1}. ${String(n).trim()}`, { size: FS_BODY })],
+    }));
 
   // ── Conclusions ───────────────────────────────────────────────────────────
-  const conclusionsTitlePara = mkPara([mkRun('מסקנות הבדיקה:', { size: FS_HEADING, bold: true })]);
+  const conclusionsTitlePara = new Paragraph({
+    alignment: AlignmentType.RIGHT,
+    bidirectional: true,
+    spacing: { before: pt(4), after: pt(2), line: lsTwips(LS_BODY), lineRule: 'auto' },
+    children: [mkRun('מסקנות הבדיקה:', { size: FS_HEADING, bold: true })],
+  });
 
   let conclusionLines;
   if (data.conclusion_custom && String(data.conclusion_custom).trim()) {
-    conclusionLines = String(data.conclusion_custom).split('\n');
+    conclusionLines = String(data.conclusion_custom).split('\n').filter(l => l.trim());
   } else if (data.has_defects) {
-    conclusionLines = [cfg.conclusionDefects];
+    conclusionLines = [cfg.conclusionDefects, cfg.conclusionExtra, cfg.conclusionOk].filter(Boolean);
   } else {
     conclusionLines = [cfg.conclusionOk];
   }
 
-  const conclusionParas = conclusionLines.map((line, i) =>
-    mkPara([mkRun(`${i + 1}. ${line}`, { size: FS_BODY })], {})
-  );
+  const conclusionParas = conclusionLines.map((l, i) => new Paragraph({
+    alignment: AlignmentType.RIGHT,
+    bidirectional: true,
+    spacing: { before: 0, after: pt(3), line: lsTwips(LS_BODY), lineRule: 'auto' },
+    children: [mkRun(`${i + 1}. ${l.trim()}`, { size: FS_BODY })],
+  }));
 
-  // ── Defects table (appendix) ──────────────────────────────────────────────
-  let defectsSection = [];
+  // ── Defects appendix ──────────────────────────────────────────────────────
+  const defectsSection = [];
   if (
-    data.has_defects &&
-    cfg.hasDefectsTable &&
-    cfg.defectsColumns &&
-    Array.isArray(data.defects_rows) &&
-    data.defects_rows.length > 0
+    data.has_defects && cfg.hasDefectsTable && cfg.defectsColumns &&
+    Array.isArray(data.defects_rows) && data.defects_rows.length > 0
   ) {
-    const defectsTitlePara = mkPara(
-      [mkRun('נספח טבלת ליקויים:', { size: FS_HEADING, bold: true })],
-      { pageBreak: true }
+    defectsSection.push(
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        bidirectional: true,
+        pageBreakBefore: true,
+        spacing: { before: 0, after: pt(6) },
+        children: [mkRun('נספח טבלת ליקויים:', { size: FS_HEADING, bold: true })],
+      }),
+      mkTable(cfg.defectsColumns, data.defects_rows, cfg.defectsColWidths, -1),
     );
-    const defectsTable = mkTable(cfg.defectsColumns, data.defects_rows, cfg.defectsColWidths);
-    defectsSection = [defectsTitlePara, defectsTable, mkPara([mkRun('')])];
   }
 
   // ── Photos appendix ───────────────────────────────────────────────────────
-  let photosSection = [];
+  const photosSection = [];
   const photos = Array.isArray(data.photos) ? data.photos : [];
 
   if (photos.length > 0) {
-    const photosTitlePara = mkPara(
-      [mkRun('נספח תמונות:', { size: FS_HEADING, bold: true })],
-      { pageBreak: defectsSection.length === 0 } // page break only if no defects section added it
-    );
-
-    // Actually always page break before photos appendix
-    const photosTitleParaBreak = mkPara(
-      [mkRun('נספח תמונות:', { size: FS_HEADING, bold: true })],
-      { pageBreak: true }
-    );
-
-    // Load all photos (skip failures)
-    const loadedPhotos = [];
+    const loaded = [];
     for (let i = 0; i < photos.length; i++) {
-      const photo = photos[i];
+      const ph = photos[i];
       try {
-        const dataUrl = photo.data;
+        const dataUrl = ph.data;
         if (!dataUrl) continue;
-
-        const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-        const imgData = base64ToUint8Array(b64);
-
-        const { width: natW, height: natH } = await getImageDimensions(dataUrl);
+        const b64    = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        const imgArr = b64ToArr(b64);
+        const { w: natW, h: natH } = await imgDims(dataUrl);
         const isPortrait = natH > natW;
 
-        // Compute display dimensions in cm
         let dispW, dispH;
         if (isPortrait) {
-          dispH = 8; // cm
-          dispW = natW > 0 ? (natW / natH) * dispH : 6;
+          dispH = 8;   dispW = natW > 0 ? (natW / natH) * dispH : 6;
         } else {
-          dispW = 7.5; // cm
-          dispH = natH > 0 ? (natH / natW) * dispW : 5;
+          dispW = 7.5; dispH = natH > 0 ? (natH / natW) * dispW : 5.625;
         }
 
-        const caption = photo.caption
-          ? `תמונה ${i + 1} - ${photo.caption}`
-          : `תמונה ${i + 1}`;
-
-        loadedPhotos.push({ imgData, dispW, dispH, caption, index: i + 1 });
-      } catch (_) {
-        // skip broken photos
-      }
+        const mimeM = dataUrl.match(/^data:image\/(jpeg|jpg|png|gif|webp);/);
+        const imgType = mimeM?.[1] === 'png' ? 'png' : 'jpg';
+        const caption = ph.caption ? `תמונה ${i + 1} - ${ph.caption}` : `תמונה ${i + 1}`;
+        loaded.push({ imgArr, dispW, dispH, imgType, caption });
+      } catch (_) { /* skip broken */ }
     }
 
-    // Build 2-per-row table
-    const photoTableRows = [];
-    for (let r = 0; r < loadedPhotos.length; r += 2) {
-      const left  = loadedPhotos[r];
-      const right = loadedPhotos[r + 1] ?? null;
+    if (loaded.length > 0) {
+      photosSection.push(new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        bidirectional: true,
+        pageBreakBefore: true,
+        spacing: { before: 0, after: pt(6) },
+        children: [mkRun('נספח תמונות:', { size: FS_HEADING, bold: true })],
+      }));
 
-      const makePhotoCell = (p) => {
-        const imgPara = mkPara([
-          new ImageRun({
-            data: p.imgData,
-            transformation: {
-              width:  cm(p.dispW),
-              height: cm(p.dispH),
-            },
-          }),
-        ], { alignment: AlignmentType.CENTER });
+      for (let i = 0; i < loaded.length; i += 2) {
+        const left  = loaded[i];
+        const right = loaded[i + 1] ?? null;
 
-        const capPara = mkPara(
-          [mkRun(p.caption, { size: FS_PHOTO_CAP })],
-          { alignment: AlignmentType.CENTER }
-        );
-
-        return new TableCell({
+        const capCell = (p) => new TableCell({
+          width: { size: cm(8.5), type: WidthType.DXA },
+          borders: NO_BORDER,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            bidirectional: true,
+            spacing: { before: pt(4), after: pt(2) },
+            children: [mkRun(p.caption, { size: FS_PHOTO })],
+          })],
+        });
+        const imgCell = (p) => new TableCell({
           width: { size: cm(8.5), type: WidthType.DXA },
           verticalAlign: VerticalAlign.TOP,
           borders: NO_BORDER,
-          children: [capPara, imgPara],
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            bidirectional: true,
+            spacing: { before: 0, after: pt(4) },
+            children: [new ImageRun({
+              data: p.imgArr,
+              transformation: { width: cmPx(p.dispW), height: cmPx(p.dispH) },
+              type: p.imgType,
+            })],
+          })],
         });
-      };
-
-      const emptyCell = () =>
-        new TableCell({
+        const emptyCell = () => new TableCell({
           width: { size: cm(8.5), type: WidthType.DXA },
           borders: NO_BORDER,
-          children: [mkPara([mkRun('')])],
+          children: [new Paragraph({ children: [], bidirectional: true })],
         });
 
-      photoTableRows.push(
-        new TableRow({
-          children: [
-            makePhotoCell(left),
-            right ? makePhotoCell(right) : emptyCell(),
+        const pairTable = new Table({
+          layout: TableLayoutType.FIXED,
+          rows: [
+            new TableRow({ children: [capCell(left), right ? capCell(right) : emptyCell()] }),
+            new TableRow({ children: [imgCell(left), right ? imgCell(right) : emptyCell()] }),
           ],
-        })
-      );
+        });
+        photosSection.push(pairTable);
+        photosSection.push(new Paragraph({
+          bidirectional: true,
+          spacing: { before: 0, after: pt(6) },
+          children: [],
+        }));
+      }
     }
+  }
 
-    const photoTable = new Table({
-      visuallyRightToLeft: true,
-      layout: TableLayoutType.FIXED,
-      rows: photoTableRows,
-    });
-
-    photosSection = [photosTitleParaBreak, photoTable];
+  // ── Group3 appendix titles ────────────────────────────────────────────────
+  const appendixSection = [];
+  if (data.doc_type === 'group3' && cfg.appendixTitles) {
+    appendixSection.push(
+      new Paragraph({ bidirectional: true, spacing: { before: pt(6), after: 0 }, children: [] }),
+    );
+    for (const title of cfg.appendixTitles) {
+      if (title) {
+        appendixSection.push(new Paragraph({
+          alignment: AlignmentType.RIGHT,
+          bidirectional: true,
+          spacing: { before: 0, after: pt(3) },
+          children: [mkRun(title, { size: FS_BODY, bold: true })],
+        }));
+      }
+    }
   }
 
   // ── Assemble document body ────────────────────────────────────────────────
   const bodyChildren = [
     datePara,
-    toLabel,
-    clientPara,
-    orgPara,
-    gapPara,
+    ...clientBlock,
     subjectPara,
-    mkPara([mkRun('')]),
     ...introParas,
-    gapPara2,
+    gapAfterIntro,
     sectionTitlePara,
   ];
 
   if (mainTable) {
     bodyChildren.push(mainTable);
+    bodyChildren.push(new Paragraph({
+      bidirectional: true,
+      spacing: { before: 0, after: pt(6) },
+      children: [],
+    }));
   }
 
   bodyChildren.push(
-    gapPara3,
     notesTitlePara,
     ...notesParas,
-    mkPara([mkRun('')]),
     conclusionsTitlePara,
     ...conclusionParas,
     ...defectsSection,
     ...photosSection,
+    ...appendixSection,
   );
 
   // ── Build Document ────────────────────────────────────────────────────────
   const doc = new Document({
-    sections: [
-      {
-        properties: {
-          page: {
-            size: {
-              width:  mm(210),   // A4 width
-              height: mm(297),   // A4 height
-            },
-            margin: {
-              top:    mm(42),    // 4.2 cm — room for logo header
-              bottom: mm(8),
-              left:   mm(20),
-              right:  mm(20),
-            },
+    styles: {
+      default: {
+        document: {
+          run:       { font: { name: FONT }, size: FS_BODY * 2 },
+          paragraph: { alignment: AlignmentType.RIGHT },
+        },
+      },
+    },
+    sections: [{
+      properties: {
+        page: {
+          size: { width: mm(210), height: mm(297) },
+          margin: cfg.pageMargin ?? {
+            top:    mm(42.5),
+            bottom: mm(7.5),
+            left:   mm(20),
+            right:  mm(20),
+            header: mm(3),
+            footer: mm(0),
           },
         },
-        headers: { default: docHeader },
-        children: bodyChildren,
       },
-    ],
+      headers: { default: new Header({ children: headerParas }) },
+      footers: { default: new Footer({ children: footerParas }) },
+      children: bodyChildren,
+    }],
   });
 
-  return await Packer.toBlob(doc);
+  return Packer.toBlob(doc);
 }

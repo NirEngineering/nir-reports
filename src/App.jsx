@@ -2,11 +2,15 @@ import { useState, useEffect, useRef } from 'react';
 import TableEditor from './components/TableEditor';
 import PhotoUpload from './components/PhotoUpload';
 import SearchDropdown from './components/SearchDropdown';
-import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
+import {
+  DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS,
+  DRAFT_KEY, DRAFTS_KEY, ARCHIVE_KEY,
+} from './constants';
 import { generateDocument } from './lib/docGenerator';
 import { importDocx, exportDocx } from './lib/docImporter';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
+import clientsData from './data/clients.json';
 import './index.css';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -16,6 +20,13 @@ const isoToDisplay = (iso) => {
   const [y, m, d] = iso.split('-');
   return `${parseInt(d)}.${parseInt(m)}.${y}`;
 };
+
+const nowLabel = () => {
+  const d = new Date();
+  return `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+};
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 async function compressImage(dataUrl, maxW = 1200, quality = 0.82) {
   return new Promise((resolve) => {
@@ -45,14 +56,41 @@ const defaultForm = () => ({
   has_defects: false,
   conclusion_custom: '',
   notes_custom: '',
+  // group6 fields
+  building_stability_data: '',
+  building_stability_status: 'לא תקין',
+  building_stability_priority: '2',
 });
 
-// ── StepBar ───────────────────────────────────────────────────────────────────
-function StepBar({ step, labels }) {
+// ── localStorage helpers ──────────────────────────────────────────────────────
+
+function lsGet(key, fallback) {
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; }
+  catch (_) { return fallback; }
+}
+
+function lsSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
+}
+
+function lsRemove(key) {
+  try { localStorage.removeItem(key); } catch (_) {}
+}
+
+// ── StepBar (clickable) ───────────────────────────────────────────────────────
+const STEP_LABELS = ['פרטים', 'טבלה', 'תמונות', 'יצור'];
+
+function StepBar({ step, onStepClick }) {
+  // step prop = 0-based index of active label (0=פרטים … 3=יצור)
   return (
     <div className="stepbar">
-      {labels.map((l, i) => (
-        <div key={i} className={`stepbar-item${i === step ? ' active' : i < step ? ' done' : ''}`}>
+      {STEP_LABELS.map((l, i) => (
+        <div
+          key={i}
+          className={`stepbar-item${i === step ? ' active' : i < step ? ' done' : ''}${onStepClick ? ' clickable' : ''}`}
+          onClick={() => onStepClick?.(i + 1)}
+          style={{ cursor: onStepClick ? 'pointer' : 'default' }}
+        >
           <div className="stepbar-circle">{i < step ? '✓' : i + 1}</div>
           <div className="stepbar-label">{l}</div>
         </div>
@@ -124,75 +162,202 @@ function RichTextarea({ value, onChange, placeholder, rows = 4 }) {
   );
 }
 
+// ── DraftNameModal ────────────────────────────────────────────────────────────
+function DraftNameModal({ defaultName, onSave, onClose }) {
+  const [name, setName] = useState(defaultName);
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="modal-title">שמור טיוטה</div>
+        <input
+          className="form-input"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          dir="rtl"
+          autoFocus
+        />
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <button className="btn btn-outline" style={{ flex: 1 }} onClick={onClose}>ביטול</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => onSave(name.trim() || defaultName)}>שמור</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit'
-  const [step, setStep] = useState(0);         // for 'new': 0=type,1=details,2=table,3=photos,4=generate
-  const [docType, setDocType] = useState('');
-  const [form, setForm] = useState(defaultForm());
-  const [tableRows, setTableRows] = useState([]);
+  // mode: 'home' | 'new' | 'edit' | 'drafts' | 'archive'
+  const [mode, setMode]     = useState('home');
+  const [step, setStep]     = useState(0);   // 0=type,1=details,2=table,3=photos,4=generate
+  const [docType, setDocType]       = useState('');
+  const [form, setForm]             = useState(defaultForm());
+  const [tableRows, setTableRows]   = useState([]);
   const [defectsRows, setDefectsRows] = useState([]);
-  const [rowPhotos, setRowPhotos] = useState([]);
+  const [rowPhotos, setRowPhotos]   = useState([]);
   const [defectsRowPhotos, setDefectsRowPhotos] = useState([]);
-  const [photos, setPhotos] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [hasDraft, setHasDraft] = useState(false);
+  const [photos, setPhotos]         = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
+  const [success, setSuccess]       = useState('');
 
-  // Edit mode state
+  // Draft / archive lists
+  const [hasDraft, setHasDraft]     = useState(false);
+  const [drafts, setDrafts]         = useState([]);
+  const [archive, setArchive]       = useState([]);
+  const [showDraftModal, setShowDraftModal] = useState(false);
+
+  // Edit mode
   const [editImport, setEditImport] = useState(null);
-  const [editEdits, setEditEdits] = useState({});
+  const [editEdits, setEditEdits]   = useState({});
   const [editLoading, setEditLoading] = useState(false);
-  const [editFile, setEditFile] = useState(null);
-  const fileRef = useRef(null);
+  const [editFile, setEditFile]     = useState(null);
+  const fileRef    = useRef(null);
+  const importRef  = useRef(null);
 
-  // ── Draft ──────────────────────────────────────────────────────────────────
+  // Archive search
+  const [archiveSearch, setArchiveSearch] = useState('');
+
+  // ── Init: load draft / drafts / archive ───────────────────────────────────
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const d = JSON.parse(raw);
-        if (d && d.mode === 'new') setHasDraft(true);
-      }
-    } catch (_) {}
+    const d = lsGet(DRAFT_KEY, null);
+    if (d?.mode === 'new') setHasDraft(true);
+    setDrafts(lsGet(DRAFTS_KEY, []));
+    setArchive(lsGet(ARCHIVE_KEY, []));
   }, []);
 
-  const saveDraft = () => {
-    try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        mode: 'new', step, docType, form,
-        tableRows, defectsRows,
-        rowPhotos: [], defectsRowPhotos: [], photos: [],
-      }));
-    } catch (_) {}
+  // ── Auto-save current draft ───────────────────────────────────────────────
+  useEffect(() => {
+    if (mode === 'new' && docType) {
+      lsSet(DRAFT_KEY, { mode: 'new', step, docType, form, tableRows, defectsRows });
+    }
+  }, [mode, step, docType, form, tableRows, defectsRows]);
+
+  // ── Draft helpers ──────────────────────────────────────────────────────────
+  const applyDraftData = (d) => {
+    if (d.docType)    setDocType(d.docType);
+    if (d.form)       setForm(d.form);
+    if (d.tableRows)  setTableRows(d.tableRows);
+    if (d.defectsRows) setDefectsRows(d.defectsRows);
+    setRowPhotos([]); setDefectsRowPhotos([]); setPhotos([]);
+    setStep(d.step || 1);
+    setMode('new');
   };
 
-  const restoreDraft = () => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const d = JSON.parse(raw);
-      if (d.docType) setDocType(d.docType);
-      if (d.form) setForm(d.form);
-      if (d.tableRows) setTableRows(d.tableRows);
-      if (d.defectsRows) setDefectsRows(d.defectsRows);
-      setRowPhotos([]); setDefectsRowPhotos([]); setPhotos([]);
-      setStep(d.step || 1);
-      setMode('new');
-      setHasDraft(false);
-    } catch (_) {}
+  const restoreAutoDraft = () => {
+    const d = lsGet(DRAFT_KEY, null);
+    if (d) { applyDraftData(d); setHasDraft(false); }
   };
 
-  const discardDraft = () => {
-    localStorage.removeItem(DRAFT_KEY);
+  const discardAutoDraft = () => {
+    lsRemove(DRAFT_KEY);
     setHasDraft(false);
   };
 
-  // Auto-save draft whenever form state changes in new mode
-  useEffect(() => {
-    if (mode === 'new' && docType) saveDraft();
-  }, [mode, step, docType, form, tableRows, defectsRows]);
+  const saveDraftManual = (name) => {
+    const entry = {
+      id: uid(),
+      name,
+      updated_at: nowLabel(),
+      docType,
+      form,
+      tableRows,
+      defectsRows,
+      step,
+    };
+    const list = [entry, ...lsGet(DRAFTS_KEY, [])].slice(0, 30);
+    lsSet(DRAFTS_KEY, list);
+    setDrafts(list);
+    setShowDraftModal(false);
+    setSuccess('✅ הטיוטה נשמרה!');
+    setTimeout(() => setSuccess(''), 2500);
+  };
+
+  const restoreDraftFromList = (d) => {
+    applyDraftData(d);
+    setError(''); setSuccess('');
+  };
+
+  const deleteDraft = (id) => {
+    const list = drafts.filter(d => d.id !== id);
+    lsSet(DRAFTS_KEY, list);
+    setDrafts(list);
+  };
+
+  // ── Archive helpers ────────────────────────────────────────────────────────
+  const addToArchive = (meta) => {
+    const list = [{ ...meta, id: uid(), created_at: nowLabel() }, ...lsGet(ARCHIVE_KEY, [])].slice(0, 100);
+    lsSet(ARCHIVE_KEY, list);
+    setArchive(list);
+  };
+
+  const deleteArchiveEntry = (id) => {
+    const list = archive.filter(a => a.id !== id);
+    lsSet(ARCHIVE_KEY, list);
+    setArchive(list);
+  };
+
+  // ── JSON backup / restore ──────────────────────────────────────────────────
+  const handleExportJSON = () => {
+    const payload = {
+      version: 2,
+      exported_at: new Date().toISOString(),
+      drafts:  lsGet(DRAFTS_KEY, []),
+      archive: lsGet(ARCHIVE_KEY, []),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    const d    = new Date();
+    a.download = `ניר-הנדסה-גיבוי-${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}.json`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setSuccess('✅ הגיבוי הורד!');
+    setTimeout(() => setSuccess(''), 2500);
+  };
+
+  const handleImportJSON = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        let imported = 0;
+        if (Array.isArray(data.drafts)) {
+          const merged = [...data.drafts, ...lsGet(DRAFTS_KEY, [])];
+          const unique = [...new Map(merged.map(d => [d.id, d])).values()].slice(0, 30);
+          lsSet(DRAFTS_KEY, unique);
+          setDrafts(unique);
+          imported += data.drafts.length;
+        }
+        if (Array.isArray(data.archive)) {
+          const merged = [...data.archive, ...lsGet(ARCHIVE_KEY, [])];
+          const unique = [...new Map(merged.map(a => [a.id, a])).values()].slice(0, 100);
+          lsSet(ARCHIVE_KEY, unique);
+          setArchive(unique);
+          imported += data.archive.length;
+        }
+        setSuccess(`✅ יובאו ${imported} פריטים!`);
+        setTimeout(() => setSuccess(''), 3000);
+      } catch {
+        setError('שגיאה: קובץ JSON לא תקין');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const restoreFromArchive = (entry) => {
+    if (entry.form)       setForm(entry.form);
+    if (entry.docType)    setDocType(entry.docType);
+    if (entry.tableRows)  setTableRows(entry.tableRows);
+    if (entry.defectsRows) setDefectsRows(entry.defectsRows);
+    setRowPhotos([]); setDefectsRowPhotos([]); setPhotos([]);
+    setStep(1);
+    setMode('new');
+    setError(''); setSuccess('');
+  };
 
   // ── Generate ───────────────────────────────────────────────────────────────
   const handleGenerate = async () => {
@@ -215,6 +380,7 @@ export default function App() {
         doc_type: docType,
         ...form,
         inspection_date: isoToDisplay(form.inspection_date),
+        inspection_date_raw: form.inspection_date,
         table_rows: tableRows,
         defects_rows: defectsRows,
         photos: mergedPhotos,
@@ -224,15 +390,27 @@ export default function App() {
       };
 
       const blob = await generateDocument(payload);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
       a.download = `${form.subject || 'דוח'} - ${form.client}.docx`;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      // Save to archive (no photos – too large)
+      addToArchive({
+        doc_type: docType,
+        doc_type_name: DOC_TYPES_CONFIG[docType]?.name?.replace('\n', ' ') ?? docType,
+        client:    form.client,
+        subject:   form.subject,
+        location:  form.location,
+        inspection_date: isoToDisplay(form.inspection_date),
+        form, tableRows, defectsRows,
+      });
+
       setSuccess('✅ המסמך נוצר בהצלחה!');
-      localStorage.removeItem(DRAFT_KEY);
+      lsRemove(DRAFT_KEY);
     } catch (e) {
       setError(`שגיאה: ${e.message}`);
     } finally {
@@ -246,9 +424,9 @@ export default function App() {
     setEditLoading(true); setError('');
     try {
       const blob = await exportDocx(editImport, editEdits);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
       a.download = `${editFile?.name?.replace('.docx', '') || 'מסמך'} - ערוך.docx`;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a);
@@ -276,21 +454,48 @@ export default function App() {
     }
   };
 
-  // ── Validation ─────────────────────────────────────────────────────────────
-  const validateDetails = () => {
-    if (!form.client.trim()) return setError('יש למלא שם לקוח'), false;
-    if (!form.location.trim()) return setError('יש למלא מיקום'), false;
-    setError('');
-    return true;
-  };
-
   const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  // ── Reset ──────────────────────────────────────────────────────────────────
+  // ── Reset / navigation ─────────────────────────────────────────────────────
   const goHome = () => {
     setMode('home'); setStep(0); setError(''); setSuccess('');
     setDocType(''); setEditImport(null); setEditFile(null); setEditEdits({});
   };
+
+  // Step navigation bar click handler
+  const handleStepBarClick = (targetStep) => {
+    if (!docType) return;
+    setError('');
+    setStep(targetStep);
+  };
+
+  // Step nav buttons (next/back) with save draft button
+  const StepNav = ({ back, next, backLabel = '◀ חזור', nextLabel = 'המשך ▶', onNext }) => (
+    <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+      {back != null && (
+        <button className="btn btn-outline" onClick={() => { setError(''); setStep(back); }}>
+          {backLabel}
+        </button>
+      )}
+      <button
+        className="btn btn-sm btn-outline"
+        onClick={() => setShowDraftModal(true)}
+        title="שמור טיוטה"
+        style={{ padding: '8px 12px' }}
+      >
+        💾 שמור
+      </button>
+      {next != null && (
+        <button
+          className="btn btn-primary"
+          style={{ flex: 1 }}
+          onClick={onNext || (() => { setError(''); setStep(next); })}
+        >
+          {nextLabel}
+        </button>
+      )}
+    </div>
+  );
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Render
@@ -305,10 +510,10 @@ export default function App() {
           )}
           <div className="header-title">
             <img
-              src="/logo.png"
+              src={`${import.meta.env.BASE_URL}logo.png`}
               alt="ניר הנדסה"
               className="header-logo-img"
-              onError={e => { e.target.onerror = null; e.target.src = '/logo.svg'; }}
+              onError={e => { e.target.onerror = null; e.target.src = `${import.meta.env.BASE_URL}logo.svg`; }}
             />
             <span className="header-app-name">ניר הנדסה</span>
           </div>
@@ -321,35 +526,29 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Draft banner ── */}
+      {/* ── Draft name modal ── */}
+      {showDraftModal && (
+        <DraftNameModal
+          defaultName={`${form.client || 'טיוטה'} – ${DOC_TYPES_CONFIG[docType]?.name?.replace('\n',' ') || ''}`}
+          onSave={saveDraftManual}
+          onClose={() => setShowDraftModal(false)}
+        />
+      )}
+
+      {/* ── Auto-draft banner (home only) ── */}
       {hasDraft && mode === 'home' && (
         <div className="draft-banner">
-          <div className="draft-banner-text">
-            <span>📝</span>
-            <span>נמצאה טיוטה שמורה</span>
-          </div>
+          <div className="draft-banner-text"><span>📝</span><span>נמצאה טיוטה שמורה</span></div>
           <div className="draft-banner-actions">
-            <button className="btn btn-sm btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }} onClick={restoreDraft}>
-              שחזר טיוטה
-            </button>
-            <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }} onClick={discardDraft}>
-              מחק
-            </button>
+            <button className="btn btn-sm btn-outline" style={{ color:'white', borderColor:'rgba(255,255,255,0.5)' }} onClick={restoreAutoDraft}>שחזר</button>
+            <button className="btn btn-sm" style={{ background:'rgba(255,255,255,0.2)', color:'white' }} onClick={discardAutoDraft}>מחק</button>
           </div>
         </div>
       )}
 
       {/* ── Alerts ── */}
-      {error && (
-        <div className="app-body" style={{ paddingBottom: 0 }}>
-          <div className="alert alert-error">{error}</div>
-        </div>
-      )}
-      {success && (
-        <div className="app-body" style={{ paddingBottom: 0 }}>
-          <div className="alert alert-success">{success}</div>
-        </div>
-      )}
+      {error && <div className="app-body" style={{ paddingBottom: 0 }}><div className="alert alert-error">{error}</div></div>}
+      {success && <div className="app-body" style={{ paddingBottom: 0 }}><div className="alert alert-success">{success}</div></div>}
 
       {/* ── Loading overlay ── */}
       {(loading || editLoading) && (
@@ -359,13 +558,26 @@ export default function App() {
         </div>
       )}
 
+      {/* ── Hidden JSON import input ── */}
+      <input
+        ref={importRef}
+        type="file"
+        accept=".json"
+        style={{ display: 'none' }}
+        onChange={e => { if (e.target.files[0]) handleImportJSON(e.target.files[0]); e.target.value = ''; }}
+      />
+
       {/* ══════════════════════════════════════════════════════════════════════
           HOME SCREEN
       ══════════════════════════════════════════════════════════════════════ */}
       {mode === 'home' && (
         <div className="home-screen">
           <div className="home-logo">
-            <img src="/logo.png" alt="ניר הנדסה" onError={e => { e.target.onerror = null; e.target.src = '/logo.svg'; }} />
+            <img
+              src={`${import.meta.env.BASE_URL}logo.png`}
+              alt="ניר הנדסה"
+              onError={e => { e.target.onerror = null; e.target.src = `${import.meta.env.BASE_URL}logo.svg`; }}
+            />
             <span className="home-logo-name">ניר הנדסה</span>
           </div>
 
@@ -373,15 +585,146 @@ export default function App() {
             <div className="home-card" onClick={() => { setMode('new'); setStep(0); setError(''); setSuccess(''); }}>
               <div className="home-card-icon">➕</div>
               <div className="home-card-title">מסמך חדש</div>
-              <div className="home-card-sub">צור דוח הנדסי מאפס עם טפסים מובנים</div>
+              <div className="home-card-sub">צור דוח הנדסי מאפס</div>
             </div>
 
             <div className="home-card" onClick={() => { setMode('edit'); setError(''); setSuccess(''); }}>
               <div className="home-card-icon">📂</div>
-              <div className="home-card-title">ערוך מסמך קיים</div>
-              <div className="home-card-sub">טען קובץ Word ועדכן את התוכן שלו</div>
+              <div className="home-card-title">ערוך מסמך</div>
+              <div className="home-card-sub">טען קובץ Word ועדכן</div>
+            </div>
+
+            <div className="home-card" onClick={() => { setMode('drafts'); setError(''); setSuccess(''); }}>
+              <div className="home-card-icon">📝</div>
+              <div className="home-card-title">טיוטות</div>
+              <div className="home-card-sub">
+                {drafts.length > 0 ? `${drafts.length} טיוטות שמורות` : 'אין טיוטות'}
+              </div>
+            </div>
+
+            <div className="home-card" onClick={() => { setMode('archive'); setError(''); setSuccess(''); }}>
+              <div className="home-card-icon">📁</div>
+              <div className="home-card-title">ארכיון</div>
+              <div className="home-card-sub">
+                {archive.length > 0 ? `${archive.length} מסמכים שנוצרו` : 'אין מסמכים'}
+              </div>
             </div>
           </div>
+
+          <div className="home-backup-row">
+            <button className="btn btn-outline btn-sm" onClick={handleExportJSON}>
+              ⬇️ יצא גיבוי JSON
+            </button>
+            <button className="btn btn-outline btn-sm" onClick={() => importRef.current?.click()}>
+              ⬆️ ייבא גיבוי JSON
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          DRAFTS SCREEN
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mode === 'drafts' && (
+        <div className="app-body">
+          <div className="section-header">
+            <span className="section-icon">📝</span>
+            <span className="section-title">טיוטות שמורות</span>
+          </div>
+
+          {drafts.length === 0 ? (
+            <div className="empty-state">
+              <div style={{ fontSize: 40 }}>📝</div>
+              <div>אין טיוטות שמורות</div>
+              <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
+                בזמן יצירת מסמך לחץ "שמור" כדי לשמור טיוטה
+              </div>
+            </div>
+          ) : (
+            <div className="archive-list">
+              {drafts.map(d => (
+                <div key={d.id} className="archive-item">
+                  <div className="archive-item-info">
+                    <div className="archive-item-title">{d.name || d.form?.client || 'ללא שם'}</div>
+                    <div className="archive-item-sub">
+                      {DOC_TYPES_CONFIG[d.docType]?.name?.replace('\n',' ')} • {d.updated_at}
+                    </div>
+                  </div>
+                  <div className="archive-item-actions">
+                    <button className="btn btn-sm btn-primary" onClick={() => restoreDraftFromList(d)}>שחזר</button>
+                    <button className="btn btn-sm btn-outline" style={{ color:'#ef4444', borderColor:'#ef4444' }} onClick={() => deleteDraft(d.id)}>מחק</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          ARCHIVE SCREEN
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mode === 'archive' && (
+        <div className="app-body">
+          <div className="section-header">
+            <span className="section-icon">📁</span>
+            <span className="section-title">ארכיון מסמכים</span>
+          </div>
+
+          {archive.length > 0 && (
+            <input
+              className="form-input"
+              placeholder="🔍 חיפוש לפי לקוח, מיקום, נושא..."
+              value={archiveSearch}
+              onChange={e => setArchiveSearch(e.target.value)}
+              dir="rtl"
+              style={{ marginBottom: 12 }}
+            />
+          )}
+
+          {(() => {
+            const q = archiveSearch.trim().toLowerCase();
+            const filtered = q
+              ? archive.filter(a =>
+                  [a.client, a.location, a.subject, a.doc_type_name, a.inspection_date]
+                    .some(f => (f || '').toLowerCase().includes(q))
+                )
+              : archive;
+            if (archive.length === 0) return (
+              <div className="empty-state">
+                <div style={{ fontSize: 40 }}>📁</div>
+                <div>אין מסמכים בארכיון</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>לאחר יצירת מסמך הוא יופיע כאן</div>
+              </div>
+            );
+            if (filtered.length === 0) return (
+              <div className="empty-state">
+                <div style={{ fontSize: 32 }}>🔍</div>
+                <div>אין תוצאות עבור "{archiveSearch}"</div>
+              </div>
+            );
+            return (
+              <div className="archive-list">
+                {filtered.map(a => (
+                  <div key={a.id} className="archive-item">
+                    <div className="archive-item-info">
+                      <div className="archive-item-title">{a.client || '—'}</div>
+                      <div className="archive-item-sub">
+                        {a.doc_type_name} • {a.inspection_date} • {a.created_at}
+                      </div>
+                      {a.subject && <div className="archive-item-subject">{a.subject}</div>}
+                      {a.location && <div className="archive-item-subject" style={{ color: '#64748b' }}>{a.location}</div>}
+                    </div>
+                    <div className="archive-item-actions">
+                      <button className="btn btn-sm btn-outline" onClick={() => restoreFromArchive(a)} title="צור מחדש">♻️ יצור</button>
+                      <button className="btn btn-sm btn-outline" style={{ color:'#ef4444', borderColor:'#ef4444' }} onClick={() => deleteArchiveEntry(a.id)}>מחק</button>
+                    </div>
+                  </div>
+                ))}
+                {q && <div style={{ textAlign: 'center', fontSize: 12, color: '#94a3b8', marginTop: 8 }}>{filtered.length} מתוך {archive.length} מסמכים</div>}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -390,6 +733,7 @@ export default function App() {
       ══════════════════════════════════════════════════════════════════════ */}
       {mode === 'new' && (
         <div className="app-body">
+
           {/* Step 0 — בחר סוג מסמך */}
           {step === 0 && (
             <div>
@@ -424,116 +768,94 @@ export default function App() {
           {/* Step 1 — פרטי הדוח */}
           {step === 1 && (
             <div>
-              <StepBar step={0} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} />
+              <StepBar step={0} onStepClick={handleStepBarClick} />
 
               <div className="card">
                 <div className="card-title">📋 פרטי הדוח</div>
 
                 <Field label="לקוח" required>
-                  <SearchDropdown
-                    value={form.client}
-                    onChange={v => setField('client', v)}
-                    options={[]}
-                    placeholder="שם הלקוח..."
-                  />
+                  <SearchDropdown value={form.client} onChange={v => setField('client', v)} options={clientsData} placeholder="שם הלקוח..." />
                 </Field>
 
                 <Field label="גוף / ארגון">
-                  <SearchDropdown
-                    value={form.organization}
-                    onChange={v => setField('organization', v)}
-                    options={KNOWN_ORGANIZATIONS}
-                    placeholder="בחר ארגון..."
-                  />
+                  <SearchDropdown value={form.organization} onChange={v => setField('organization', v)} options={KNOWN_ORGANIZATIONS} placeholder="בחר ארגון..." />
                 </Field>
 
                 <Field label="מיקום" required>
-                  <input
-                    className="form-input"
-                    value={form.location}
-                    onChange={e => setField('location', e.target.value)}
-                    placeholder="שם המוסד / מיקום..."
-                    dir="rtl"
-                  />
+                  <input className="form-input" value={form.location} onChange={e => setField('location', e.target.value)} placeholder="שם המוסד / מיקום..." dir="rtl" />
                 </Field>
 
                 <Field label="כתובת">
-                  <input
-                    className="form-input"
-                    value={form.address}
-                    onChange={e => setField('address', e.target.value)}
-                    placeholder="כתובת מלאה..."
-                    dir="rtl"
-                  />
+                  <input className="form-input" value={form.address} onChange={e => setField('address', e.target.value)} placeholder="כתובת מלאה..." dir="rtl" />
                 </Field>
 
                 <Field label="נושא הדוח">
-                  <input
-                    className="form-input"
-                    value={form.subject}
-                    onChange={e => setField('subject', e.target.value)}
-                    dir="rtl"
-                  />
+                  <input className="form-input" value={form.subject} onChange={e => setField('subject', e.target.value)} dir="rtl" />
                 </Field>
 
                 <Field label="תאריך הדוח">
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={form.date}
-                    onChange={e => setField('date', e.target.value)}
-                  />
+                  <input type="date" className="form-input" value={form.date} onChange={e => setField('date', e.target.value)} />
                 </Field>
 
                 <Field label="תאריך הביקור / הבדיקה">
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={form.inspection_date}
-                    onChange={e => setField('inspection_date', e.target.value)}
-                  />
+                  <input type="date" className="form-input" value={form.inspection_date} onChange={e => setField('inspection_date', e.target.value)} />
                 </Field>
 
                 <Field label="הכנס ליקויים נפרדים">
                   <label className="toggle-row">
                     <span className="toggle">
-                      <input
-                        type="checkbox"
-                        checked={form.has_defects}
-                        onChange={e => setField('has_defects', e.target.checked)}
-                      />
+                      <input type="checkbox" checked={form.has_defects} onChange={e => setField('has_defects', e.target.checked)} />
                       <span className="toggle-slider" />
                     </span>
                     <span className="toggle-label">{form.has_defects ? 'כן' : 'לא'}</span>
                   </label>
                 </Field>
 
+                {/* group6: building stability section */}
+                {docType === 'group6' && (
+                  <>
+                    <div className="card-title" style={{ marginTop: 12, marginBottom: 4, fontSize: 14 }}>🏗️ יציבות מבנה</div>
+                    <Field label="נתוני יציבות המבנה" required>
+                      <RichTextarea
+                        value={form.building_stability_data}
+                        onChange={v => setField('building_stability_data', v)}
+                        placeholder="תאר את ממצאי יציבות המבנה..."
+                        rows={4}
+                      />
+                    </Field>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Field label="סטטוס">
+                        <select className="form-input" value={form.building_stability_status} onChange={e => setField('building_stability_status', e.target.value)} dir="rtl">
+                          <option>תקין</option>
+                          <option>לא תקין</option>
+                          <option>תקין - דורש מעקב</option>
+                        </select>
+                      </Field>
+                      <Field label="קדימות">
+                        <select className="form-input" value={form.building_stability_priority} onChange={e => setField('building_stability_priority', e.target.value)} dir="rtl">
+                          <option>--</option>
+                          <option>1</option>
+                          <option>2</option>
+                          <option>3</option>
+                        </select>
+                      </Field>
+                    </div>
+                  </>
+                )}
+
                 <Field label="הערות מסכמות">
-                  <RichTextarea
-                    value={form.notes_custom}
-                    onChange={v => setField('notes_custom', v)}
-                    placeholder="הערות נוספות לסיכום..."
-                  />
+                  <RichTextarea value={form.notes_custom} onChange={v => setField('notes_custom', v)} placeholder="הערות נוספות לסיכום..." />
                 </Field>
               </div>
 
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-outline" onClick={() => setStep(0)}>◀ חזור</button>
-                <button
-                  className="btn btn-primary"
-                  style={{ flex: 1 }}
-                  onClick={() => { if (validateDetails()) setStep(2); }}
-                >
-                  המשך ▶
-                </button>
-              </div>
+              <StepNav back={0} backLabel="◀ סוג מסמך" next={2} />
             </div>
           )}
 
           {/* Step 2 — טבלת ממצאים */}
           {step === 2 && (
             <div>
-              <StepBar step={1} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} />
+              <StepBar step={1} onStepClick={handleStepBarClick} />
 
               <div className="card">
                 <div className="card-title">📊 טבלת ממצאים ראשית</div>
@@ -549,7 +871,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Defects table (optional, shown when has_defects) */}
               {form.has_defects && DEFECTS_COLUMNS[docType] && (
                 <div className="card">
                   <div className="card-title">⚠️ טבלת ליקויים</div>
@@ -566,81 +887,49 @@ export default function App() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-outline" onClick={() => setStep(1)}>◀ חזור</button>
-                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setStep(3)}>
-                  המשך ▶
-                </button>
-              </div>
+              <StepNav back={1} next={3} />
             </div>
           )}
 
           {/* Step 3 — תמונות כלליות */}
           {step === 3 && (
             <div>
-              <StepBar step={2} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} />
+              <StepBar step={2} onStepClick={handleStepBarClick} />
 
               <div className="card">
                 <div className="card-title">🖼️ תמונות כלליות</div>
                 <PhotoUpload photos={photos} onChange={setPhotos} />
               </div>
 
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-outline" onClick={() => setStep(2)}>◀ חזור</button>
-                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setStep(4)}>
-                  המשך ▶
-                </button>
-              </div>
+              <StepNav back={2} next={4} />
             </div>
           )}
 
           {/* Step 4 — יצירה */}
           {step === 4 && (
             <div>
-              <StepBar step={3} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} />
+              <StepBar step={3} onStepClick={handleStepBarClick} />
 
               <div className="card">
                 <div className="card-title">📄 סיכום ויצירת מסמך</div>
-
                 <div className="summary-grid">
-                  <div className="summary-item">
-                    <span className="summary-label">לקוח</span>
-                    <span className="summary-value">{form.client || '—'}</span>
-                  </div>
-                  <div className="summary-item">
-                    <span className="summary-label">מיקום</span>
-                    <span className="summary-value">{form.location || '—'}</span>
-                  </div>
-                  <div className="summary-item">
-                    <span className="summary-label">שורות בטבלה</span>
-                    <span className="summary-value">{tableRows.length}</span>
-                  </div>
+                  <div className="summary-item"><span className="summary-label">לקוח</span><span className="summary-value">{form.client || '—'}</span></div>
+                  <div className="summary-item"><span className="summary-label">מיקום</span><span className="summary-value">{form.location || '—'}</span></div>
+                  <div className="summary-item"><span className="summary-label">שורות בטבלה</span><span className="summary-value">{tableRows.length}</span></div>
                   <div className="summary-item">
                     <span className="summary-label">תמונות</span>
-                    <span className="summary-value">
-                      {photos.length + rowPhotos.reduce((s, arr) => s + (arr?.length || 0), 0)}
-                    </span>
+                    <span className="summary-value">{photos.length + rowPhotos.reduce((s, arr) => s + (arr?.length || 0), 0)}</span>
                   </div>
-                  <div className="summary-item">
-                    <span className="summary-label">תאריך ביקור</span>
-                    <span className="summary-value">{isoToDisplay(form.inspection_date)}</span>
-                  </div>
-                  <div className="summary-item">
-                    <span className="summary-label">נושא</span>
-                    <span className="summary-value" style={{ fontSize: 12 }}>{form.subject || '—'}</span>
-                  </div>
+                  <div className="summary-item"><span className="summary-label">תאריך ביקור</span><span className="summary-value">{isoToDisplay(form.inspection_date)}</span></div>
+                  <div className="summary-item"><span className="summary-label">נושא</span><span className="summary-value" style={{ fontSize: 12 }}>{form.subject || '—'}</span></div>
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
-                <button
-                  className="btn btn-success btn-lg generate-btn"
-                  onClick={handleGenerate}
-                  disabled={loading}
-                >
+                <button className="btn btn-success btn-lg generate-btn" onClick={handleGenerate} disabled={loading}>
                   {loading ? '⏳ יוצר...' : '⬇️ צור והורד מסמך'}
                 </button>
-                <button className="btn btn-outline" onClick={() => setStep(3)}>◀ חזור</button>
+                <StepNav back={3} />
               </div>
             </div>
           )}
@@ -653,10 +942,8 @@ export default function App() {
       {mode === 'edit' && (
         <div className="app-body">
           {!editImport ? (
-            /* ── Upload zone ── */
             <div className="card" style={{ textAlign: 'center', padding: '32px 20px' }}>
               <div className="card-title">📂 טעינת מסמך Word</div>
-
               <div
                 className="word-upload-zone"
                 style={{ minHeight: 180, fontSize: 16 }}
@@ -686,38 +973,22 @@ export default function App() {
                   )
                 }
               </div>
-
               <div style={{ marginTop: 16 }}>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={editLoading}
-                >
+                <button className="btn btn-primary" onClick={() => fileRef.current?.click()} disabled={editLoading}>
                   {editLoading ? '⏳ טוען...' : '📁 בחר קובץ .docx'}
                 </button>
               </div>
             </div>
           ) : (
-            /* ── Edit paragraphs ── */
             <div>
-              {/* File info */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 <span className="edit-info-badge">📄 {editFile?.name}</span>
-                {editImport.paragraphs && (
-                  <span className="edit-info-badge">
-                    ✏️ {editImport.paragraphs.length} פסקאות
-                  </span>
-                )}
-                {editImport.images && editImport.images.length > 0 && (
-                  <span className="edit-info-badge">🖼️ {editImport.images.length} תמונות</span>
-                )}
-                {editImport.tables && editImport.tables.length > 0 && (
-                  <span className="edit-info-badge">📊 {editImport.tables.length} טבלאות</span>
-                )}
+                {editImport.paragraphs && <span className="edit-info-badge">✏️ {editImport.paragraphs.length} פסקאות</span>}
+                {editImport.images?.length > 0 && <span className="edit-info-badge">🖼️ {editImport.images.length} תמונות</span>}
+                {editImport.tables?.length > 0 && <span className="edit-info-badge">📊 {editImport.tables.length} טבלאות</span>}
               </div>
 
-              {/* Images strip */}
-              {editImport.images && editImport.images.length > 0 && (
+              {editImport.images?.length > 0 && (
                 <>
                   <div className="edit-section-title">תמונות במסמך</div>
                   <div className="edit-images-strip">
@@ -733,8 +1004,7 @@ export default function App() {
                 </>
               )}
 
-              {/* Tables preview */}
-              {editImport.tables && editImport.tables.length > 0 && (
+              {editImport.tables?.length > 0 && (
                 <>
                   <div className="edit-section-title">טבלאות (לקריאה בלבד)</div>
                   {editImport.tables.map((tbl, ti) => (
@@ -745,7 +1015,6 @@ export default function App() {
                 </>
               )}
 
-              {/* Paragraphs */}
               <div className="edit-section-title">עריכת פסקאות</div>
               <div className="edit-para-list">
                 {(editImport.paragraphs || []).map((para, i) => {
@@ -775,20 +1044,11 @@ export default function App() {
                 })}
               </div>
 
-              {/* Actions */}
               <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-                <button
-                  className="btn btn-outline"
-                  onClick={() => { setEditImport(null); setEditFile(null); setEditEdits({}); }}
-                >
+                <button className="btn btn-outline" onClick={() => { setEditImport(null); setEditFile(null); setEditEdits({}); }}>
                   🔄 טען קובץ אחר
                 </button>
-                <button
-                  className="btn btn-success"
-                  style={{ flex: 1 }}
-                  onClick={handleEditExport}
-                  disabled={editLoading}
-                >
+                <button className="btn btn-success" style={{ flex: 1 }} onClick={handleEditExport} disabled={editLoading}>
                   {editLoading ? '⏳ מייצא...' : '⬇️ הורד מסמך ערוך'}
                 </button>
               </div>
