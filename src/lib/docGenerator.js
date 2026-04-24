@@ -249,26 +249,18 @@ function imgDims(dataUrl) {
 
 // ── Core paragraph builder ────────────────────────────────────────────────────
 
-/** Inject <w:rtl/> into a TextRun's rPr. */
-function injectRtl(run) {
-  const rPr = run.root.find((r) => r?.rootKey === 'w:rPr');
-  if (rPr) rPr.root.push({ 'w:rtl': {} });
-  return run;
-}
-
 function mkRun(text, opts = {}) {
   const { size = FS_BODY, bold = false, color, underline = false, rtl = true } = opts;
-  const run = new TextRun({
+  return new TextRun({
     text,
     font: FONT,
     size: size * 2,
     bold,
     color,
+    rtl,
     ...(rtl ? { language: { bidi: 'he-IL' } } : {}),
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
   });
-  if (rtl) injectRtl(run);
-  return run;
 }
 
 /** Build an RTL paragraph. */

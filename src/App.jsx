@@ -401,7 +401,14 @@ export default function App() {
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
-      a.download = `${form.subject || 'דוח'} - ${form.client}.docx`;
+      const DOC_TYPE_PREFIX = {
+        group1: 'דו"ח יציבות',
+        group3: 'סקר תקרות',
+        group4: 'סקר יציבות',
+        group5: 'בדיקת סככות',
+        group6: 'סקר מבנים',
+      };
+      a.download = `${DOC_TYPE_PREFIX[form.doc_type] || form.subject || 'דוח'} - ${form.client}.docx`;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
@@ -650,6 +657,14 @@ export default function App() {
           </div>
 
           <div className="home-cards">
+            <div className="home-card" onClick={() => { setMode('fieldnotes'); setFnMode('list'); setError(''); setSuccess(''); }}>
+              <div className="home-card-icon">📓</div>
+              <div className="home-card-title">יומן שטח</div>
+              <div className="home-card-sub">
+                {fieldNotes.length > 0 ? `${fieldNotes.length} רשומות שמורות` : 'רשימות ותמונות מהשטח'}
+              </div>
+            </div>
+
             <div className="home-card" onClick={() => { setMode('new'); setStep(0); setError(''); setSuccess(''); }}>
               <div className="home-card-icon">➕</div>
               <div className="home-card-title">מסמך חדש</div>
@@ -675,14 +690,6 @@ export default function App() {
               <div className="home-card-title">ארכיון</div>
               <div className="home-card-sub">
                 {archive.length > 0 ? `${archive.length} מסמכים שנוצרו` : 'אין מסמכים'}
-              </div>
-            </div>
-
-            <div className="home-card" onClick={() => { setMode('fieldnotes'); setFnMode('list'); setError(''); setSuccess(''); }}>
-              <div className="home-card-icon">📓</div>
-              <div className="home-card-title">יומן שטח</div>
-              <div className="home-card-sub">
-                {fieldNotes.length > 0 ? `${fieldNotes.length} רשומות שמורות` : 'רשימות ותמונות מהשטח'}
               </div>
             </div>
           </div>
@@ -1096,17 +1103,15 @@ export default function App() {
                   />
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  <input
-                    className="form-input"
-                    placeholder="לקוח..."
+                  <SearchDropdown
                     value={fnCurrent.client}
-                    onChange={e => setFnCurrent(n => {
-                      const next = { ...n, client: e.target.value };
-                      if (!n.location || n.location === n.client) next.location = e.target.value;
+                    onChange={v => setFnCurrent(n => {
+                      const next = { ...n, client: v };
+                      if (!n.location || n.location === n.client) next.location = v;
                       return next;
                     })}
-                    dir="rtl"
-                    style={{ flex: 1 }}
+                    options={clientsData}
+                    placeholder="לקוח..."
                   />
                   <input
                     className="form-input"
