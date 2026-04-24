@@ -1,23 +1,16 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { clientsClaim } from 'workbox-core';
 
-self.skipWaiting();
-clientsClaim();
-
-cleanupOutdatedCaches();
-precacheAndRoute(self.__WB_MANIFEST);
-
 // ── Share Target handler ──────────────────────────────────────────────────────
-// Android calls POST /nir-reports/share when user shares images to this PWA.
-// We extract the files, store them in IndexedDB, then redirect to the app.
+// MUST be registered BEFORE precacheAndRoute so our handler intercepts
+// POST /nir-reports/share before workbox falls through to network (→ 405).
 
 const DB_NAME  = 'nir-share';
 const DB_STORE = 'pending-images';
-const DB_VER   = 1;
 
 function openShareDb() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VER);
+    const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE, { autoIncrement: true });
     req.onsuccess  = () => resolve(req.result);
     req.onerror    = () => reject(req.error);
@@ -37,13 +30,13 @@ async function storeSharedFiles(files) {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (url.pathname === '/nir-reports/share' && event.request.method === 'POST') {
+  if (event.request.method === 'POST' && url.pathname === '/nir-reports/share') {
     event.respondWith(
       (async () => {
         try {
           const fd    = await event.request.formData();
           const files = fd.getAll('images');
-          await storeSharedFiles(files);
+          if (files.length) await storeSharedFiles(files);
         } catch (e) {
           console.error('[SW] share-target error', e);
         }
@@ -52,3 +45,10 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// ── Workbox setup (after share handler) ──────────────────────────────────────
+
+self.skipWaiting();
+clientsClaim();
+cleanupOutdatedCaches();
+precacheAndRoute(self.__WB_MANIFEST);

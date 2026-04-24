@@ -872,10 +872,19 @@ function parseHtmlToDocxChildren(html) {
   div.innerHTML = html || '';
   const paras = [];
 
+  const hebrewRe = /[\u0590-\u05FF]/;
+
+  function textRtl(text) {
+    return hebrewRe.test(text);
+  }
+
+  // In a dir="rtl" editor, justifyRight sets text-align:right but OOXML RTL
+  // paragraphs treat w:jc val="right" as visual-left. Swap to match editor.
   function alignFromStyle(el) {
     const ta = el.style?.textAlign || '';
-    if (ta === 'left')   return AlignmentType.LEFT;
+    if (ta === 'left')   return AlignmentType.RIGHT;
     if (ta === 'center') return AlignmentType.CENTER;
+    if (ta === 'right')  return AlignmentType.LEFT;
     return AlignmentType.RIGHT;
   }
 
@@ -884,7 +893,7 @@ function parseHtmlToDocxChildren(html) {
     node.childNodes.forEach(child => {
       if (child.nodeType === Node.TEXT_NODE) {
         const t = child.textContent;
-        if (t) runs.push(mkRun(t));
+        if (t) runs.push(mkRun(t, { rtl: textRtl(t) }));
       } else if (child.nodeType === Node.ELEMENT_NODE) {
         const tag = child.tagName.toUpperCase();
         const inner = child.textContent || '';
@@ -894,7 +903,7 @@ function parseHtmlToDocxChildren(html) {
         if (tag === 'BR') {
           runs.push(new TextRun({ break: 1 }));
         } else {
-          runs.push(mkRun(inner, { bold, underline }));
+          runs.push(mkRun(inner, { bold, underline, rtl: textRtl(inner) }));
         }
       }
     });
