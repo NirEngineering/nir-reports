@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
 
-// Compress image: resize to max 1200px, 82% JPEG quality (~150-300KB per photo)
 async function compressImage(dataUrl) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -18,15 +17,12 @@ async function compressImage(dataUrl) {
   });
 }
 
-// ── Paste Modal – contentEditable for mobile long-press paste ─────────────────
-function PasteModal({ onClose, onPaste }) {
+// ── Inline paste zone – always visible, no modal needed ───────────────────────
+function PasteZone({ onPaste }) {
   const divRef = useRef(null);
+  const [active, setActive] = useState(false);
 
-  useEffect(() => {
-    setTimeout(() => divRef.current?.focus(), 100);
-  }, []);
-
-  const handlePasteEvent = async (e) => {
+  const handlePaste = async (e) => {
     const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
     if (!items) return;
     const imgItems = Array.from(items).filter(it => it.type.startsWith('image/'));
@@ -34,11 +30,10 @@ function PasteModal({ onClose, onPaste }) {
     e.preventDefault();
     const files = imgItems.map(it => it.getAsFile()).filter(Boolean);
     await onPaste(files);
-    onClose();
+    if (divRef.current) divRef.current.innerHTML = '';
   };
 
-  const handleInput = async (e) => {
-    // Catch images pasted as <img> nodes on mobile
+  const handleInput = async () => {
     const imgs = divRef.current?.querySelectorAll('img');
     if (imgs && imgs.length > 0) {
       const src = imgs[0].src;
@@ -46,65 +41,56 @@ function PasteModal({ onClose, onPaste }) {
         divRef.current.innerHTML = '';
         const compressed = await compressImage(src);
         await onPaste([{ _isDataUrl: true, dataUrl: compressed }]);
-        onClose();
       }
     }
   };
 
   return (
-    <div className="paste-modal-overlay" onClick={onClose}>
-      <div className="paste-modal-box" onClick={e => e.stopPropagation()}>
-        <div className="paste-modal-title">📋 הדבקת תמונה</div>
-        <div className="paste-modal-hint">
-          לחץ לחיצה ארוכה בתיבה למטה ובחר "הדבק"
-        </div>
-        <div
-          ref={divRef}
-          contentEditable
-          suppressContentEditableWarning
-          className="paste-modal-area"
-          onPaste={handlePasteEvent}
-          onInput={handleInput}
-          dir="rtl"
-        >
-          הדבק תמונה כאן
-        </div>
-        <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={onClose}>ביטול</button>
-      </div>
+    <div
+      className={`paste-zone${active ? ' paste-zone-active' : ''}`}
+      onClick={() => divRef.current?.focus()}
+    >
+      <div
+        ref={divRef}
+        contentEditable
+        suppressContentEditableWarning
+        className="paste-zone-inner"
+        onPaste={handlePaste}
+        onInput={handleInput}
+        onFocus={() => setActive(true)}
+        onBlur={() => { setActive(false); if (divRef.current) divRef.current.innerHTML = ''; }}
+        dir="rtl"
+      />
+      <span className="paste-zone-label">📋 לחץ כאן לאחר מכן הדבק תמונה</span>
     </div>
   );
 }
 
 export default function PhotoUpload({ photos, onChange }) {
-  const fileInput = useRef(null);
+  const fileInput   = useRef(null);
   const cameraInput = useRef(null);
   const [preview, setPreview] = useState(null);
-  const [showPasteModal, setShowPasteModal] = useState(false);
 
-  // Paste support (Ctrl+V from clipboard – desktop)
+  // Desktop Ctrl+V from anywhere on page
   useEffect(() => {
     const handlePaste = async (e) => {
+      if (e.target.isContentEditable) return; // let PasteZone handle its own
       const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
       if (!items) return;
       const imgItems = Array.from(items).filter(it => it.type.startsWith('image/'));
       if (imgItems.length === 0) return;
       e.preventDefault();
-      const files = imgItems.map(it => it.getAsFile()).filter(Boolean);
-      await handleFiles(files);
+      await handleFiles(imgItems.map(it => it.getAsFile()).filter(Boolean));
     };
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
   }, [photos]);
 
   const handleFiles = async (files) => {
-    // Support both File objects and {_isDataUrl, dataUrl} from PasteModal
     const arr = Array.from(files);
     if (!arr.length) return;
     const newPhotos = await Promise.all(arr.map(file => new Promise((resolve) => {
-      if (file._isDataUrl) {
-        resolve({ data: file.dataUrl, caption: '' });
-        return;
-      }
+      if (file._isDataUrl) { resolve({ data: file.dataUrl, caption: '' }); return; }
       if (!file.type?.startsWith('image/')) { resolve(null); return; }
       const reader = new FileReader();
       reader.onload = async (e) => {
@@ -116,13 +102,10 @@ export default function PhotoUpload({ photos, onChange }) {
     onChange([...photos, ...newPhotos.filter(Boolean)]);
   };
 
-  const updateCaption = (idx, caption) => {
+  const updateCaption = (idx, caption) =>
     onChange(photos.map((p, i) => i === idx ? { ...p, caption } : p));
-  };
 
-  const removePhoto = (idx) => {
-    onChange(photos.filter((_, i) => i !== idx));
-  };
+  const removePhoto = (idx) => onChange(photos.filter((_, i) => i !== idx));
 
   const movePhoto = (idx, dir) => {
     const arr = [...photos];
@@ -134,14 +117,6 @@ export default function PhotoUpload({ photos, onChange }) {
 
   return (
     <div>
-      {/* Paste Modal */}
-      {showPasteModal && (
-        <PasteModal
-          onClose={() => setShowPasteModal(false)}
-          onPaste={handleFiles}
-        />
-      )}
-
       {/* Full-screen preview modal */}
       {preview !== null && (
         <div className="photo-modal" onClick={() => setPreview(null)}>
@@ -160,17 +135,12 @@ export default function PhotoUpload({ photos, onChange }) {
         <div className="photo-grid">
           {photos.map((photo, idx) => (
             <div key={idx} className="photo-item">
-              {/* Number badge */}
               <div className="photo-number">#{idx + 1}</div>
-
-              {/* Image */}
               <img
                 src={photo.data}
                 alt={photo.caption || `תמונה ${idx + 1}`}
                 onClick={() => setPreview(idx)}
               />
-
-              {/* Top actions bar */}
               <div className="photo-actions-top">
                 {idx > 0 && (
                   <button className="photo-action-btn" onClick={() => movePhoto(idx, -1)} title="הזז שמאלה">‹</button>
@@ -180,8 +150,6 @@ export default function PhotoUpload({ photos, onChange }) {
                   <button className="photo-action-btn" onClick={() => movePhoto(idx, 1)} title="הזז ימינה">›</button>
                 )}
               </div>
-
-              {/* Caption input */}
               <input
                 className="photo-caption-input"
                 type="text"
@@ -204,62 +172,35 @@ export default function PhotoUpload({ photos, onChange }) {
 
       {/* Upload buttons */}
       <div className="photo-upload-btns">
-        <button
-          type="button"
-          className="btn btn-outline photo-btn"
-          onClick={() => cameraInput.current.click()}
-        >
-          <span>📷</span>
-          <span>צלם</span>
+        <button type="button" className="btn btn-outline photo-btn"
+          onClick={() => cameraInput.current.click()}>
+          <span>📷</span><span>צלם</span>
         </button>
-        <button
-          type="button"
-          className="btn btn-outline photo-btn"
-          onClick={() => fileInput.current.click()}
-        >
-          <span>🖼️</span>
-          <span>גלריה</span>
-        </button>
-        <button
-          type="button"
-          className="btn btn-outline photo-btn"
-          onClick={() => setShowPasteModal(true)}
-        >
-          <span>📋</span>
-          <span>הדבק</span>
+        <button type="button" className="btn btn-outline photo-btn"
+          onClick={() => fileInput.current.click()}>
+          <span>🖼️</span><span>גלריה</span>
         </button>
       </div>
 
+      {/* Inline paste zone */}
+      <PasteZone onPaste={handleFiles} />
+
       {photos.length > 0 && (
         <div style={{ textAlign: 'center', marginTop: 8 }}>
-          <button
-            type="button"
-            className="btn btn-sm"
+          <button type="button" className="btn btn-sm"
             style={{ background: '#fee2e2', color: '#991b1b', fontSize: 12 }}
-            onClick={() => { if (confirm('למחוק את כל התמונות?')) onChange([]); }}
-          >
+            onClick={() => { if (confirm('למחוק את כל התמונות?')) onChange([]); }}>
             מחק הכל
           </button>
         </div>
       )}
 
-      {/* Hidden inputs */}
-      <input
-        ref={cameraInput}
-        type="file"
-        accept="image/*"
-        capture="environment"
+      <input ref={cameraInput} type="file" accept="image/*" capture="environment"
         style={{ display: 'none' }}
-        onChange={e => { handleFiles(e.target.files); e.target.value = ''; }}
-      />
-      <input
-        ref={fileInput}
-        type="file"
-        accept="image/*"
-        multiple
+        onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
+      <input ref={fileInput} type="file" accept="image/*" multiple
         style={{ display: 'none' }}
-        onChange={e => { handleFiles(e.target.files); e.target.value = ''; }}
-      />
+        onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
     </div>
   );
 }

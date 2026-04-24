@@ -812,17 +812,53 @@ html, body {
   bottom: 0;
   right: 0;
   left: 0;
-  background: rgba(0,0,0,0.65);
+  background: rgba(0,0,0,0.72);
   border: none;
   color: white;
-  padding: 5px 7px;
-  font-size: 11px;
+  padding: 6px 8px;
+  font-size: 14px;
+  font-weight: 700;
   text-align: center;
   direction: rtl;
   font-family: var(--font);
   width: 100%;
 }
-.photo-caption-input::placeholder { color: rgba(255,255,255,0.6); }
+.photo-caption-input::placeholder { color: rgba(255,255,255,0.55); }
+
+/* ── Inline paste zone ───────────────────────────────────────────── */
+.paste-zone {
+  position: relative;
+  margin-top: 10px;
+  border: 2px dashed var(--gray-300);
+  border-radius: 10px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: text;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--gray-50);
+  overflow: hidden;
+}
+.paste-zone-active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+.paste-zone-inner {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: text;
+}
+.paste-zone-label {
+  font-size: 13px;
+  color: var(--gray-400);
+  pointer-events: none;
+  user-select: none;
+  padding: 10px;
+  text-align: center;
+}
+.paste-zone-active .paste-zone-label { color: var(--primary); }
 
 .photo-empty {
   text-align: center;
