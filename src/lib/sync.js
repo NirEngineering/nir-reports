@@ -46,10 +46,11 @@ export function subscribeFieldNotes(syncCode, onUpdate) {
 }
 
 export async function pushFieldNote(syncCode, note) {
-  if (!syncCode) return;
-  const { photos, ...rest } = note; // exclude photos
-  await setDoc(ref(syncCode, 'fieldnotes', note.id), {
-    ...rest, updatedAt: new Date().toISOString(),
+  if (!syncCode || !note?.id) return;
+  // note already has photos stripped by caller; just write what we receive
+  await setDoc(ref(syncCode, 'fieldnotes', String(note.id)), {
+    ...note,
+    updatedAt: new Date().toISOString(),
   });
 }
 

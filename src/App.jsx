@@ -612,7 +612,14 @@ export default function App() {
     const list = [updated, ...lsGet(FIELDNOTES_KEY, []).filter(n => n.id !== updated.id)].slice(0, 50);
     lsSet(FIELDNOTES_KEY, list);
     setFieldNotes(list);
-    if (syncCode) pushFieldNote(syncCode, updated).catch(console.warn);
+    if (syncCode) {
+      setSyncStatus('syncing');
+      // Strip undefined values – Firestore rejects them
+      const clean = JSON.parse(JSON.stringify({ ...updated, photos: undefined }));
+      pushFieldNote(syncCode, clean)
+        .then(() => setSyncStatus('ok'))
+        .catch(e => { setSyncStatus('error'); setError('שגיאת סנכרון: ' + e.message); });
+    }
     return updated;
   };
 
