@@ -863,6 +863,16 @@ export default function App() {
                   setShowSyncPanel(false);
                 }}>חבר</button>
               </div>
+              {syncCode && (
+                <button className="btn btn-outline btn-sm" style={{ width: '100%', marginTop: 8 }} onClick={async () => {
+                  try {
+                    await pushFieldNote(syncCode, { id: 'test-' + Date.now(), title: 'בדיקת חיבור', content: '', client: '', location: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+                    alert('✅ כתיבה ל-Firebase הצליחה! בדוק את Firestore Console.');
+                  } catch(e) {
+                    alert('❌ שגיאה: ' + e.message);
+                  }
+                }}>🔬 בדוק חיבור Firebase</button>
+              )}
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => {
                   const code = generateSyncCode();
