@@ -19,7 +19,31 @@ import {
   convertMillimetersToTwip as mm,
   TableLayoutType,
   VerticalMergeType,
+  LevelFormat,
 } from 'docx';
+
+const FN_NUMBERING = [
+  {
+    reference: 'fn-bullet',
+    levels: [{
+      level: 0,
+      format: LevelFormat.BULLET,
+      text: '•',
+      alignment: AlignmentType.LEFT,
+      style: { paragraph: { indent: { right: mm(12), hanging: mm(6) } } },
+    }],
+  },
+  {
+    reference: 'fn-numbered',
+    levels: [{
+      level: 0,
+      format: LevelFormat.DECIMAL,
+      text: '%1.',
+      alignment: AlignmentType.LEFT,
+      style: { paragraph: { indent: { right: mm(12), hanging: mm(6) } } },
+    }],
+  },
+];
 
 // ── Constants (match V1 doc_generator.py exactly) ────────────────────────────
 const FONT        = 'Arial';
@@ -251,8 +275,11 @@ function imgDims(dataUrl) {
 
 function mkRun(text, opts = {}) {
   const { size = FS_BODY, bold = false, color, underline = false, rtl = true } = opts;
+  // In RTL Word paragraphs, trailing punctuation can float to the wrong side.
+  // Appending U+200F (Right-to-Left Mark) after punctuation anchors it correctly.
+  const t = (rtl && text) ? text.replace(/([:\?!,\.;])\s*$/, '$1\u200F') : text;
   return new TextRun({
-    text,
+    text: t,
     font: FONT,
     size: size * 2,
     bold,
@@ -264,7 +291,7 @@ function mkRun(text, opts = {}) {
 }
 
 /** Build an RTL paragraph. */
-function mkPara(runs, { alignment = AlignmentType.RIGHT, spacing } = {}) {
+function mkPara(runs, { alignment = AlignmentType.LEFT, spacing } = {}) {
   return new Paragraph({ children: runs, alignment, bidirectional: true, spacing });
 }
 
@@ -335,7 +362,7 @@ function mkTable(headers, rows, colWidthsCm, mergeCol = -1, headerBg = 'EAF1DD')
       if (isNotOk || isPrio1) { color = 'C00000'; bold = true; }
       if (isWatch)            { color = 'C55A11'; bold = true; }
 
-      const cellAlign = isRightCol(headers[cIdx]) ? AlignmentType.RIGHT : AlignmentType.CENTER;
+      const cellAlign = isRightCol(headers[cIdx]) ? AlignmentType.LEFT : AlignmentType.CENTER;
 
       if (cIdx === mergeCol) {
         const isCont = mergeMarks[rIdx] === 'continue';
@@ -424,7 +451,7 @@ function mkSurveyTable(buildingData, buildingStatus, buildingPriority, rows) {
   const buildingRow = new TableRow({
     children: [
       mkCell('יציבות מבנה', { width: COL[0],                    bg: DATA_BG, bold: true }),
-      mkCell(bldText,        { width: COL[1]+COL[2]+COL[3], span: 3, bg: DATA_BG, align: AlignmentType.RIGHT }),
+      mkCell(bldText,        { width: COL[1]+COL[2]+COL[3], span: 3, bg: DATA_BG, align: AlignmentType.LEFT }),
       mkCell('',             { width: COL[4],                    bg: DATA_BG }),
       mkCell(bldStatus,      { width: COL[5], bg: DATA_BG, color: bldNotOk ? 'C00000' : undefined, bold: bldNotOk }),
       mkCell(bldPrio,        { width: COL[6],                    bg: DATA_BG }),
@@ -463,7 +490,7 @@ function mkSurveyTable(buildingData, buildingStatus, buildingPriority, rows) {
       mkCell(elemStr,  { width: COL[0],            bg: DATA_BG, bold: true, vMerge }),
       mkCell(locStr,   { width: COL[1],            bg: DATA_BG }),
       mkCell(typeStr,  { width: COL[2],            bg: DATA_BG }),
-      mkCell(dataStr,  { width: COL[3]+COL[4], span: 2, bg: DATA_BG, align: AlignmentType.RIGHT }),
+      mkCell(dataStr,  { width: COL[3]+COL[4], span: 2, bg: DATA_BG, align: AlignmentType.LEFT }),
       mkCell(statusStr,{ width: COL[5],            bg: DATA_BG, color: statusColor, bold: statusBold }),
       mkCell(prioStr,  { width: COL[6],            bg: DATA_BG, color: isPrio1 ? 'C00000' : undefined, bold: isPrio1 }),
     ]});
@@ -488,23 +515,20 @@ export async function generateDocument(data) {
 
   function mkPageField(instr) {
     const sf = new SimpleField(instr);
-    const resultRun = new TextRun({ text: '1', font: FONT, size: FS_PAGE_NUM * 2 });
-    injectRtl(resultRun);
-    sf.root.push(resultRun);
+    sf.root.push(new TextRun({ text: '1', font: FONT, size: FS_PAGE_NUM * 2, rtl: true }));
     return sf;
   }
 
-  // ── Header: page number (right, 7pt) + logo (center, 9.5cm) ──────────────
+  // ── Header: page number "עמוד X מתוך Y" — LTR+RIGHT avoids bidi digit-grouping ──
   const headerParas = [
     new Paragraph({
       alignment: AlignmentType.RIGHT,
-      bidirectional: true,
-
+      bidirectional: false,
       spacing: { before: 0, after: pt(2) },
       children: [
-        injectRtl(new TextRun({ text: 'עמוד ', font: FONT, size: FS_PAGE_NUM * 2 })),
+        new TextRun({ text: 'עמוד ', font: FONT, size: FS_PAGE_NUM * 2 }),
         mkPageField('PAGE'),
-        injectRtl(new TextRun({ text: ' מתוך ', font: FONT, size: FS_PAGE_NUM * 2 })),
+        new TextRun({ text: ' מתוך ', font: FONT, size: FS_PAGE_NUM * 2 }),
         mkPageField('NUMPAGES'),
       ],
     }),
@@ -546,9 +570,10 @@ export async function generateDocument(data) {
     footerParas.push(new Paragraph({ children: [] }));
   }
 
-  // ── Date — LEFT aligned, LTR run (explicitly non-RTL paragraph) ──────────
+  // ── Date — LEFT aligned, LTR, explicitly non-bidi so Word shows it on the left ──
   const datePara = new Paragraph({
     alignment: AlignmentType.LEFT,
+    bidirectional: false,
     spacing: { before: 0, after: 0 },
     children: [mkRun(formatDate(data.date), { size: FS_DATE, rtl: false })],
   });
@@ -579,7 +604,7 @@ export async function generateDocument(data) {
   const introParas = introRaw.split('\n')
     .filter(l => l.trim())
     .map(l => new Paragraph({
-      alignment: AlignmentType.RIGHT,
+      alignment: AlignmentType.LEFT,
       bidirectional: true,
 
       spacing: { before: 0, after: pt(3), line: lsTwips(LS_INTRO), lineRule: 'auto' },
@@ -593,7 +618,7 @@ export async function generateDocument(data) {
 
   // ── Section title ─────────────────────────────────────────────────────────
   const sectionTitlePara = new Paragraph({
-    alignment: AlignmentType.RIGHT,
+    alignment: AlignmentType.LEFT,
     bidirectional: true,
 
     spacing: { before: 0, after: pt(4), line: lsTwips(LS_BODY), lineRule: 'auto' },
@@ -618,7 +643,7 @@ export async function generateDocument(data) {
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   const notesTitlePara = new Paragraph({
-    alignment: AlignmentType.RIGHT,
+    alignment: AlignmentType.LEFT,
     bidirectional: true,
 
     spacing: { before: pt(4), after: pt(2), line: lsTwips(LS_BODY), lineRule: 'auto' },
@@ -639,16 +664,15 @@ export async function generateDocument(data) {
   const notesParas = notesSource
     .filter(n => n && String(n).trim())
     .map((n, i) => new Paragraph({
-      alignment: AlignmentType.RIGHT,
+      alignment: AlignmentType.LEFT,
       bidirectional: true,
-
       spacing: { before: 0, after: pt(3), line: lsTwips(LS_BODY), lineRule: 'auto' },
-      children: [mkRun(`${i + 1}. ${String(n).trim()}`, { size: FS_BODY })],
+      children: [mkRun(`\u200F${i + 1}. ${String(n).trim()}`, { size: FS_BODY })],
     }));
 
   // ── Conclusions ───────────────────────────────────────────────────────────
   const conclusionsTitlePara = new Paragraph({
-    alignment: AlignmentType.RIGHT,
+    alignment: AlignmentType.LEFT,
     bidirectional: true,
 
     spacing: { before: pt(4), after: pt(2), line: lsTwips(LS_BODY), lineRule: 'auto' },
@@ -665,11 +689,10 @@ export async function generateDocument(data) {
   }
 
   const conclusionParas = conclusionLines.map((l, i) => new Paragraph({
-    alignment: AlignmentType.RIGHT,
+    alignment: AlignmentType.LEFT,
     bidirectional: true,
-
     spacing: { before: 0, after: pt(3), line: lsTwips(LS_BODY), lineRule: 'auto' },
-    children: [mkRun(`${i + 1}. ${l.trim()}`, { size: FS_BODY })],
+    children: [mkRun(`\u200F${i + 1}. ${l.trim()}`, { size: FS_BODY })],
   }));
 
   // ── Defects appendix ──────────────────────────────────────────────────────
@@ -680,7 +703,7 @@ export async function generateDocument(data) {
   ) {
     defectsSection.push(
       new Paragraph({
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.LEFT,
         bidirectional: true,
 
         pageBreakBefore: true,
@@ -723,7 +746,7 @@ export async function generateDocument(data) {
 
     if (loaded.length > 0) {
       photosSection.push(new Paragraph({
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.LEFT,
         bidirectional: true,
 
         pageBreakBefore: true,
@@ -794,7 +817,7 @@ export async function generateDocument(data) {
     for (const title of cfg.appendixTitles) {
       if (title) {
         appendixSection.push(new Paragraph({
-          alignment: AlignmentType.RIGHT,
+          alignment: AlignmentType.LEFT,
           bidirectional: true,
 
           spacing: { before: 0, after: pt(3) },
@@ -838,7 +861,7 @@ export async function generateDocument(data) {
       default: {
         document: {
           run:       { font: { name: FONT }, size: FS_BODY * 2 },
-          paragraph: { alignment: AlignmentType.RIGHT },
+          paragraph: { alignment: AlignmentType.LEFT },
         },
       },
     },
@@ -867,74 +890,89 @@ export async function generateDocument(data) {
 
 // ── Field-notes document generator ──────────────────────────────────────────
 
-function parseHtmlToDocxChildren(html) {
-  const div = document.createElement('div');
-  div.innerHTML = html || '';
+function parseHtmlToDocxChildren(html, { textSize = FS_BODY, lineSpacing = null } = {}) {
+  const container = document.createElement('div');
+  container.innerHTML = html || '';
   const paras = [];
-
+  const sp = lineSpacing ? { line: lsTwips(lineSpacing), lineRule: 'auto' } : {};
   const hebrewRe = /[\u0590-\u05FF]/;
+  const isRtl = t => hebrewRe.test(t);
 
-  function textRtl(text) {
-    return hebrewRe.test(text);
-  }
-
-  // In a dir="rtl" editor, justifyRight sets text-align:right but OOXML RTL
-  // paragraphs treat w:jc val="right" as visual-left. Swap to match editor.
+  // bidi alignment flip: editor dir=rtl means justifyRight → visual-left in OOXML
   function alignFromStyle(el) {
     const ta = el.style?.textAlign || '';
     if (ta === 'left')   return AlignmentType.RIGHT;
     if (ta === 'center') return AlignmentType.CENTER;
     if (ta === 'right')  return AlignmentType.LEFT;
-    return AlignmentType.RIGHT;
+    return AlignmentType.LEFT;
   }
 
-  function runsFromNode(node) {
+  // Extract inline runs only — do NOT recurse into block children
+  function runsFromLeaf(node) {
     const runs = [];
     node.childNodes.forEach(child => {
       if (child.nodeType === Node.TEXT_NODE) {
         const t = child.textContent;
-        if (t) runs.push(mkRun(t, { rtl: textRtl(t) }));
+        if (t) runs.push(mkRun(t, { size: textSize, rtl: isRtl(t) }));
       } else if (child.nodeType === Node.ELEMENT_NODE) {
         const tag = child.tagName.toUpperCase();
+        if (tag === 'BR') { runs.push(new TextRun({ break: 1 })); return; }
         const inner = child.textContent || '';
-        if (!inner.trim() && tag !== 'BR') return;
+        if (!inner.trim()) return;
         const bold = tag === 'B' || tag === 'STRONG' || child.style?.fontWeight === 'bold';
         const underline = tag === 'U';
-        if (tag === 'BR') {
-          runs.push(new TextRun({ break: 1 }));
-        } else {
-          runs.push(mkRun(inner, { bold, underline, rtl: textRtl(inner) }));
-        }
+        runs.push(mkRun(inner, { size: textSize, bold, underline, rtl: isRtl(inner) }));
       }
     });
-    if (runs.length === 0) runs.push(mkRun(''));
+    if (runs.length === 0) runs.push(mkRun('', { size: textSize }));
     return runs;
   }
 
-  const blocks = div.childNodes.length ? div.childNodes : [div];
+  const BLOCK_TAGS = new Set(['DIV','P','H1','H2','H3','H4','H5','H6','BLOCKQUOTE','OL','UL','LI']);
 
-  blocks.forEach(node => {
+  function processNode(node) {
     if (node.nodeType === Node.TEXT_NODE) {
       const t = (node.textContent || '').trim();
-      if (t) paras.push(mkPara([mkRun(t)]));
+      if (t) paras.push(mkPara([mkRun(t, { size: textSize, rtl: isRtl(t) })],
+        { spacing: { before: 0, after: 0, ...sp } }));
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const tag = node.tagName.toUpperCase();
-    const align = alignFromStyle(node);
 
-    if (tag === 'UL' || tag === 'OL') {
-      node.querySelectorAll('li').forEach((li, idx) => {
-        const prefix = tag === 'OL' ? `${idx + 1}. ` : '• ';
-        paras.push(mkPara([mkRun(prefix + (li.textContent || '').trim())], { alignment: align }));
-      });
-    } else {
-      const runs = runsFromNode(node);
-      paras.push(mkPara(runs, { alignment: align }));
+    if (tag === 'BR') {
+      paras.push(mkPara([mkRun('', { size: textSize })], { spacing: { before: 0, after: 0, ...sp } }));
+      return;
     }
-  });
 
-  return paras.length ? paras : [mkPara([mkRun('')])];
+    if (tag === 'OL' || tag === 'UL') {
+      let counter = 0;
+      node.querySelectorAll(':scope > li').forEach(li => {
+        counter++;
+        const prefix = tag === 'UL'
+          ? mkRun('• ', { size: textSize })
+          : mkRun(`\u200F${counter}. `, { size: textSize });
+        paras.push(mkPara([prefix, ...runsFromLeaf(li)], {
+          spacing: { before: 0, after: 0, ...sp },
+        }));
+      });
+      return;
+    }
+
+    // Block container (div/p/etc.) — recurse if it has block children, else treat as leaf
+    const hasBlockChild = [...node.childNodes].some(
+      c => c.nodeType === Node.ELEMENT_NODE && BLOCK_TAGS.has(c.tagName?.toUpperCase())
+    );
+    if (hasBlockChild) {
+      node.childNodes.forEach(processNode);
+    } else {
+      const align = alignFromStyle(node);
+      paras.push(mkPara(runsFromLeaf(node), { alignment: align, spacing: { before: 0, after: 0, ...sp } }));
+    }
+  }
+
+  container.childNodes.forEach(processNode);
+  return paras.length ? paras : [mkPara([mkRun('', { size: textSize })])];
 }
 
 export async function generateFieldNotesDocument(data) {
@@ -944,7 +982,25 @@ export async function generateFieldNotesDocument(data) {
     fetchLogo(base + 'footer_logo.png', 5.0),
   ]);
 
-  const headerParas = [];
+  function mkPageField(instr) {
+    const sf = new SimpleField(instr);
+    sf.root.push(new TextRun({ text: '1', font: FONT, size: FS_PAGE_NUM * 2, rtl: true }));
+    return sf;
+  }
+
+  const headerParas = [
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      bidirectional: false,
+      spacing: { before: 0, after: pt(2) },
+      children: [
+        new TextRun({ text: 'עמוד ', font: FONT, size: FS_PAGE_NUM * 2 }),
+        mkPageField('PAGE'),
+        new TextRun({ text: ' מתוך ', font: FONT, size: FS_PAGE_NUM * 2 }),
+        mkPageField('NUMPAGES'),
+      ],
+    }),
+  ];
   if (headerLogo) {
     const logoW = 9.5;
     const logoH = logoW / headerLogo.aspectRatio;
@@ -980,26 +1036,38 @@ export async function generateFieldNotesDocument(data) {
 
   const datePara = new Paragraph({
     alignment: AlignmentType.LEFT,
+    bidirectional: false,
     spacing: { before: 0, after: 0 },
     children: [mkRun(formatDate(data.date), { size: FS_DATE, rtl: false })],
+  });
+
+  const leKavodPara = new Paragraph({
+    alignment: AlignmentType.LEFT,
+    bidirectional: true,
+    spacing: { before: 0, after: 0, line: lsTwips(1.15), lineRule: 'auto' },
+    children: [mkRun('לכבוד', { size: 8 })],
+  });
+
+  const clientPara = new Paragraph({
+    alignment: AlignmentType.LEFT,
+    bidirectional: true,
+    spacing: { before: 0, after: 0, line: lsTwips(1.15), lineRule: 'auto' },
+    children: [mkRun(data.client || '', { size: 8, underline: true })],
   });
 
   const titlePara = new Paragraph({
     alignment: AlignmentType.CENTER,
     bidirectional: true,
-    spacing: { before: 0, after: pt(14) },
+    spacing: { before: pt(18), after: pt(10) },
     children: [mkRun(data.title || 'יומן שטח', { size: FS_TITLE, bold: true, underline: true })],
   });
 
   const metaParas = [];
-  if (data.client) {
-    metaParas.push(mkPara([mkRun(data.client, { size: FS_CLIENT })], { spacing: { before: 0, after: 0 } }));
-  }
   if (data.location && data.location !== data.client) {
     metaParas.push(mkPara([mkRun(data.location, { size: FS_CLIENT })], { spacing: { before: 0, after: pt(8) } }));
   }
 
-  const contentParas = parseHtmlToDocxChildren(data.content);
+  const contentParas = parseHtmlToDocxChildren(data.content, { textSize: 9, lineSpacing: 1.15 });
 
   // Photos
   const photosSection = [];
@@ -1017,72 +1085,69 @@ export async function generateFieldNotesDocument(data) {
         const isPortrait = natH > natW;
         let dispW, dispH;
         if (isPortrait) { dispH = 8; dispW = natW > 0 ? (natW / natH) * dispH : 6; }
-        else { dispW = 7.5; dispH = natH > 0 ? (natH / natW) * dispW : 5.625; }
+        else { dispW = 8.4; dispH = natH > 0 ? (natH / natW) * dispW : 6.3; }
         const mimeM = dataUrl.match(/^data:image\/(jpeg|jpg|png|gif|webp);/);
         const imgType = mimeM?.[1] === 'png' ? 'png' : 'jpg';
-        const caption = ph.caption || `תמונה ${i + 1}`;
-        loaded.push({ imgArr, dispW, dispH, imgType, caption });
+        const num = i + 1;
+        const label = ph.caption ? `תמונה ${num} - ${ph.caption}` : `תמונה ${num}`;
+        loaded.push({ imgArr, dispW, dispH, imgType, label });
       } catch (_) {}
     }
     if (loaded.length > 0) {
       photosSection.push(new Paragraph({
-        alignment: AlignmentType.RIGHT,
+        alignment: AlignmentType.LEFT,
         bidirectional: true,
         pageBreakBefore: true,
         spacing: { before: 0, after: pt(6) },
         children: [mkRun('תמונות:', { size: FS_HEADING, bold: true })],
       }));
-      for (let i = 0; i < loaded.length; i += 2) {
-        const left = loaded[i];
-        const right = loaded[i + 1] ?? null;
-        const capCell = (p) => new TableCell({
-          width: { size: cm(8.5), type: WidthType.DXA },
-          borders: NO_BORDER,
-          children: [new Paragraph({
+      // Each cell: image on top, caption below — keeps them inseparable across pages.
+      const photoCell = (p) => new TableCell({
+        width: { size: cm(8.5), type: WidthType.DXA },
+        verticalAlign: VerticalAlign.TOP,
+        borders: NO_BORDER,
+        children: [
+          new Paragraph({
             alignment: AlignmentType.CENTER,
             bidirectional: true,
             spacing: { before: pt(4), after: pt(2) },
-            children: [mkRun(p.caption, { size: FS_PHOTO })],
-          })],
-        });
-        const imgCell = (p) => new TableCell({
-          width: { size: cm(8.5), type: WidthType.DXA },
-          verticalAlign: VerticalAlign.TOP,
-          borders: NO_BORDER,
-          children: [new Paragraph({
+            children: [mkRun(p.label, { size: FS_PHOTO })],
+          }),
+          new Paragraph({
             alignment: AlignmentType.CENTER,
             bidirectional: true,
-            spacing: { before: 0, after: pt(4) },
+            spacing: { before: 0, after: pt(6) },
             children: [new ImageRun({
               data: p.imgArr,
               transformation: { width: cmPx(p.dispW), height: cmPx(p.dispH) },
               type: p.imgType,
             })],
-          })],
-        });
-        const emptyCell = () => new TableCell({
-          width: { size: cm(8.5), type: WidthType.DXA },
-          borders: NO_BORDER,
-          children: [new Paragraph({ children: [] })],
-        });
+          }),
+        ],
+      });
+      const emptyCell = () => new TableCell({
+        width: { size: cm(8.5), type: WidthType.DXA },
+        borders: NO_BORDER,
+        children: [new Paragraph({ children: [] })],
+      });
+      for (let i = 0; i < loaded.length; i += 2) {
+        const left = loaded[i];
+        const right = loaded[i + 1] ?? null;
         photosSection.push(new Table({
           layout: TableLayoutType.FIXED,
-          rows: [
-            new TableRow({ children: [capCell(left), right ? capCell(right) : emptyCell()] }),
-            new TableRow({ children: [imgCell(left), right ? imgCell(right) : emptyCell()] }),
-          ],
+          rows: [new TableRow({ cantSplit: true, children: [photoCell(left), right ? photoCell(right) : emptyCell()] })],
         }));
-        photosSection.push(new Paragraph({ spacing: { before: 0, after: pt(6) }, children: [] }));
       }
     }
   }
 
   const doc = new Document({
+    numbering: { config: FN_NUMBERING },
     styles: {
       default: {
         document: {
           run:       { font: { name: FONT }, size: FS_BODY * 2 },
-          paragraph: { alignment: AlignmentType.RIGHT },
+          paragraph: { alignment: AlignmentType.LEFT },
         },
       },
     },
@@ -1095,7 +1160,7 @@ export async function generateFieldNotesDocument(data) {
       },
       headers: { default: new Header({ children: headerParas }) },
       footers: { default: new Footer({ children: footerParas }) },
-      children: [datePara, titlePara, ...metaParas, ...contentParas, ...photosSection],
+      children: [datePara, leKavodPara, clientPara, titlePara, ...metaParas, ...contentParas, ...photosSection],
     }],
   });
 

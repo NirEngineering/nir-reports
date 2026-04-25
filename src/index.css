@@ -2,10 +2,10 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --primary: #1a56db;
-  --primary-dark: #1341a8;
-  --primary-light: #e8f0fe;
-  --primary-mid: #3b82f6;
+  --primary: #4a6fa5;
+  --primary-dark: #345580;
+  --primary-light: #e8eef6;
+  --primary-mid: #6389b5;
   --success: #059669;
   --success-light: #d1fae5;
   --danger: #dc2626;
@@ -33,7 +33,7 @@
 html, body {
   direction: rtl;
   font-family: var(--font);
-  background: #eef2f7;
+  background: #edf1f6;
   color: var(--gray-900);
   font-size: 16px;
   line-height: 1.5;
@@ -48,10 +48,10 @@ html, body {
 
 /* ── Header ──────────────────────────────────────────────────────── */
 .app-header {
-  background: linear-gradient(135deg, #1a56db 0%, #1e40af 100%);
+  background: linear-gradient(135deg, #3d5f80 0%, #2c4a68 100%);
   color: white;
   padding: 0;
-  box-shadow: 0 2px 8px rgba(26,86,219,0.4);
+  box-shadow: 0 2px 8px rgba(44,74,104,0.4);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -154,7 +154,7 @@ html, body {
 
 /* ── Draft banner ─────────────────────────────────────────────────── */
 .draft-banner {
-  background: linear-gradient(135deg, #1e40af, #1a56db);
+  background: linear-gradient(135deg, #2c4a68, #3d5f80);
   color: white;
   border-radius: var(--radius);
   padding: 14px 16px;
@@ -242,7 +242,7 @@ html, body {
   background: var(--primary);
   border-color: var(--primary);
   color: white;
-  box-shadow: 0 0 0 4px rgba(26,86,219,0.2);
+  box-shadow: 0 0 0 4px rgba(74,111,165,0.2);
 }
 
 .stepbar-label {
@@ -309,7 +309,7 @@ html, body {
 .doc-type-card:hover, .doc-type-card.selected {
   border-color: var(--primary);
   background: var(--primary-light);
-  box-shadow: 0 4px 12px rgba(26,86,219,0.2);
+  box-shadow: 0 4px 12px rgba(74,111,165,0.2);
 }
 
 .doc-type-icon { font-size: 36px; margin-bottom: 10px; }
@@ -364,7 +364,7 @@ html, body {
 .form-input:focus, .form-select:focus, .form-textarea:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(26,86,219,0.12);
+  box-shadow: 0 0 0 3px rgba(74,111,165,0.12);
 }
 .form-textarea { min-height: 90px; resize: vertical; line-height: 1.6; }
 
@@ -504,7 +504,7 @@ html, body {
   outline: none;
   border-color: var(--primary);
   background: white;
-  box-shadow: 0 0 0 2px rgba(26,86,219,0.1);
+  box-shadow: 0 0 0 2px rgba(74,111,165,0.1);
 }
 .table-editor textarea { min-height: 60px; resize: vertical; }
 .table-actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
@@ -530,7 +530,7 @@ html, body {
 }
 .row-card:focus-within {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(26,86,219,0.08);
+  box-shadow: 0 0 0 3px rgba(74,111,165,0.08);
 }
 
 .row-card-header {
@@ -601,7 +601,7 @@ html, body {
   outline: none;
   border-color: var(--primary);
   background: white;
-  box-shadow: 0 0 0 2px rgba(26,86,219,0.1);
+  box-shadow: 0 0 0 2px rgba(74,111,165,0.1);
 }
 
 .card-field-textarea {
@@ -624,7 +624,7 @@ html, body {
   outline: none;
   border-color: var(--primary);
   background: white;
-  box-shadow: 0 0 0 2px rgba(26,86,219,0.1);
+  box-shadow: 0 0 0 2px rgba(74,111,165,0.1);
 }
 
 .card-field-select {
@@ -646,7 +646,7 @@ html, body {
   outline: none;
   border-color: var(--primary);
   background: white;
-  box-shadow: 0 0 0 2px rgba(26,86,219,0.1);
+  box-shadow: 0 0 0 2px rgba(74,111,165,0.1);
 }
 
 /* ── Card photo section ───────────────────────────────────────────── */
@@ -711,7 +711,7 @@ html, body {
   line-height: 1.5;
   color: var(--gray-900);
 }
-.card-photo-caption:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,86,219,0.1); }
+.card-photo-caption:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(74,111,165,0.1); }
 
 .card-field-inherited {
   border-color: #a5b4fc;
@@ -770,7 +770,7 @@ html, body {
   position: absolute;
   top: 6px;
   right: 6px;
-  background: rgba(26,86,219,0.85);
+  background: rgba(74,111,165,0.85);
   color: white;
   border-radius: 20px;
   font-size: 10px;
@@ -924,7 +924,7 @@ html, body {
   justify-content: center;
 }
 .paste-modal-area:focus {
-  border-color: #3b82f6;
+  border-color: #6389b5;
   color: #1e293b;
 }
 
@@ -1197,7 +1197,7 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 16px 18px;
-  background: linear-gradient(135deg, #1a56db, #1e40af);
+  background: linear-gradient(135deg, #3d5f80, #2c4a68);
   color: white;
   flex-shrink: 0;
 }
@@ -1432,7 +1432,7 @@ html, body {
 .home-card:hover, .home-card:active {
   border-color: var(--primary);
   transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(26,86,219,0.15);
+  box-shadow: 0 8px 30px rgba(74,111,165,0.15);
 }
 .home-card-icon { font-size: 40px; }
 .home-card-title { font-size: 20px; font-weight: 700; color: #1e293b; }

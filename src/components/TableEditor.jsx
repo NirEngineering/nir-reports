@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from '../constants';
+import { NOTES_SUGGESTIONS } from '../lib/inspectionData';
 
 // ── Image compression ────────────────────────────────────────────────────────
 async function compressImage(dataUrl) {
@@ -335,18 +336,20 @@ function RowCard({
       );
     }
 
-    // Location col → textarea + hint from previous row
+    // Location col → input with datalist + hint from previous row
     if (isLocationCol(col)) {
       const showHint = !val.trim() && prevLocation;
       return (
         <div>
-          <textarea
-            className={`card-field-textarea${showHint ? ' card-field-inherited' : ''}`}
+          <input
+            type="text"
+            className={`card-field-input${showHint ? ' card-field-inherited' : ''}`}
             value={val}
             onChange={e => onCellChange(colIdx, e.target.value)}
-            placeholder={showHint ? `כמו שורה קודמת: ${prevLocation}` : col}
-            rows={2}
+            placeholder={showHint ? `כמו שורה קודמת: ${prevLocation}` : `${col} – הקלד לחיפוש...`}
+            list="loc-list-main"
             dir="rtl"
+            style={{ width: '100%' }}
           />
           {showHint && (
             <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, direction: 'rtl' }}>
@@ -357,17 +360,35 @@ function RowCard({
       );
     }
 
-    // Notes / long text → textarea
+    // Notes / long text → textarea + quick-pick suggestions
     if (isNotesCol(col)) {
       return (
-        <textarea
-          className="card-field-textarea"
-          value={val}
-          onChange={e => onCellChange(colIdx, e.target.value)}
-          placeholder={col}
-          rows={3}
-          dir="rtl"
-        />
+        <div>
+          <select
+            className="card-field-select"
+            value=""
+            onChange={e => {
+              if (!e.target.value) return;
+              const current = val.trim();
+              const newVal = current ? `${current}; ${e.target.value}` : e.target.value;
+              onCellChange(colIdx, newVal);
+              e.target.value = '';
+            }}
+            dir="rtl"
+          >
+            <option value="">💡 בחר מהרשימה המהירה...</option>
+            {NOTES_SUGGESTIONS.map((s, i) => <option key={i} value={s}>{s}</option>)}
+          </select>
+          <textarea
+            className="card-field-textarea"
+            value={val}
+            onChange={e => onCellChange(colIdx, e.target.value)}
+            placeholder={col}
+            rows={3}
+            dir="rtl"
+            style={{ marginTop: 4 }}
+          />
+        </div>
       );
     }
 
@@ -438,7 +459,7 @@ function RowCard({
 export default function TableEditor({
   columns, rows, onRowsChange, onChange: onChangeLegacy, docType,
   rowPhotos = [], onRowPhotosChange,
-  elements = [], findings = {},
+  elements = [], findings = {}, locations = [],
 }) {
   // Support both `onRowsChange` (new API) and `onChange` (legacy)
   const onChange = onRowsChange || onChangeLegacy;
@@ -489,9 +510,12 @@ export default function TableEditor({
 
   return (
     <div>
-      {/* Datalist for element autocomplete — populated from props, no fetch */}
+      {/* Datalists for element and location autocomplete */}
       <datalist id="el-list-main">
         {elements.map((opt, i) => <option key={i} value={opt} />)}
+      </datalist>
+      <datalist id="loc-list-main">
+        {locations.map((opt, i) => <option key={i} value={opt} />)}
       </datalist>
 
       {/* Row cards */}

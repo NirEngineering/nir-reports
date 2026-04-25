@@ -3,6 +3,7 @@ import TableEditor from './components/TableEditor';
 import PhotoUpload from './components/PhotoUpload';
 import SearchDropdown from './components/SearchDropdown';
 import FieldNotesEditor from './components/FieldNotesEditor';
+import SortableNotesList from './components/SortableNotesList';
 import {
   DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS,
   DRAFT_KEY, DRAFTS_KEY, ARCHIVE_KEY, FIELDNOTES_KEY,
@@ -12,10 +13,12 @@ import { importDocx, exportDocx } from './lib/docImporter';
 import {
   generateSyncCode, subscribeFieldNotes, pushFieldNote, deleteFieldNote,
   subscribeDrafts, pushDraft, deleteDraft as fbDeleteDraft,
+  pushNotePhotos, subscribePhotos, deleteNotePhotos,
 } from './lib/sync';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
 import clientsData from './data/clients.json';
+import { LOCATIONS_DATA, ELEMENTS_DATA, FINDINGS_BY_ELEMENT } from './lib/inspectionData';
 import './index.css';
 
 const SYNC_CODE_KEY = 'nir_v2_synccode';
@@ -268,6 +271,11 @@ export default function App() {
   const [fnMode, setFnMode]           = useState('list'); // 'list' | 'edit'
   const [fnCurrent, setFnCurrent]     = useState(null);   // current note being edited
   const [fnLoading, setFnLoading]     = useState(false);
+  const [fnAutoSaved, setFnAutoSaved] = useState(false);
+  const [fnSearch, setFnSearch]       = useState('');
+  const [fnView, setFnView]           = useState('active'); // 'active' | 'archived'
+  const fnAutoSaveTimer               = useRef(null);
+  const fnCurrentRef                  = useRef(null);
 
   // Sync state
   const [syncCode, setSyncCode]       = useState(() => localStorage.getItem(SYNC_CODE_KEY) || '');
@@ -312,22 +320,52 @@ export default function App() {
     const unsubFn = subscribeFieldNotes(syncCode, ({ remote, removed }) => {
       fromFirestore.current = true;
       setFieldNotes(prev => {
-        // Preserve local photos; merge remote text
         const map = new Map(prev.map(n => [n.id, n]));
         removed.forEach(id => map.delete(id));
         remote.forEach(r => {
           const local = map.get(r.id);
-          if (!local || (r.updatedAt || '') >= (local.updated_at || '')) {
+          if (!local || (r.updatedAt || '') >= (local.updatedAt || '')) {
+            // Preserve local photos — subscribePhotos handles photo updates separately
             map.set(r.id, { ...r, photos: local?.photos || [] });
           }
         });
-        const merged = Array.from(map.values())
-          .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+        const merged = Array.from(map.values());
         lsSet(FIELDNOTES_KEY, merged);
         return merged;
       });
       fromFirestore.current = false;
       setSyncStatus('ok');
+    });
+
+    // Real-time photo listener — fires immediately with all existing photo docs,
+    // then again whenever any photo is added or changed.
+    const unsubPhotos = subscribePhotos(syncCode, photoDocs => {
+      setFieldNotes(prev => {
+        // Group incoming photo docs by noteId, sorted by index
+        const byNote = {};
+        photoDocs.forEach(p => {
+          if (!p.noteId) return;
+          const id = String(p.noteId);
+          if (!byNote[id]) byNote[id] = [];
+          byNote[id].push(p);
+        });
+        Object.values(byNote).forEach(arr => arr.sort((a, b) => a.index - b.index));
+
+        let changed = false;
+        const next = prev.map(note => {
+          const incoming = byNote[String(note.id)];
+          if (!incoming?.length) return note;
+          const newPhotos = incoming.map(p => ({ data: p.data || '', caption: p.caption || '' }));
+          // Skip if local already has the same photos
+          if ((note.photos?.length || 0) >= newPhotos.length &&
+              note.photos?.[0]?.data === newPhotos[0]?.data) return note;
+          changed = true;
+          return { ...note, photos: newPhotos };
+        });
+        if (!changed) return prev;
+        lsSet(FIELDNOTES_KEY, next);
+        return next;
+      });
     });
 
     const unsubDr = subscribeDrafts(syncCode, ({ remote, removed }) => {
@@ -346,15 +384,28 @@ export default function App() {
       fromFirestore.current = false;
     });
 
-    return () => { unsubFn(); unsubDr(); };
+    return () => { unsubFn(); unsubPhotos(); unsubDr(); };
   }, [syncCode]);
 
-  // ── Auto-save current draft ───────────────────────────────────────────────
+  // ── Auto-save current draft (new document) ───────────────────────────────
   useEffect(() => {
     if (mode === 'new' && docType) {
       lsSet(DRAFT_KEY, { mode: 'new', step, docType, form, tableRows, defectsRows });
     }
   }, [mode, step, docType, form, tableRows, defectsRows]);
+
+  // ── Auto-save field note (debounced 1.5 s) ────────────────────────────────
+  useEffect(() => {
+    fnCurrentRef.current = fnCurrent;
+    if (!fnCurrent || fnMode !== 'edit') return;
+    clearTimeout(fnAutoSaveTimer.current);
+    fnAutoSaveTimer.current = setTimeout(() => {
+      fnSave(fnCurrentRef.current);
+      setFnAutoSaved(true);
+      setTimeout(() => setFnAutoSaved(false), 2000);
+    }, 1500);
+    return () => clearTimeout(fnAutoSaveTimer.current);
+  }, [fnCurrent, fnMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Draft helpers ──────────────────────────────────────────────────────────
   const applyDraftData = (d) => {
@@ -382,6 +433,7 @@ export default function App() {
       id: uid(),
       name,
       updated_at: nowLabel(),
+      updatedAt: new Date().toISOString(),
       docType,
       form,
       tableRows,
@@ -608,15 +660,27 @@ export default function App() {
   });
 
   const fnSave = (note) => {
-    const updated = { ...note, updated_at: nowLabel() };
-    const list = [updated, ...lsGet(FIELDNOTES_KEY, []).filter(n => n.id !== updated.id)].slice(0, 50);
+    const updated = { ...note, updated_at: nowLabel(), updatedAt: new Date().toISOString() };
+    const existing = lsGet(FIELDNOTES_KEY, []);
+    const idx = existing.findIndex(n => n.id === updated.id);
+    const list = idx >= 0
+      ? existing.map(n => n.id === updated.id ? updated : n)
+      : [updated, ...existing].slice(0, 50);
     lsSet(FIELDNOTES_KEY, list);
     setFieldNotes(list);
     if (syncCode) {
       setSyncStatus('syncing');
-      // Strip undefined values – Firestore rejects them
-      const clean = JSON.parse(JSON.stringify({ ...updated, photos: undefined }));
-      pushFieldNote(syncCode, clean)
+      const photos = updated.photos || [];
+      const pushWithPhotos = async () => {
+        if (photos.length > 0) {
+          await pushNotePhotos(syncCode, String(updated.id), photos);
+        }
+        const clean = JSON.parse(JSON.stringify({
+          ...updated, photos: undefined, hasPhotos: photos.length > 0,
+        }));
+        await pushFieldNote(syncCode, clean);
+      };
+      pushWithPhotos()
         .then(() => setSyncStatus('ok'))
         .catch(e => { setSyncStatus('error'); setError('שגיאת סנכרון: ' + e.message); });
     }
@@ -627,7 +691,30 @@ export default function App() {
     const list = fieldNotes.filter(n => n.id !== id);
     lsSet(FIELDNOTES_KEY, list);
     setFieldNotes(list);
-    if (syncCode) deleteFieldNote(syncCode, id).catch(console.warn);
+    if (syncCode) {
+      deleteFieldNote(syncCode, id).catch(console.warn);
+      deleteNotePhotos(syncCode, id).catch(console.warn);
+    }
+  };
+
+  const fnSetArchived = (id, archived) => {
+    const list = fieldNotes.map(n => n.id === id ? { ...n, archived } : n);
+    lsSet(FIELDNOTES_KEY, list);
+    setFieldNotes(list);
+    if (syncCode) {
+      const note = list.find(n => n.id === id);
+      if (note) pushFieldNote(syncCode, JSON.parse(JSON.stringify({ ...note, photos: undefined }))).catch(console.warn);
+    }
+  };
+
+  // Called by SortableNotesList with the reordered active-notes array
+  const fnReorder = (reorderedActive) => {
+    setFieldNotes(prev => {
+      let ai = 0;
+      const result = prev.map(n => n.archived ? n : reorderedActive[ai++]);
+      lsSet(FIELDNOTES_KEY, result);
+      return result;
+    });
   };
 
   const fnGenerate = async (note) => {
@@ -924,7 +1011,23 @@ export default function App() {
                   </div>
                   <div className="archive-item-actions">
                     <button className="btn btn-sm btn-primary" onClick={() => restoreDraftFromList(d)}>שחזר</button>
-                    <button className="btn btn-sm btn-outline" style={{ color:'#ef4444', borderColor:'#ef4444' }} onClick={() => deleteDraft(d.id)}>מחק</button>
+                    <button
+                      className="btn btn-sm btn-outline"
+                      title="העבר לארכיון"
+                      onClick={() => {
+                        addToArchive({
+                          doc_type: d.docType,
+                          doc_type_name: DOC_TYPES_CONFIG[d.docType]?.name?.replace('\n', ' ') ?? d.docType,
+                          client: d.form?.client || d.name,
+                          subject: d.form?.subject || d.name,
+                          location: d.form?.location || '',
+                          inspection_date: d.form?.inspection_date || '',
+                          form: d.form, tableRows: d.tableRows, defectsRows: d.defectsRows,
+                        });
+                        deleteDraft(d.id);
+                      }}
+                    >📁 ארכיון</button>
+                    <button className="btn btn-sm btn-outline" style={{ color:'#ef4444', borderColor:'#ef4444' }} onClick={() => { if (confirm('למחוק טיוטה?')) deleteDraft(d.id); }}>מחק</button>
                   </div>
                 </div>
               ))}
@@ -1138,8 +1241,9 @@ export default function App() {
                   rowPhotos={rowPhotos}
                   onRowPhotosChange={setRowPhotos}
                   docType={docType}
-                  elements={elementsData[docType] || []}
-                  findings={findingsData[docType] || {}}
+                  elements={[...ELEMENTS_DATA, ...(elementsData[docType] || [])]}
+                  findings={{ ...FINDINGS_BY_ELEMENT, ...(findingsData[docType] || {}) }}
+                  locations={LOCATIONS_DATA}
                 />
               </div>
 
@@ -1153,8 +1257,9 @@ export default function App() {
                     rowPhotos={defectsRowPhotos}
                     onRowPhotosChange={setDefectsRowPhotos}
                     docType={docType}
-                    elements={elementsData[docType] || []}
-                    findings={findingsData[docType] || {}}
+                    elements={[...ELEMENTS_DATA, ...(elementsData[docType] || [])]}
+                    findings={{ ...FINDINGS_BY_ELEMENT, ...(findingsData[docType] || {}) }}
+                    locations={LOCATIONS_DATA}
                   />
                 </div>
               )}
@@ -1221,63 +1326,76 @@ export default function App() {
           )}
 
           {/* List of field notes */}
-          {fnMode === 'list' && (
-            <div>
-              <div className="section-header">
-                <span className="section-icon">📓</span>
-                <span className="section-title">יומן שטח</span>
-              </div>
+          {fnMode === 'list' && (() => {
+            const activeNotes   = fieldNotes.filter(n => !n.archived);
+            const archivedNotes = fieldNotes.filter(n =>  n.archived);
+            const q             = fnSearch.trim();
+            const viewNotes     = fnView === 'active' ? activeNotes : archivedNotes;
+            const displayNotes  = q
+              ? viewNotes.filter(n =>
+                  (n.title || '').includes(q) || (n.client || '').includes(q) || (n.location || '').includes(q))
+              : viewNotes;
+            return (
+              <div>
+                <div className="section-header">
+                  <span className="section-icon">📓</span>
+                  <span className="section-title">יומן שטח</span>
+                </div>
 
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', marginBottom: 16 }}
-                onClick={() => { setFnCurrent(defaultFn()); setFnMode('edit'); }}
-              >
-                ➕ רשומה חדשה
-              </button>
+                <input
+                  className="form-input"
+                  placeholder="🔍 חיפוש לפי כותרת, לקוח, מיקום..."
+                  value={fnSearch}
+                  onChange={e => setFnSearch(e.target.value)}
+                  dir="rtl"
+                  style={{ marginBottom: 10 }}
+                />
 
-              {fieldNotes.length === 0 ? (
-                <div className="empty-state">
-                  <div style={{ fontSize: 40 }}>📓</div>
-                  <div>אין רשומות שמורות</div>
-                  <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
-                    לחץ "רשומה חדשה" כדי להתחיל
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <button className={`btn btn-sm ${fnView === 'active' ? 'btn-primary' : 'btn-outline'}`} style={{ flex: 1 }} onClick={() => setFnView('active')}>
+                    פעיל ({activeNotes.length})
+                  </button>
+                  <button className={`btn btn-sm ${fnView === 'archived' ? 'btn-primary' : 'btn-outline'}`} style={{ flex: 1 }} onClick={() => setFnView('archived')}>
+                    📁 ארכיון ({archivedNotes.length})
+                  </button>
+                </div>
+
+                {fnView === 'active' && (
+                  <button className="btn btn-primary" style={{ width: '100%', marginBottom: 12 }} onClick={() => { setFnCurrent(defaultFn()); setFnMode('edit'); }}>
+                    ➕ רשומה חדשה
+                  </button>
+                )}
+
+                {displayNotes.length === 0 ? (
+                  <div className="empty-state">
+                    <div style={{ fontSize: 40 }}>{fnView === 'archived' ? '📁' : '📓'}</div>
+                    <div>{q ? 'לא נמצאו תוצאות' : fnView === 'archived' ? 'הארכיון ריק' : 'אין רשומות'}</div>
+                    {!q && fnView === 'active' && <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>לחץ "רשומה חדשה" כדי להתחיל</div>}
                   </div>
-                </div>
-              ) : (
-                <div className="archive-list">
-                  {fieldNotes.map(note => (
-                    <div key={note.id} className="archive-item">
-                      <div className="archive-item-info">
-                        <div className="archive-item-title">{note.title || note.client || 'ללא כותרת'}</div>
-                        <div className="archive-item-sub">
-                          {note.client && <span>{note.client} • </span>}
-                          {note.created_at} • {note.updated_at}
-                        </div>
-                        {note.photos?.length > 0 && (
-                          <div className="archive-item-subject" style={{ color: '#64748b' }}>
-                            📷 {note.photos.length} תמונות
-                          </div>
-                        )}
-                      </div>
-                      <div className="archive-item-actions">
-                        <button className="btn btn-sm btn-primary" onClick={() => { setFnCurrent({...note}); setFnMode('edit'); }}>ערוך</button>
-                        <button className="btn btn-sm btn-outline" onClick={() => fnGenerate(note)} title="צור מסמך Word">⬇️</button>
-                        <button className="btn btn-sm btn-outline" style={{ color:'#ef4444', borderColor:'#ef4444' }} onClick={() => fnDelete(note.id)}>מחק</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                ) : (
+                  <SortableNotesList
+                    notes={displayNotes}
+                    isActive={fnView === 'active' && !q}
+                    onReorder={fnReorder}
+                    onEdit={note => { setFnCurrent({...note}); setFnMode('edit'); }}
+                    onGenerate={fnGenerate}
+                    onArchive={fnSetArchived}
+                    onDelete={id => { if (confirm('למחוק את הרשומה?')) fnDelete(id); }}
+                  />
+                )}
+              </div>
+            );
+          })()}
 
           {/* Edit / create a field note */}
           {fnMode === 'edit' && fnCurrent && (
             <div>
-              <div className="section-header">
+              <div className="section-header" style={{ position: 'relative' }}>
                 <span className="section-icon">✏️</span>
                 <span className="section-title">{fnCurrent.id && fieldNotes.some(n => n.id === fnCurrent.id) ? 'עריכת רשומה' : 'רשומה חדשה'}</span>
+                {fnAutoSaved && (
+                  <span style={{ fontSize: 12, color: '#22c55e', marginRight: 'auto', opacity: 0.9 }}>✓ נשמר</span>
+                )}
               </div>
 
               <div className="card">
@@ -1328,27 +1446,16 @@ export default function App() {
 
               <div style={{ display: 'flex', gap: 8, flexDirection: 'column', marginTop: 4 }}>
                 <button
-                  className="btn btn-success btn-lg"
-                  onClick={() => {
-                    const saved = fnSave(fnCurrent);
-                    setFnCurrent(saved);
-                    setSuccess('✅ נשמר!');
-                    setTimeout(() => setSuccess(''), 2000);
-                  }}
-                >
-                  💾 שמור רשומה
-                </button>
-                <button
                   className="btn btn-primary"
                   onClick={() => fnGenerate(fnSave(fnCurrent))}
                 >
-                  ⬇️ שמור וצור מסמך Word
+                  צור מסמך Word
                 </button>
                 <button
                   className="btn btn-outline"
-                  onClick={() => setFnMode('list')}
+                  onClick={() => { fnSave(fnCurrent); setFnMode('list'); }}
                 >
-                  ◀ חזור לרשימה
+                  ◀ שמור וחזור לרשימה
                 </button>
               </div>
             </div>
