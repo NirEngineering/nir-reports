@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import TableEditor from './components/TableEditor';
 import PhotoUpload from './components/PhotoUpload';
 import SearchDropdown from './components/SearchDropdown';
-import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
+import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY, FIELD_LOG_KEY } from './constants';
 import { generateDocument } from './lib/docGenerator';
+import { generateEventApproval } from './lib/eventApproval';
 import { importDocx, exportDocx } from './lib/docImporter';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
@@ -74,6 +75,18 @@ const defaultForm = () => ({
   has_defects: false,
   conclusion_custom: '',
   notes_custom: '',
+});
+
+const defaultEventForm = () => ({
+  to: '',
+  date: new Date().toISOString().split('T')[0],
+  address: '',
+  owner: '',
+  id_num: '',
+  phone: '',
+  structures: '',
+  notes: '',
+  validity: '',
 });
 
 // ── StepBar ───────────────────────────────────────────────────────────────────
@@ -155,7 +168,7 @@ function RichTextarea({ value, onChange, placeholder, rows = 4 }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit'
+  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'event'
   const [step, setStep] = useState(0);         // for 'new': 0=type,1=details,2=table,3=photos,4=generate
   const [docType, setDocType] = useState('');
   const [form, setForm] = useState(defaultForm());
@@ -173,6 +186,17 @@ export default function App() {
   const [editImport, setEditImport] = useState(null);
   const [editEdits, setEditEdits] = useState({});
   const [editLoading, setEditLoading] = useState(false);
+
+  // Field journal state
+  const [fieldLog, setFieldLog] = useState(() => {
+    try { return localStorage.getItem(FIELD_LOG_KEY) || ''; } catch { return ''; }
+  });
+  const [fieldCopied, setFieldCopied] = useState(false);
+  const fieldLogRef = useRef(null);
+
+  // Event approval state
+  const [eventForm, setEventForm] = useState(defaultEventForm());
+  const setEventField = (key, val) => setEventForm(f => ({ ...f, [key]: val }));
   const [editFile, setEditFile] = useState(null);
   const fileRef = useRef(null);
 
@@ -222,6 +246,50 @@ export default function App() {
   useEffect(() => {
     if (mode === 'new' && docType) saveDraft();
   }, [mode, step, docType, form, tableRows, defectsRows]);
+
+  // Auto-save field log to localStorage on every change
+  useEffect(() => {
+    try { localStorage.setItem(FIELD_LOG_KEY, fieldLog); } catch (_) {}
+  }, [fieldLog]);
+
+  const insertFieldText = (text) => {
+    const ta = fieldLogRef.current;
+    if (!ta) return;
+    const pos = ta.selectionStart;
+    const next = fieldLog.slice(0, pos) + text + fieldLog.slice(pos);
+    setFieldLog(next);
+    requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = pos + text.length; ta.focus(); });
+  };
+
+  const copyFieldLog = () => {
+    navigator.clipboard.writeText(fieldLog).then(() => {
+      setFieldCopied(true);
+      setTimeout(() => setFieldCopied(false), 2000);
+    });
+  };
+
+  // ── Event approval generate ───────────────────────────────────────────────
+  const handleEventGenerate = async () => {
+    if (!eventForm.to.trim()) { setError('יש למלא את שדה "לכבוד"'); return; }
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      const blob = await generateEventApproval({
+        ...eventForm,
+        date: isoToDisplay(eventForm.date),
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `אישור_אירוע_${eventForm.to || 'מסמך'}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setSuccess('המסמך נוצר בהצלחה!');
+    } catch (e) {
+      setError(`שגיאה: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ── Auto-detect defects from main table rows ──────────────────────────────
   // Recalculate whenever tableRows changes
@@ -418,6 +486,18 @@ export default function App() {
               <div className="home-card-icon">📂</div>
               <div className="home-card-title">ערוך מסמך קיים</div>
               <div className="home-card-sub">טען קובץ Word ועדכן את התוכן שלו</div>
+            </div>
+
+            <div className="home-card" onClick={() => { setEventForm(defaultEventForm()); setMode('event'); setError(''); setSuccess(''); }}>
+              <div className="home-card-icon">🎪</div>
+              <div className="home-card-title">אישור לאירוע</div>
+              <div className="home-card-sub">אישור מבנים ומתקנים ארעיים/קבועים</div>
+            </div>
+
+            <div className="home-card" onClick={() => setMode('field')}>
+              <div className="home-card-icon">📋</div>
+              <div className="home-card-title">יומן שטח</div>
+              <div className="home-card-sub">רשום הערות בשטח – נשמר אוטומטית</div>
             </div>
           </div>
         </div>
@@ -868,6 +948,130 @@ export default function App() {
                   {editLoading ? '⏳ מייצא...' : '⬇️ הורד מסמך ערוך'}
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          EVENT APPROVAL MODE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mode === 'event' && (
+        <div className="app-body">
+          <div className="section-header">
+            <button className="btn btn-outline btn-sm" style={{ marginLeft: 12 }} onClick={() => setMode('home')}>◀ חזור</button>
+            <span className="section-icon">🎪</span>
+            <span className="section-title">אישור מבנים ומתקנים ארעיים/קבועים</span>
+          </div>
+
+          <div className="card">
+            <div className="card-title">👤 פרטי הלקוח</div>
+
+            <Field label="לכבוד" required>
+              <input className="form-input" value={eventForm.to} onChange={e => setEventField('to', e.target.value)} placeholder="שם הגוף / הלקוח..." dir="rtl" />
+            </Field>
+            <Field label="תאריך המסמך">
+              <input type="date" className="form-input" value={eventForm.date} onChange={e => setEventField('date', e.target.value)} />
+            </Field>
+            <Field label="כתובת העסק">
+              <input className="form-input" value={eventForm.address} onChange={e => setEventField('address', e.target.value)} placeholder="כתובת מלאה..." dir="rtl" />
+            </Field>
+            <Field label="שם בעל העסק / המזמין">
+              <input className="form-input" value={eventForm.owner} onChange={e => setEventField('owner', e.target.value)} placeholder="שם מלא..." dir="rtl" />
+            </Field>
+            <Field label="מספר ת.זהות">
+              <input className="form-input" value={eventForm.id_num} onChange={e => setEventField('id_num', e.target.value)} placeholder="מספר ת.ז..." dir="rtl" />
+            </Field>
+            <Field label="טלפון סלולארי">
+              <input className="form-input" value={eventForm.phone} onChange={e => setEventField('phone', e.target.value)} placeholder="050-0000000" dir="rtl" />
+            </Field>
+          </div>
+
+          <div className="card">
+            <div className="card-title">🏗️ מתקנים שנבדקו</div>
+            <Field label="רשום מתקן אחד בכל שורה">
+              <textarea
+                className="form-textarea event-structures-textarea"
+                value={eventForm.structures}
+                onChange={e => setEventField('structures', e.target.value)}
+                placeholder={'לדוגמה:\nבמה מוגבהת 10x6 מ\'\nגגון צללית 5x5 מ\'\nמאהל 3x3 מ\''}
+                rows={6}
+                dir="rtl"
+              />
+            </Field>
+          </div>
+
+          <div className="card">
+            <div className="card-title">📝 הערות ותוקף</div>
+            <Field label="הערות נוספות">
+              <input className="form-input" value={eventForm.notes} onChange={e => setEventField('notes', e.target.value)} placeholder="הערות נוספות (אופציונלי)..." dir="rtl" />
+            </Field>
+            <Field label="תוקף האישור">
+              <input className="form-input" value={eventForm.validity} onChange={e => setEventField('validity', e.target.value)} placeholder="לדוגמה: 31.12.2025" dir="rtl" />
+            </Field>
+          </div>
+
+          {error && <div className="error-msg">{error}</div>}
+          {success && <div className="success-msg">{success}</div>}
+
+          <button
+            className="btn btn-success btn-lg generate-btn"
+            onClick={handleEventGenerate}
+            disabled={loading}
+          >
+            {loading ? '⏳ יוצר מסמך...' : '⬇️ צור אישור לאירוע'}
+          </button>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          FIELD JOURNAL MODE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mode === 'field' && (
+        <div className="app-body">
+          <div className="field-journal-header">
+            <button className="btn btn-outline btn-sm" onClick={() => setMode('home')}>◀ חזור</button>
+            <span className="field-journal-title">📋 יומן שטח</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={() => {
+                  const now = new Date();
+                  const d = now.toLocaleDateString('he-IL');
+                  const t = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+                  insertFieldText(`\n[${d} ${t}]\n`);
+                }}
+              >
+                + תאריך/שעה
+              </button>
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={copyFieldLog}
+              >
+                {fieldCopied ? 'הועתק!' : 'העתק'}
+              </button>
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={() => { if (window.confirm('למחוק את כל הטקסט?')) setFieldLog(''); }}
+              >
+                נקה
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            ref={fieldLogRef}
+            className="field-journal-textarea"
+            value={fieldLog}
+            onChange={e => setFieldLog(e.target.value)}
+            placeholder="רשום כאן הערות שטח – נשמר אוטומטית..."
+            dir="rtl"
+            spellCheck
+          />
+
+          {fieldLog.trim() && (
+            <div className="field-journal-footer">
+              {fieldLog.split('\n').filter(l => l.trim()).length} שורות · נשמר אוטומטית
             </div>
           )}
         </div>

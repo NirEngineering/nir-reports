@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { STATUS_OPTIONS, PRIORITY_OPTIONS } from '../constants';
+import { STATUS_OPTIONS, PRIORITY_OPTIONS, PRIORITY_OPTIONS_GAP } from '../constants';
 
 // ── Image compression ────────────────────────────────────────────────────────
 async function compressImage(dataUrl) {
@@ -24,6 +24,7 @@ const SPECIAL_COLS = {
   'קדימות ליקויים': PRIORITY_OPTIONS,
   'קדימות': PRIORITY_OPTIONS,
   'קדימות ליקוי': PRIORITY_OPTIONS,
+  'קדימות הליקוי': PRIORITY_OPTIONS_GAP,  // group2: סקר פערי בטיחות (levels 0/1/2)
 };
 
 const isElementCol = (col) =>

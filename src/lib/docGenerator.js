@@ -20,102 +20,194 @@ import {
   TableLayoutType,
 } from 'docx';
 
-// ── Font / size constants ────────────────────────────────────────────────────
-const FONT       = 'Arial';
-const FS_DATE    = 8;
-const FS_CLIENT  = 8;
-const FS_TITLE   = 15;
-const FS_INTRO   = 9;
-const FS_HEADING = 9;
-const FS_BODY    = 8;
-const FS_TABLE   = 9;
-const FS_PHOTO_NUM = 9;
-const FS_PHOTO_CAP = 9;
+// ── Font constant ─────────────────────────────────────────────────────────────
+const FONT = 'Arial';
 
-// ── Doc-type configuration ───────────────────────────────────────────────────
+// ── Doc-type configuration ────────────────────────────────────────────────────
+// Per-type font sizes and content extracted from 48 original Hebrew Word documents
 const DOC_TYPES = {
+  // group1: אלמנטים תלויים — 'simple' layout, first-person "ערכתי"
   group1: {
     name: 'אלמנטים תלויים',
+    layout: 'simple',
+    titleSize: 16,
+    bodySize: 10,
+    headingSize: 10,
+    tableHdrSize: 10,
+    tableDataSize: 9,
+    titleSuffix: false,  // subject does NOT include "– {location}"
+    introBold: true,
+    introTemplate: (d) =>
+      `בתאריך ${d.inspection_date} ערכתי סיור בדיקה ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות האלמנטים והמתקנים התלויים.`,
     tableColumns: ['מיקום', 'האלמנט/המתקן', 'נתונים וממצאים', 'הערות'],
     colWidths: [3.5, 4.5, 6.0, 3.0],
-    sectionTitle: 'נתונים וממצאים:',
-    notesTitle: 'הערות והנחיות:',
     defaultNotes: [
-      'אין לתלות עומסים נוספים מעל האלמנטים הנבדקים ללא אישור מהנדס.',
-      'כל פגם או שינוי שיתגלה יש לדווח מיידית למהנדס האחראי.',
-      'יש לבצע בדיקות תחזוקה שוטפות אחת לשלושה חודשים.',
+      "על כל שינוי קונסטרוקטיבי ועיוותים באופן חיבור/תליות האלמנטים (סדקים, עיוותים, שקיעות, ניתוקים, קורוזיה וכד') – לדווח לח''מ מיד.",
+      'אין להעמיס עומסים על האלמנטים שנבדקו שאינם מיועדים לכך.',
+      'הבדיקה הינה ויזואלית ונכונה ליום הבדיקה.',
     ],
-    conclusionOk: 'האלמנטים הנבדקים תקינים ובטוחים לשימוש.',
-    conclusionDefects: 'נמצאו ליקויים הדורשים טיפול מיידי כמפורט בטבלה.',
-    introTemplate: (d) =>
-      `בתאריך ${d.inspection_date} בוצע סיור בדיקה ב${d.location}${d.address ? ', ' + d.address : ''}.\nהבדיקה בוצעה על ידי מהנדס מוסמך מטעם ניר הנדסה.\nלהלן ממצאי הבדיקה:`,
-    validityMonths: 12,
+    hasValidityLine: true,  // validity line appended after notes
+    conclusionOk: 'האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
+    conclusionDefects: 'נמצאו מספר ליקויים והערות שיש לתקנם ולטפלם. שאר האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
     hasDefectsTable: false,
   },
+
+  // group2: סקר פערי בטיחות — 'gap-survey' layout
+  group2: {
+    name: 'סקר פערי בטיחות',
+    layout: 'gap-survey',
+    titleSize: 14,
+    bodySize: 9,
+    headingSize: 9,
+    tableHdrSize: 9,
+    tableDataSize: 9,
+    titleSuffix: true,  // subject includes "– {location}"
+    introBold: false,
+    introTemplate: (d) => [
+      { text: `להלן סקר בטיחות אשר נערך בתאריך ${d.inspection_date} ב${d.location}${d.address ? ', ' + d.address : ''}.`, bold: false },
+      { text: 'בסקר הסיכונים נבדקו השטחים בהם ישהו עובדי המקום, ילדים ומבקרים.', bold: false },
+      { text: "הסקר מבוסס על חוות דעת מקצועית של יועץ בטיחות בהתייחס לאופי המקום בהיבט של בטיחות קהל וציבור.", bold: false },
+      { text: "מהות הבדיקה – התאמת תשתיות ואלמנטי המבנה לדרישות חוזר מנכ''ל משרד החינוך, חוק התכנון והבנייה, חוק החשמל, הוראות מכ''ר, פקודת הבטיחות בעבודה והתקנים השונים הרלוונטיים.", bold: false },
+      { text: 'הממצאים ייאותרו מתוך השוואת המצב הקיים עם סטנדרטים נדרשים המפורטים ברשימות מנחות לעריכת מבדק בטיחות.', bold: false },
+    ],
+    tableColumns: ['', 'תחום הבדיקה', 'סעיף ברשימת המבדק', 'הדרישה', 'הממצא, מהותו ומיקומו', 'קדימות הליקוי'],
+    colWidths: [1.0, 3.0, 2.5, 3.5, 5.5, 2.5],
+    defaultNotes: [
+      'מקרא קדימות לטיפול בליקויים:',
+      "ליקויים בקדימות 0 – מתייחסת למפגע חמור במיוחד, המחייב להערכת עורך המבדק סגירה מידית של המקום/האתר במוסד החינוך ולאסור שימוש בו עד קבלת הודעה ממנהל הבטיחות ברשות או מנהל המוסד ויועץ בטיחות מטעם הבעלות.",
+      "ליקויים בקדימות 1 – מתייחס למפגע בטיחותי אשר קיומו מחייב הסרתו המיידית.",
+      "ליקויים בקדימות 2 – מתייחס לליקוי בטיחותי המחייב טיפול של הרשות המקומית/בעלות בתכנית עבודה סדורה.",
+    ],
+    authorizationLine: "אישור הבטיחות מותנה בהתאמת הממצאים לסעיפי הבדיקה וכן בהצגת כלל האישורים הנדרשים (מפורט בסוף הדו''ח).",
+    validityLine: 'תוקף האישור הינו לשנה מיום הבדיקה, בכפוף למסקנות הדו\'\'ח.',
+    conclusionHeading: 'מסקנות הדו"ח :',
+    conclusionLines: [
+      'נמצאו אי התאמות/התאמות לסעיפי הבדיקה.',
+      "פירוט הממצאים והליקויים מפורטים בהמשך הדו''ח.",
+      "יש להציג אישורים ומסמכים נדרשים רלוונטיים עפ''י המפורט בהמשך.",
+    ],
+    // Approvals checklist table (fixed template, appended after main table)
+    approvalsTableHeaders: ["מס'", 'תחום הבדיקה', 'תדירות', 'הגוף המקצועי הבודק והמאשר', 'הוצג/לא הוצג'],
+    approvalsColWidths: [1.0, 3.5, 2.5, 5.0, 3.0],
+    hasDefectsTable: false,
+  },
+
+  // group3: תקרות תותב — 'survey' layout
   group3: {
     name: 'תקרות תותב',
-    tableColumns: ['מיקום/חדר', 'סוג התקרה', 'תקין/לא תקין', 'קדימות ליקויים', 'הערות'],
-    colWidths: [3.5, 3.5, 3.0, 3.0, 4.0],
-    sectionTitle: 'הקדמה:',
-    notesTitle: 'הנחיות:',
-    defaultNotes: [
-      'יש לתקן את הליקויים שצוינו בהתאם לסדר הקדימות.',
-      'בדיקה חוזרת תבוצע לאחר ביצוע התיקונים.',
-      'אין להוסיף עומסים על תקרות התותב ללא אישור מהנדס.',
+    layout: 'survey',
+    titleSize: 15,
+    bodySize: 8.5,
+    headingSize: 9,
+    tableHdrSize: 8.5,
+    tableDataSize: 8.5,
+    titleSuffix: true,
+    introBold: false,
+    introTemplate: (d) => [
+      {
+        text: "סקר זה מתייחס למצב קיים של התשתיות במבנה (תשתית תקרות התותב שנבדקו) והצגת הפערים הקיימים בין המצב בשטח לבין דרישות התקנים הרלוונטיים.",
+        bold: false,
+      },
+      {
+        text: `הסקר בוצע לבקשת ${d.client} ב${d.location}${d.address ? ', ' + d.address : ''} בתאריך ${d.inspection_date}.`,
+        bold: true,
+      },
     ],
-    conclusionOk: 'תקרות התותב תקינות ובטוחות לשימוש.',
-    conclusionDefects: 'נמצאו ליקויים בתקרות התותב הדורשים תיקון דחוף.',
-    introTemplate: (d) =>
-      `בתאריך ${d.inspection_date} בוצע סיור בדיקת תקרות תותב ב${d.location}.\nלהלן ממצאי הבדיקה:`,
+    tableColumns: ['מיקום/חדר', 'סוג התקרה', 'תקין/לא תקין', 'קדימות ליקויים', 'הערות/פירוט ליקוי כולל סעיף'],
+    colWidths: [3.5, 3.5, 3.0, 3.0, 4.0],
+    defaultNotes: [
+      "ממצאי סקר זה הם כפי שהועברו לח''מ ע''י בעלי התפקידים באתר ומציגים מצב קיים ביום הסיור בלבד, מזמין העבודה אחראי לביצוע תיקון הליקויים שנמצאו בפרק זמן שהוגדר, לא תשמע טענה כנגד הח''מ בגין ליקויים שהצביע עליהם במסגרת סקר זה ושאינם תוקנו בתוך מסגרת הזמן שנקבעה.",
+      "מצורפת טבלת ליקויים בהמשך המסמך הכוללת את מיקום הליקוי, פירוט הממצא, דרישות/הנחיות לטיפול ותמונות הליקוי.",
+      'מקרא קדימות לטיפול בליקויים:',
+      "קדימות 1 – ''ליקוי חמור'' בהגדרתו - ליקוי/מפגע המחייב הסרתו/תיקונו וטיפולו המיידי, לאישור ובדיקה חוזרת.",
+      "קדימות 2 – ''ליקוי בינוני'' בהגדרתו - ליקוי/מפגע המחייב טיפול בתכנית עבודה עד 3 חודשים מתאריך דו''ח זה.",
+      "קדימות 3 – ''ליקוי קל'' בהגדרתו - ליקוי/מפגע המחייב טיפול בתכנית עבודה עד 6 חודשים מתאריך דו''ח זה.",
+    ],
+    hasValidityLine: false,
+    defaultInstructions: [
+      "על כל שינוי קונסטרוקטיבי בתקרות ורכיביהן, הוספה ו/או הפחתת רכיבים, עיוותים באופן חיבור, קורוזיה, כפף, שבר, סדק, תזוזות וכו' – יש לזמן לבדיקה חוזרת וטיפול מתאים עפ''י הממצאים.",
+      'אין לטפס, להיתלות ו/או להעמיס עומסים על התקרות שנבדקו.',
+      "תוקף הדו''ח הינו לחמש שנים מיום הבדיקה בכפוף למסקנות הבדיקה.",
+    ],
+    conclusionOk: 'התקרות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה ומיום הבדיקה.',
+    conclusionDefects: 'נמצאו ליקויים בתקרות התותב. יש לטפל בליקויים בהתאם לטבלת הליקויים המצורפת. שאר התקרות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
     hasDefectsTable: true,
     defectsColumns: ["מס'", 'מיקום', 'ממצאים וליקויים', 'טיפול נדרש', 'תמונות', 'קדימות'],
     defectsColWidths: [1.5, 3.0, 5.0, 4.0, 2.0, 2.0],
   },
+
+  // group4: סקר תקופתי — 'simple' layout, first-person "ביקרתי", has location in title
   group4: {
-    name: 'סקר שנתי',
-    tableColumns: ['האלמנט/המבנה הנבדק', 'נתונים ופירוט', 'הערות', 'תקין/לא תקין'],
-    colWidths: [4.5, 6.0, 4.0, 2.5],
-    sectionTitle: 'נתונים וממצאים:',
-    notesTitle: 'הערות והנחיות:',
-    defaultNotes: [
-      'הסקר בוצע על ידי מהנדס מוסמך.',
-      'יש לטפל בממצאים בהתאם לסדר הקדימות שנקבע.',
-      'בדיקה חוזרת מומלצת בתום ביצוע התיקונים.',
-    ],
-    conclusionOk: 'המצב הכללי תקין.',
-    conclusionDefects: 'נמצאו ליקויים הדורשים טיפול.',
+    name: 'סקר תקופתי',
+    layout: 'simple',
+    titleSize: 15,
+    bodySize: 9,
+    headingSize: 9,
+    tableHdrSize: 8,
+    tableDataSize: 8,
+    titleSuffix: true,  // subject INCLUDES "– {location}"
+    introBold: true,
     introTemplate: (d) =>
-      `בתאריך ${d.inspection_date} בוצע סקר שנתי ב${d.location}.\nלהלן ממצאי הסקר:`,
-    hasDefectsTable: true,
-    defectsColumns: ["מס'", 'מיקום', 'ממצאי הסיור', 'טיפול נדרש', 'תמונות', 'קדימות ליקוי'],
-    defectsColWidths: [1.5, 3.0, 5.0, 4.0, 2.0, 2.0],
+      `בתאריך ${d.inspection_date} ביקרתי ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות האלמנטים והמבנים.`,
+    tableColumns: ['האלמנט/המבנה הנבדק', 'נתונים ופירוט', 'הערות', 'תקין/לא תקין', 'קדימות ליקוי'],
+    colWidths: [4.5, 5.5, 3.0, 2.0, 2.0],
+    defaultNotes: [
+      "על כל שינוי קונסטרוקטיבי ועיוותים באופן חיבור/תליות האלמנטים (סדקים, עיוותים, שקיעות, ניתוקים, קורוזיה וכד') – לדווח לח''מ מיד.",
+      'אין להעמיס עומסים על האלמנטים שנבדקו שאינם מיועדים לכך.',
+      'הבדיקה הינה ויזואלית ונכונה ליום הבדיקה.',
+    ],
+    hasValidityLine: false,
+    conclusionOk: 'האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
+    conclusionDefects: 'נמצאו מספר ליקויים והערות שיש לתקנם ולטפלם. שאר האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
+    hasDefectsTable: false,
   },
+
+  // group5: סקקות — 'survey' layout, canopy-specific
   group5: {
-    name: 'סככות',
+    name: 'סקקות',
+    layout: 'survey',
+    titleSize: 14,
+    bodySize: 8.5,
+    headingSize: 9,
+    tableHdrSize: 9,
+    tableDataSize: 8.5,
+    titleSuffix: true,  // subject includes "– {location}"
+    introBold: false,   // para1 plain, para2 bold
+    introTemplate: (d) => [
+      {
+        text: "סקר זה מתייחס למצב קיים של תשתיות הסככות והצגת הפערים הקיימים בין המצב הקיים לבין הנדרש עפ''י תקנות הבנייה.",
+        bold: false,
+      },
+      {
+        text: `הסקר בוצע לבקשת ${d.client} ב${d.location}${d.address ? ', ' + d.address : ''} בתאריך ${d.inspection_date}.`,
+        bold: true,
+      },
+    ],
     tableColumns: ["מס'", 'מיקום', 'סוג הסככה', "מידות (מ') ונתונים", 'תקין/לא תקין', 'קדימות ליקויים', 'תמונה'],
     colWidths: [1.5, 2.5, 3.0, 4.0, 2.5, 2.5, 1.5],
-    sectionTitle: 'הקדמה:',
-    notesTitle: 'הנחיות:',
     defaultNotes: [
-      'יש לוודא שאין עומסים על גג הסככה מעבר לתכן.',
-      'בדיקה עונתית מומלצת לפני עונת הגשמים.',
+      'מקרא קדימות לטיפול בליקויים:',
+      "קדימות 1 – ''ליקוי חמור'' בהגדרתו - ליקוי/מפגע המחייב הסרתו/תיקונו וטיפולו המיידי, לאישור ובדיקה חוזרת.",
+      "קדימות 2 – ''ליקוי בינוני'' בהגדרתו - ליקוי/מפגע המחייב טיפול בתכנית עבודה עד 3 חודשים מתאריך דו''ח זה.",
+      "קדימות 3 – ''ליקוי קל'' בהגדרתו - ליקוי/מפגע המחייב טיפול בתכנית עבודה עד 6 חודשים מתאריך דו''ח זה.",
     ],
-    conclusionOk: 'הסככות תקינות ובטוחות לשימוש.',
-    conclusionDefects: 'נמצאו ליקויים בסככות הדורשים טיפול.',
-    introTemplate: (d) =>
-      `בתאריך ${d.inspection_date} בוצע סיור בדיקת סככות ב${d.location}.\nלהלן ממצאי הבדיקה:`,
+    hasValidityLine: false,
+    defaultInstructions: [
+      'על כל שינוי קונסטרוקטיבי בסככות ורכיביהן, הוספה ו/או הפחתת רכיבים, עיוותים באופן חיבור, קורוזיה וכד\', יש לדווח לח\'\'מ מיד.',
+      'אין לטפס, להיתלות, לפרוש שלטים/מפרשי רוח ו/או להעמיס עומסים על הסככות שנבדקו.',
+      'הסככות נבדקו מבדיקה ויזואלית לתקינות ושלמות כללית.',
+      "תוקף הדו''ח הינו לשנה מיום הבדיקה בכפוף למסקנות הבדיקה.",
+    ],
+    conclusionOk: 'הסקקות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה ומיום הבדיקה.',
+    conclusionDefects: 'נמצאו ליקויים בסקקות. יש לטפל בליקויים בהתאם לטבלת הליקויים המצורפת. שאר הסקקות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
     hasDefectsTable: true,
     defectsColumns: ['מספר סככה', 'מיקום', 'ממצאי ליקויים ודרישות', 'תמונות הליקוי', 'קדימות'],
     defectsColWidths: [2.0, 3.0, 6.0, 4.0, 2.0],
   },
 };
 
-// ── Firm contact details (footer) ────────────────────────────────────────────
-const FOOTER_ADDRESS = 'מעגל השלום 3, ראשל"צ';
-const FOOTER_EMAIL   = 'Nir@eng-nir.co.il';
-const FOOTER_PHONE   = '050-4325915';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Convert cm to twips (docx unit). 1 cm = 567 twips — used for table widths and page margins */
 const cm = (v) => Math.round(v * 567);
@@ -146,7 +238,7 @@ function addDays(isoOrStr, days) {
  */
 function mkRun(text, opts = {}) {
   const {
-    size   = FS_BODY,
+    size   = 8.5,
     bold   = false,
     color  = undefined,
     underline = false,
@@ -167,8 +259,9 @@ function mkRun(text, opts = {}) {
 }
 
 /**
- * Create a Paragraph with bidirectional RTL support.
- * opts: { alignment, spacing, indent, pageBreak }
+ * Create a paragraph. RTL direction is inherited from the section (bidi: true in sectPr).
+ * Do NOT set bidirectional on individual paragraphs — it causes image mirroring.
+ * opts: { alignment, spacing, pageBreak }
  */
 function mkPara(children = [], opts = {}) {
   const {
@@ -179,7 +272,6 @@ function mkPara(children = [], opts = {}) {
 
   return new Paragraph({
     children,
-    bidirectional: true,
     alignment,
     spacing,
     pageBreakBefore: pageBreak,
@@ -205,9 +297,11 @@ const THIN_BORDER = {
 /**
  * Create an RTL data table.
  * - Header row: always CENTER
- * - Data cells: always RIGHT (matches original document style)
+ * - Data cells: always CENTER (matches original document style)
+ * opts: { headerBg, hdrSize, dataSize }
  */
-function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
+function mkTable(headers, rows, colWidthsCm, opts = {}) {
+  const { headerBg = 'EAF1DD', hdrSize, dataSize } = opts;
   const colWidths = colWidthsCm.map((w) => cm(w));
 
   // Header row – always centered
@@ -217,7 +311,10 @@ function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
       verticalAlign: VerticalAlign.CENTER,
       shading: { type: ShadingType.CLEAR, fill: headerBg },
       borders: THIN_BORDER,
-      children: [mkPara([mkRun(h, { size: FS_TABLE, bold: true })], { alignment: AlignmentType.CENTER })],
+      children: [mkPara(
+        [mkRun(h, { size: hdrSize ?? 9, bold: true })],
+        { alignment: AlignmentType.CENTER }
+      )],
     })
   );
 
@@ -225,8 +322,6 @@ function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
 
   // Data rows – all white (no alternating tint)
   const dataRows = rows.map((row) => {
-    const bg = 'FFFFFF';
-
     const cells = row.map((cellText, colIdx) => {
       const text = String(cellText ?? '');
       const isNotOk   = text === 'לא תקין'          || text.startsWith('לא תקין');
@@ -237,14 +332,15 @@ function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
       if (isNotOk)        { color = 'C00000'; bold = true; }
       else if (isWatchOk) { color = 'C55A11'; bold = true; }
 
-      const alignment = AlignmentType.RIGHT;
-
       return new TableCell({
         width:         { size: colWidths[colIdx] ?? colWidths[colWidths.length - 1], type: WidthType.DXA },
         verticalAlign: VerticalAlign.CENTER,
-        shading:       { type: ShadingType.CLEAR, fill: bg },
+        shading:       { type: ShadingType.CLEAR, fill: 'FFFFFF' },
         borders:       THIN_BORDER,
-        children: [mkPara([mkRun(text, { size: FS_TABLE, bold, color })], { alignment })],
+        children: [mkPara(
+          [mkRun(text, { size: dataSize ?? 8.5, bold, color })],
+          { alignment: AlignmentType.CENTER }
+        )],
       });
     });
 
@@ -276,7 +372,7 @@ function getImageDimensions(dataUrl) {
   });
 }
 
-// ── Main export ──────────────────────────────────────────────────────────────
+// ── Main export ───────────────────────────────────────────────────────────────
 
 export async function generateDocument(data) {
   const cfg = DOC_TYPES[data.doc_type] ?? DOC_TYPES.group4;
@@ -286,27 +382,31 @@ export async function generateDocument(data) {
     ? data
     : { ...data, location: (data.client || '').trim() };
 
-  // ── Logo ─────────────────────────────────────────────────────────────────
-  // Only try PNG — docx cannot embed SVG.  Account for Vite base path on GitHub Pages.
-  let logoBuffer = null;
-  for (const path of [
-    `${import.meta.env.BASE_URL}logo.png`,
-    '/nir-reports/logo.png',
-    '/logo.png',
-  ]) {
-    try {
-      const res = await fetch(path);
-      if (res.ok) {
-        logoBuffer = new Uint8Array(await res.arrayBuffer());
-        break;
-      }
-    } catch (_) { /* try next */ }
-  }
+  // ── 1. Fetch logos ────────────────────────────────────────────────────────
+  // header-logo.jpg: 8.91 × 3.52 cm (landscape letterhead)
+  // footer-logo.png: 15.05 × 1.03 cm (wide thin footer strip)
+  const fetchBuf = async (paths) => {
+    for (const path of paths) {
+      try {
+        const res = await fetch(path);
+        if (res.ok) return new Uint8Array(await res.arrayBuffer());
+      } catch (_) { /* try next */ }
+    }
+    return null;
+  };
 
-  // ── Header: page-number line (right) + logo (centered) ───────────────────
+  const base = import.meta.env.BASE_URL;
+  const [headerLogoBuffer, footerLogoBuffer] = await Promise.all([
+    fetchBuf([`${base}header-logo.jpg`, '/nir-reports/header-logo.jpg', '/header-logo.jpg']),
+    fetchBuf([`${base}footer-logo.png`, '/nir-reports/footer-logo.png', '/footer-logo.png']),
+  ]);
+
+  // ── 2. Build header (page num + logo) and footer (logo only) ─────────────
+  const HEADER_W = cmPx(8.91), HEADER_H = cmPx(3.52);
+  const FOOTER_W = cmPx(15.05), FOOTER_H = cmPx(1.03);
+
   const pageNumPara = new Paragraph({
     alignment: AlignmentType.RIGHT,
-    bidirectional: true,
     spacing: { after: 0 },
     children: [
       new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rtl: true }),
@@ -316,158 +416,330 @@ export async function generateDocument(data) {
     ],
   });
 
-  // Logo: 9.5 cm wide, square PNG → 9.5 cm tall, centered
-  const LOGO_W_CM = 9.5;
-  const LOGO_H_CM = 9.5;  // logo.png is 512×512 (square)
-  const logoPara = logoBuffer
-    ? mkPara(
-        [new ImageRun({ data: logoBuffer, transformation: { width: cmPx(LOGO_W_CM), height: cmPx(LOGO_H_CM) } })],
-        { alignment: AlignmentType.CENTER, spacing: { after: 0 } }
-      )
+  // No bidirectional on image paragraphs
+  const headerLogoPara = headerLogoBuffer
+    ? new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 0 },
+        children: [new ImageRun({ data: headerLogoBuffer, transformation: { width: HEADER_W, height: HEADER_H } })],
+      })
     : null;
 
   const docHeader = new Header({
-    children: [pageNumPara, ...(logoPara ? [logoPara] : [])],
+    children: [pageNumPara, ...(headerLogoPara ? [headerLogoPara] : [])],
   });
 
-  // ── Footer: thin top-line + address | email | phone ───────────────────────
-  const CELL_W = cm(17 / 3);  // three equal cells across 17 cm content width
-  const footerBorderTop = { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' };
-  const footerNoBorder  = { style: BorderStyle.NONE, size: 0, color: 'auto' };
-  const footerCellBorder = {
-    top: footerBorderTop, bottom: footerNoBorder,
-    left: footerNoBorder, right: footerNoBorder,
-  };
+  // Footer: logo only, no bidirectional on image paragraph
+  const footerLogoPara = footerLogoBuffer
+    ? new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 0 },
+        children: [new ImageRun({ data: footerLogoBuffer, transformation: { width: FOOTER_W, height: FOOTER_H } })],
+      })
+    : new Paragraph({ children: [] });
 
-  const docFooter = new Footer({
-    children: [
-      new Table({
-        visuallyRightToLeft: true,
-        layout: TableLayoutType.FIXED,
-        rows: [
-          new TableRow({
-            children: [
-              // Right cell: address
-              new TableCell({
-                width: { size: CELL_W, type: WidthType.DXA },
-                borders: footerCellBorder,
-                children: [mkPara(
-                  [mkRun(`📍 ${FOOTER_ADDRESS}`, { size: 8 })],
-                  { alignment: AlignmentType.RIGHT, spacing: { before: 40 } }
-                )],
-              }),
-              // Center cell: email
-              new TableCell({
-                width: { size: CELL_W, type: WidthType.DXA },
-                borders: footerCellBorder,
-                children: [mkPara(
-                  [mkRun(`✉ ${FOOTER_EMAIL}`, { size: 8 })],
-                  { alignment: AlignmentType.CENTER, spacing: { before: 40 } }
-                )],
-              }),
-              // Left cell: phone
-              new TableCell({
-                width: { size: CELL_W, type: WidthType.DXA },
-                borders: footerCellBorder,
-                children: [new Paragraph({
-                  alignment: AlignmentType.LEFT,
-                  spacing: { before: 40 },
-                  children: [mkRun(`📞 ${FOOTER_PHONE}`, { size: 8, rtl: false })],
-                })],
-              }),
-            ],
-          }),
-        ],
-      }),
-    ],
-  });
+  const docFooter = new Footer({ children: [footerLogoPara] });
 
-  // Shared spacing helpers  (lineRule must be lowercase 'auto' = LineRuleType.AUTO)
-  const SP_BODY    = { line: 276, lineRule: 'auto', after: 120 };  // single-spaced + 6pt after
-  const SP_SECTION = { before: 160, after: 80 };                    // 8pt before section title
+  // ── 3. Spacing constants ──────────────────────────────────────────────────
+  const SP_BODY    = { line: 360, lineRule: 'auto', after: 0 };
+  const SP_SECTION = { line: 360, lineRule: 'auto', before: 120, after: 0 };
 
-  // ── Date paragraph (left-aligned, not RTL) ────────────────────────────────
+  // ── 4. Date paragraph (RIGHT aligned) ────────────────────────────────────
   const dateStr  = formatDate(data.date);
   const datePara = new Paragraph({
-    alignment: AlignmentType.LEFT,
+    alignment: AlignmentType.RIGHT,
     spacing: { after: 0 },
-    children: [mkRun(dateStr, { size: FS_DATE, rtl: false })],
+    children: [mkRun(dateStr, { size: 8 })],
   });
 
-  // ── Client block ─────────────────────────────────────────────────────────
-  const toLabel    = mkPara([mkRun('לכבוד',                   { size: FS_CLIENT })],         { spacing: { after: 0 } });
-  const clientPara = mkPara([mkRun(data.client ?? '',          { size: FS_CLIENT })],         { spacing: { after: 0 } });
-  const orgPara    = mkPara([mkRun(data.organization ?? '',    { size: FS_CLIENT, underline: true })], { spacing: { after: 80 } });
+  // ── 5. Client block ───────────────────────────────────────────────────────
+  const toLabel    = mkPara([mkRun('לכבוד',                 { size: 8 })],                        { spacing: { after: 0 } });
+  const clientPara = mkPara([mkRun(data.client ?? '',        { size: 8 })],                        { spacing: { after: 0 } });
+  const orgPara    = mkPara([mkRun(data.organization ?? '',  { size: 8, underline: true })],       { spacing: { after: 0 } });
 
-  // ── Subject ───────────────────────────────────────────────────────────────
+  // ── 6. Subject paragraph (CENTER, bold, cfg.titleSize) ───────────────────
+  // Include "– {location}" suffix only when cfg.titleSuffix is true
+  const subjectText = cfg.titleSuffix
+    ? `הנדון: ${data.subject ?? ''} – ${effectiveData.location}`
+    : `הנדון: ${data.subject ?? ''}`;
+
   const subjectPara = mkPara(
-    [mkRun(`הנדון: ${data.subject ?? ''}`, { size: FS_TITLE, bold: true, underline: true })],
+    [mkRun(subjectText, { size: cfg.titleSize, bold: true, underline: true })],
     { alignment: AlignmentType.CENTER, spacing: { before: 40, after: 160 } }
   );
 
-  // ── Intro text ────────────────────────────────────────────────────────────
-  const introText = data.intro_extra
-    ? cfg.introTemplate(effectiveData) + '\n' + data.intro_extra
-    : cfg.introTemplate(effectiveData);
-
-  const introParas = introText.split('\n').map((line) =>
-    mkPara([mkRun(line, { size: FS_INTRO })], { spacing: SP_BODY })
-  );
-
-  // ── Section title ─────────────────────────────────────────────────────────
-  const sectionTitlePara = mkPara(
-    [mkRun(cfg.sectionTitle, { size: FS_HEADING, bold: true })],
-    { spacing: SP_SECTION }
-  );
-
-  // ── Main data table ───────────────────────────────────────────────────────
+  // ── 7. Table (shared between layouts) ────────────────────────────────────
   const tableRows = Array.isArray(data.table_rows) ? data.table_rows : [];
-  let mainTable = null;
-  if (tableRows.length > 0) {
-    mainTable = mkTable(cfg.tableColumns, tableRows, cfg.colWidths);
-  }
+  const mainTable = tableRows.length > 0
+    ? mkTable(cfg.tableColumns, tableRows, cfg.colWidths, {
+        hdrSize: cfg.tableHdrSize,
+        dataSize: cfg.tableDataSize,
+      })
+    : null;
 
-  // ── Notes ─────────────────────────────────────────────────────────────────
-  const notesTitlePara = mkPara(
-    [mkRun(cfg.notesTitle, { size: FS_HEADING, bold: true })],
-    { spacing: SP_SECTION }
-  );
+  // ── 8. Build body based on cfg.layout ────────────────────────────────────
+  const bodyChildren = [
+    datePara,
+    toLabel,
+    clientPara,
+    orgPara,
+    subjectPara,
+  ];
 
-  const notesSource = Array.isArray(data.notes_custom) && data.notes_custom.length > 0
-    ? data.notes_custom
-    : [...cfg.defaultNotes];
+  if (cfg.layout === 'simple') {
+    // ── 'simple' layout: group1, group4 ────────────────────────────────────
+    // Intro paragraph(s) — bold if cfg.introBold
+    const introRaw = cfg.introTemplate(effectiveData);
+    const introText = data.intro_extra
+      ? introRaw + '\n' + data.intro_extra
+      : introRaw;
 
-  // For group1: add validity note
-  if (data.doc_type === 'group1' && cfg.validityMonths) {
-    const validUntil = addDays(data.inspection_date, 365);
-    notesSource.push(`תוקף האישור לשנה מיום הבדיקה ועד לתאריך ${validUntil} בכפוף למסקנות.`);
-  }
+    const introParas = introText.split('\n').map((line) =>
+      mkPara(
+        [mkRun(line, { size: cfg.bodySize, bold: cfg.introBold })],
+        { spacing: SP_BODY }
+      )
+    );
+    bodyChildren.push(...introParas);
 
-  const notesParas = notesSource.map((note, i) =>
-    mkPara([mkRun(`${i + 1}. ${note}`, { size: FS_BODY })], { spacing: SP_BODY })
-  );
+    // "נתונים וממצאים:" heading (bold)
+    bodyChildren.push(
+      mkPara(
+        [mkRun('נתונים וממצאים:', { size: cfg.headingSize, bold: true })],
+        { spacing: SP_SECTION }
+      )
+    );
 
-  // ── Conclusions ───────────────────────────────────────────────────────────
-  const conclusionsTitlePara = mkPara(
-    [mkRun('מסקנות הבדיקה:', { size: FS_HEADING, bold: true })],
-    { spacing: SP_SECTION }
-  );
+    // Main data table
+    if (mainTable) bodyChildren.push(mainTable);
 
-  let conclusionLines;
-  if (data.conclusion_custom && String(data.conclusion_custom).trim()) {
-    conclusionLines = String(data.conclusion_custom).split('\n');
-  } else if (data.has_defects) {
-    conclusionLines = [cfg.conclusionDefects];
+    // "מסקנות והערות:" — plain, NOT bold
+    bodyChildren.push(
+      mkPara(
+        [mkRun('מסקנות והערות:', { size: cfg.bodySize, bold: false })],
+        { spacing: SP_SECTION }
+      )
+    );
+
+    // Notes (plain, cfg.bodySize) — custom overrides defaults
+    const notesSource = Array.isArray(data.notes_custom) && data.notes_custom.length > 0
+      ? data.notes_custom
+      : [...cfg.defaultNotes];
+
+    notesSource.forEach((note, i) => {
+      bodyChildren.push(
+        mkPara([mkRun(`${i + 1}. ${note}`, { size: cfg.bodySize })], { spacing: SP_BODY })
+      );
+    });
+
+    // Validity line (group1 only)
+    if (cfg.hasValidityLine) {
+      const validUntil = addDays(data.inspection_date, 365);
+      bodyChildren.push(
+        mkPara(
+          [mkRun(`תוקף האישור לשנה מיום הבדיקה ועד לתאריך ${validUntil} בכפוף למסקנות.`, { size: cfg.bodySize })],
+          { spacing: SP_BODY }
+        )
+      );
+    }
+
+    // "מסקנות:" — plain, NOT bold
+    bodyChildren.push(
+      mkPara(
+        [mkRun('מסקנות:', { size: cfg.bodySize, bold: false })],
+        { spacing: SP_SECTION }
+      )
+    );
+
+    // Conclusion text (custom overrides standard)
+    let conclusionText;
+    if (data.conclusion_custom && String(data.conclusion_custom).trim()) {
+      conclusionText = String(data.conclusion_custom).trim();
+    } else if (data.has_defects) {
+      conclusionText = cfg.conclusionDefects;
+    } else {
+      conclusionText = cfg.conclusionOk;
+    }
+
+    conclusionText.split('\n').forEach((line) => {
+      bodyChildren.push(
+        mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: SP_BODY })
+      );
+    });
+
+  } else if (cfg.layout === 'survey') {
+    // ── 'survey' layout: group3, group5 ────────────────────────────────────
+
+    // "הקדמה:" heading (bold, cfg.headingSize)
+    bodyChildren.push(
+      mkPara(
+        [mkRun('הקדמה:', { size: cfg.headingSize, bold: true })],
+        { spacing: SP_SECTION }
+      )
+    );
+
+    // Intro paragraphs: introTemplate returns an array of { text, bold }
+    const introParts = cfg.introTemplate(effectiveData);
+    const effectiveParts = data.intro_extra
+      ? [...introParts, { text: data.intro_extra, bold: false }]
+      : introParts;
+
+    effectiveParts.forEach((part) => {
+      bodyChildren.push(
+        mkPara(
+          [mkRun(part.text, { size: cfg.bodySize, bold: part.bold })],
+          { spacing: SP_BODY }
+        )
+      );
+    });
+
+    // "הערות:" heading (bold, cfg.headingSize)
+    bodyChildren.push(
+      mkPara(
+        [mkRun('הערות:', { size: cfg.headingSize, bold: true })],
+        { spacing: SP_SECTION }
+      )
+    );
+
+    // Notes paragraphs including priority legend (cfg.bodySize)
+    // custom overrides defaults
+    const notesSource = Array.isArray(data.notes_custom) && data.notes_custom.length > 0
+      ? data.notes_custom
+      : [...cfg.defaultNotes];
+
+    notesSource.forEach((note) => {
+      bodyChildren.push(
+        mkPara([mkRun(note, { size: cfg.bodySize })], { spacing: SP_BODY })
+      );
+    });
+
+    // "נתונים וממצאים:" heading (bold, cfg.headingSize)
+    bodyChildren.push(
+      mkPara(
+        [mkRun('נתונים וממצאים:', { size: cfg.headingSize, bold: true })],
+        { spacing: SP_SECTION }
+      )
+    );
+
+    // Main data table
+    if (mainTable) bodyChildren.push(mainTable);
+
+    // "הנחיות:" heading (bold, cfg.headingSize)
+    bodyChildren.push(
+      mkPara(
+        [mkRun('הנחיות:', { size: cfg.headingSize, bold: true })],
+        { spacing: SP_SECTION }
+      )
+    );
+
+    // Instructions paragraphs (cfg.bodySize)
+    const instructionsSource = Array.isArray(data.instructions_custom) && data.instructions_custom.length > 0
+      ? data.instructions_custom
+      : [...(cfg.defaultInstructions ?? [])];
+
+    instructionsSource.forEach((inst) => {
+      bodyChildren.push(
+        mkPara([mkRun(inst, { size: cfg.bodySize })], { spacing: SP_BODY })
+      );
+    });
+
+    // "מסקנות הבדיקה:" heading (bold, cfg.headingSize)
+    bodyChildren.push(
+      mkPara(
+        [mkRun('מסקנות הבדיקה:', { size: cfg.headingSize, bold: true })],
+        { spacing: SP_SECTION }
+      )
+    );
+
+    // Conclusion (custom overrides standard)
+    let conclusionText;
+    if (data.conclusion_custom && String(data.conclusion_custom).trim()) {
+      conclusionText = String(data.conclusion_custom).trim();
+    } else if (data.has_defects) {
+      conclusionText = cfg.conclusionDefects;
+    } else {
+      conclusionText = cfg.conclusionOk;
+    }
+
+    conclusionText.split('\n').forEach((line) => {
+      bodyChildren.push(
+        mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: SP_BODY })
+      );
+    });
+
   } else {
-    conclusionLines = [cfg.conclusionOk];
+    // ── 'gap-survey' layout: group2 (סקר פערי בטיחות) ─────────────────────
+
+    // Intro paragraphs (no heading — straight paragraphs)
+    const introParts = cfg.introTemplate(effectiveData);
+    const effectiveParts = data.intro_extra
+      ? [...introParts, { text: data.intro_extra, bold: false }]
+      : introParts;
+
+    effectiveParts.forEach((part) => {
+      bodyChildren.push(
+        mkPara([mkRun(part.text, { size: cfg.bodySize, bold: part.bold })], { spacing: SP_BODY })
+      );
+    });
+
+    // Priority legend (הערות section)
+    bodyChildren.push(
+      mkPara([mkRun('הערות:', { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION })
+    );
+    const notesSource = Array.isArray(data.notes_custom) && data.notes_custom.length > 0
+      ? data.notes_custom
+      : [...cfg.defaultNotes];
+    notesSource.forEach((note) => {
+      bodyChildren.push(
+        mkPara([mkRun(note, { size: cfg.bodySize })], { spacing: SP_BODY })
+      );
+    });
+
+    // Authorization line + validity line
+    bodyChildren.push(
+      mkPara([mkRun(cfg.authorizationLine, { size: cfg.bodySize })], { spacing: SP_BODY })
+    );
+    bodyChildren.push(
+      mkPara([mkRun(cfg.validityLine, { size: cfg.bodySize })], { spacing: SP_BODY })
+    );
+
+    // "נתונים וממצאים:" heading + main table
+    bodyChildren.push(
+      mkPara([mkRun('נתונים וממצאים:', { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION })
+    );
+    if (mainTable) bodyChildren.push(mainTable);
+
+    // Approvals checklist table (fixed template rows — empty, user fills in Word)
+    if (cfg.approvalsTableHeaders) {
+      bodyChildren.push(
+        mkPara([mkRun('ריכוז בדיקות בטיחות:', { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION })
+      );
+      const emptyApprovalsRows = Array.from({ length: 20 }, () =>
+        Array(cfg.approvalsTableHeaders.length).fill('')
+      );
+      bodyChildren.push(
+        mkTable(cfg.approvalsTableHeaders, emptyApprovalsRows, cfg.approvalsColWidths, {
+          hdrSize: cfg.tableHdrSize,
+          dataSize: cfg.tableDataSize,
+        })
+      );
+    }
+
+    // Conclusion heading + fixed lines
+    bodyChildren.push(
+      mkPara([mkRun(cfg.conclusionHeading, { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION })
+    );
+    const conclusionLines = data.conclusion_custom && String(data.conclusion_custom).trim()
+      ? String(data.conclusion_custom).trim().split('\n')
+      : cfg.conclusionLines;
+    conclusionLines.forEach((line) => {
+      bodyChildren.push(
+        mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: SP_BODY })
+      );
+    });
   }
 
-  const conclusionParas = conclusionLines.map((line, i) =>
-    mkPara([mkRun(`${i + 1}. ${line}`, { size: FS_BODY })], { spacing: SP_BODY })
-  );
-
-  // ── Defects table (appendix) ──────────────────────────────────────────────
-  let defectsSection = [];
+  // ── 9. Defects table (if applicable) ─────────────────────────────────────
   if (
     data.has_defects &&
     cfg.hasDefectsTable &&
@@ -476,26 +748,24 @@ export async function generateDocument(data) {
     data.defects_rows.length > 0
   ) {
     const defectsTitlePara = mkPara(
-      [mkRun('נספח טבלת ליקויים:', { size: FS_HEADING, bold: true })],
+      [mkRun('נספח טבלת ליקויים:', { size: cfg.headingSize, bold: true })],
       { pageBreak: true }
     );
-    const defectsTable = mkTable(cfg.defectsColumns, data.defects_rows, cfg.defectsColWidths);
-    defectsSection = [defectsTitlePara, defectsTable, mkPara([mkRun('')])];
+    const defectsTable = mkTable(
+      cfg.defectsColumns,
+      data.defects_rows,
+      cfg.defectsColWidths,
+      { hdrSize: cfg.tableHdrSize, dataSize: cfg.tableDataSize }
+    );
+    bodyChildren.push(defectsTitlePara, defectsTable, mkPara([mkRun('')]));
   }
 
-  // ── Photos appendix ───────────────────────────────────────────────────────
-  let photosSection = [];
+  // ── 10. Photos section ────────────────────────────────────────────────────
   const photos = Array.isArray(data.photos) ? data.photos : [];
 
   if (photos.length > 0) {
     const photosTitlePara = mkPara(
-      [mkRun('נספח תמונות:', { size: FS_HEADING, bold: true })],
-      { pageBreak: defectsSection.length === 0 } // page break only if no defects section added it
-    );
-
-    // Actually always page break before photos appendix
-    const photosTitleParaBreak = mkPara(
-      [mkRun('נספח תמונות:', { size: FS_HEADING, bold: true })],
+      [mkRun('נספח תמונות:', { size: cfg.headingSize, bold: true })],
       { pageBreak: true }
     );
 
@@ -540,18 +810,22 @@ export async function generateDocument(data) {
       const right = loadedPhotos[r + 1] ?? null;
 
       const makePhotoCell = (p) => {
-        const imgPara = mkPara([
-          new ImageRun({
-            data: p.imgData,
-            transformation: {
-              width:  cmPx(p.dispW),
-              height: cmPx(p.dispH),
-            },
-          }),
-        ], { alignment: AlignmentType.CENTER });
+        // No bidirectional on image paragraphs
+        const imgPara = new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [
+            new ImageRun({
+              data: p.imgData,
+              transformation: {
+                width:  cmPx(p.dispW),
+                height: cmPx(p.dispH),
+              },
+            }),
+          ],
+        });
 
         const capPara = mkPara(
-          [mkRun(p.caption, { size: FS_PHOTO_CAP })],
+          [mkRun(p.caption, { size: 9 })],
           { alignment: AlignmentType.CENTER }
         );
 
@@ -586,36 +860,11 @@ export async function generateDocument(data) {
       rows: photoTableRows,
     });
 
-    photosSection = [photosTitleParaBreak, photoTable];
+    bodyChildren.push(photosTitlePara, photoTable);
   }
-
-  // ── Assemble document body ────────────────────────────────────────────────
-  const bodyChildren = [
-    datePara,
-    toLabel,
-    clientPara,
-    orgPara,
-    subjectPara,
-    ...introParas,
-    sectionTitlePara,
-  ];
-
-  if (mainTable) {
-    bodyChildren.push(mainTable);
-  }
-
-  bodyChildren.push(
-    notesTitlePara,
-    ...notesParas,
-    conclusionsTitlePara,
-    ...conclusionParas,
-    ...defectsSection,
-    ...photosSection,
-  );
 
   // ── Build Document ────────────────────────────────────────────────────────
   const doc = new Document({
-    // Set document-level RTL default so Word renders Hebrew correctly in all views
     styles: {
       default: {
         document: {
@@ -641,15 +890,15 @@ export async function generateDocument(data) {
           page: {
             size: { width: mm(210), height: mm(297) },
             margin: {
-              // header starts 0.5 cm from top; logo is 9.5 cm tall → body starts at ~10.5 cm
-              top:    mm(107),
-              bottom: mm(25),
-              left:   mm(20),
-              right:  mm(20),
-              header: mm(5),
-              footer: mm(5),
+              top:    mm(40),
+              bottom: mm(10),
+              left:   mm(22),
+              right:  mm(32),
+              header: mm(2.5),
+              footer: mm(0),
             },
           },
+          bidi: true,  // RTL section — all paragraphs inherit right-to-left direction
         },
         headers: { default: docHeader },
         footers: { default: docFooter },
