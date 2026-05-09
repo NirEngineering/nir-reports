@@ -52,6 +52,46 @@ const DOC_TYPES = {
     hasDefectsTable: false,
   },
 
+  // group2: סקר פערי בטיחות — 'gap-survey' layout
+  group2: {
+    name: 'סקר פערי בטיחות',
+    layout: 'gap-survey',
+    titleSize: 14,
+    bodySize: 9,
+    headingSize: 9,
+    tableHdrSize: 9,
+    tableDataSize: 9,
+    titleSuffix: true,  // subject includes "– {location}"
+    introBold: false,
+    introTemplate: (d) => [
+      { text: `להלן סקר בטיחות אשר נערך בתאריך ${d.inspection_date} ב${d.location}${d.address ? ', ' + d.address : ''}.`, bold: false },
+      { text: 'בסקר הסיכונים נבדקו השטחים בהם ישהו עובדי המקום, ילדים ומבקרים.', bold: false },
+      { text: "הסקר מבוסס על חוות דעת מקצועית של יועץ בטיחות בהתייחס לאופי המקום בהיבט של בטיחות קהל וציבור.", bold: false },
+      { text: "מהות הבדיקה – התאמת תשתיות ואלמנטי המבנה לדרישות חוזר מנכ''ל משרד החינוך, חוק התכנון והבנייה, חוק החשמל, הוראות מכ''ר, פקודת הבטיחות בעבודה והתקנים השונים הרלוונטיים.", bold: false },
+      { text: 'הממצאים ייאותרו מתוך השוואת המצב הקיים עם סטנדרטים נדרשים המפורטים ברשימות מנחות לעריכת מבדק בטיחות.', bold: false },
+    ],
+    tableColumns: ['', 'תחום הבדיקה', 'סעיף ברשימת המבדק', 'הדרישה', 'הממצא, מהותו ומיקומו', 'קדימות הליקוי'],
+    colWidths: [1.0, 3.0, 2.5, 3.5, 5.5, 2.5],
+    defaultNotes: [
+      'מקרא קדימות לטיפול בליקויים:',
+      "ליקויים בקדימות 0 – מתייחסת למפגע חמור במיוחד, המחייב להערכת עורך המבדק סגירה מידית של המקום/האתר במוסד החינוך ולאסור שימוש בו עד קבלת הודעה ממנהל הבטיחות ברשות או מנהל המוסד ויועץ בטיחות מטעם הבעלות.",
+      "ליקויים בקדימות 1 – מתייחס למפגע בטיחותי אשר קיומו מחייב הסרתו המיידית.",
+      "ליקויים בקדימות 2 – מתייחס לליקוי בטיחותי המחייב טיפול של הרשות המקומית/בעלות בתכנית עבודה סדורה.",
+    ],
+    authorizationLine: "אישור הבטיחות מותנה בהתאמת הממצאים לסעיפי הבדיקה וכן בהצגת כלל האישורים הנדרשים (מפורט בסוף הדו''ח).",
+    validityLine: 'תוקף האישור הינו לשנה מיום הבדיקה, בכפוף למסקנות הדו\'\'ח.',
+    conclusionHeading: 'מסקנות הדו"ח :',
+    conclusionLines: [
+      'נמצאו אי התאמות/התאמות לסעיפי הבדיקה.',
+      "פירוט הממצאים והליקויים מפורטים בהמשך הדו''ח.",
+      "יש להציג אישורים ומסמכים נדרשים רלוונטיים עפ''י המפורט בהמשך.",
+    ],
+    // Approvals checklist table (fixed template, appended after main table)
+    approvalsTableHeaders: ["מס'", 'תחום הבדיקה', 'תדירות', 'הגוף המקצועי הבודק והמאשר', 'הוצג/לא הוצג'],
+    approvalsColWidths: [1.0, 3.5, 2.5, 5.0, 3.0],
+    hasDefectsTable: false,
+  },
+
   // group3: תקרות תותב — 'survey' layout
   group3: {
     name: 'תקרות תותב',
@@ -59,13 +99,13 @@ const DOC_TYPES = {
     titleSize: 15,
     bodySize: 8.5,
     headingSize: 9,
-    tableHdrSize: 9,
+    tableHdrSize: 8.5,
     tableDataSize: 8.5,
-    titleSuffix: true,  // subject includes "– {location}"
-    introBold: false,   // para1 plain, para2 bold (handled in introTemplate array)
+    titleSuffix: true,
+    introBold: false,
     introTemplate: (d) => [
       {
-        text: "סקר זה מתייחס למצב קיים של התשתיות במבנה (תשתית תקרות התותב שנבדקו) והצגת הפערים הקיימים בין המצב הקיים לבין הנדרש עפ''י תקנות הבנייה.",
+        text: "סקר זה מתייחס למצב קיים של התשתיות במבנה (תשתית תקרות התותב שנבדקו) והצגת הפערים הקיימים בין המצב בשטח לבין דרישות התקנים הרלוונטיים.",
         bold: false,
       },
       {
@@ -73,10 +113,10 @@ const DOC_TYPES = {
         bold: true,
       },
     ],
-    tableColumns: ['מיקום/חדר', 'סוג התקרה', 'תקין/לא תקין', 'קדימות ליקויים', 'הערות'],
+    tableColumns: ['מיקום/חדר', 'סוג התקרה', 'תקין/לא תקין', 'קדימות ליקויים', 'הערות/פירוט ליקוי כולל סעיף'],
     colWidths: [3.5, 3.5, 3.0, 3.0, 4.0],
     defaultNotes: [
-      "ממצאי סקר זה הם כפי שהועברו לח''מ ע''י בעלי התפקידים באתר ומציגים מצב קיים ויזואלי בלבד, ולא לפי תוכניות/מפרטים.",
+      "ממצאי סקר זה הם כפי שהועברו לח''מ ע''י בעלי התפקידים באתר ומציגים מצב קיים ביום הסיור בלבד, מזמין העבודה אחראי לביצוע תיקון הליקויים שנמצאו בפרק זמן שהוגדר, לא תשמע טענה כנגד הח''מ בגין ליקויים שהצביע עליהם במסגרת סקר זה ושאינם תוקנו בתוך מסגרת הזמן שנקבעה.",
       "מצורפת טבלת ליקויים בהמשך המסמך הכוללת את מיקום הליקוי, פירוט הממצא, דרישות/הנחיות לטיפול ותמונות הליקוי.",
       'מקרא קדימות לטיפול בליקויים:',
       "קדימות 1 – ''ליקוי חמור'' בהגדרתו - ליקוי/מפגע המחייב הסרתו/תיקונו וטיפולו המיידי, לאישור ובדיקה חוזרת.",
@@ -85,7 +125,7 @@ const DOC_TYPES = {
     ],
     hasValidityLine: false,
     defaultInstructions: [
-      'על כל שינוי קונסטרוקטיבי בתקרות ורכיביהן, הוספה ו/או הפחתת רכיבים, עיוותים באופן חיבור, קורוזיה וכד\', יש לדווח לח\'\'מ מיד.',
+      "על כל שינוי קונסטרוקטיבי בתקרות ורכיביהן, הוספה ו/או הפחתת רכיבים, עיוותים באופן חיבור, קורוזיה, כפף, שבר, סדק, תזוזות וכו' – יש לזמן לבדיקה חוזרת וטיפול מתאים עפ''י הממצאים.",
       'אין לטפס, להיתלות ו/או להעמיס עומסים על התקרות שנבדקו.',
       "תוקף הדו''ח הינו לחמש שנים מיום הבדיקה בכפוף למסקנות הבדיקה.",
     ],
@@ -527,7 +567,7 @@ export async function generateDocument(data) {
       );
     });
 
-  } else {
+  } else if (cfg.layout === 'survey') {
     // ── 'survey' layout: group3, group5 ────────────────────────────────────
 
     // "הקדמה:" heading (bold, cfg.headingSize)
@@ -622,6 +662,77 @@ export async function generateDocument(data) {
     }
 
     conclusionText.split('\n').forEach((line) => {
+      bodyChildren.push(
+        mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: SP_BODY })
+      );
+    });
+
+  } else {
+    // ── 'gap-survey' layout: group2 (סקר פערי בטיחות) ─────────────────────
+
+    // Intro paragraphs (no heading — straight paragraphs)
+    const introParts = cfg.introTemplate(effectiveData);
+    const effectiveParts = data.intro_extra
+      ? [...introParts, { text: data.intro_extra, bold: false }]
+      : introParts;
+
+    effectiveParts.forEach((part) => {
+      bodyChildren.push(
+        mkPara([mkRun(part.text, { size: cfg.bodySize, bold: part.bold })], { spacing: SP_BODY })
+      );
+    });
+
+    // Priority legend (הערות section)
+    bodyChildren.push(
+      mkPara([mkRun('הערות:', { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION })
+    );
+    const notesSource = Array.isArray(data.notes_custom) && data.notes_custom.length > 0
+      ? data.notes_custom
+      : [...cfg.defaultNotes];
+    notesSource.forEach((note) => {
+      bodyChildren.push(
+        mkPara([mkRun(note, { size: cfg.bodySize })], { spacing: SP_BODY })
+      );
+    });
+
+    // Authorization line + validity line
+    bodyChildren.push(
+      mkPara([mkRun(cfg.authorizationLine, { size: cfg.bodySize })], { spacing: SP_BODY })
+    );
+    bodyChildren.push(
+      mkPara([mkRun(cfg.validityLine, { size: cfg.bodySize })], { spacing: SP_BODY })
+    );
+
+    // "נתונים וממצאים:" heading + main table
+    bodyChildren.push(
+      mkPara([mkRun('נתונים וממצאים:', { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION })
+    );
+    if (mainTable) bodyChildren.push(mainTable);
+
+    // Approvals checklist table (fixed template rows — empty, user fills in Word)
+    if (cfg.approvalsTableHeaders) {
+      bodyChildren.push(
+        mkPara([mkRun('ריכוז בדיקות בטיחות:', { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION })
+      );
+      const emptyApprovalsRows = Array.from({ length: 20 }, () =>
+        Array(cfg.approvalsTableHeaders.length).fill('')
+      );
+      bodyChildren.push(
+        mkTable(cfg.approvalsTableHeaders, emptyApprovalsRows, cfg.approvalsColWidths, {
+          hdrSize: cfg.tableHdrSize,
+          dataSize: cfg.tableDataSize,
+        })
+      );
+    }
+
+    // Conclusion heading + fixed lines
+    bodyChildren.push(
+      mkPara([mkRun(cfg.conclusionHeading, { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION })
+    );
+    const conclusionLines = data.conclusion_custom && String(data.conclusion_custom).trim()
+      ? String(data.conclusion_custom).trim().split('\n')
+      : cfg.conclusionLines;
+    conclusionLines.forEach((line) => {
       bodyChildren.push(
         mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: SP_BODY })
       );
