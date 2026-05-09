@@ -20,17 +20,17 @@ import {
   TableLayoutType,
 } from 'docx';
 
-// ── Font / size constants ────────────────────────────────────────────────────
-const FONT       = 'Arial';
-const FS_DATE    = 8;
-const FS_CLIENT  = 8;
-const FS_TITLE   = 15;
-const FS_INTRO   = 9;
-const FS_HEADING = 9;
-const FS_BODY    = 8;
-const FS_TABLE   = 9;
-const FS_PHOTO_NUM = 9;
-const FS_PHOTO_CAP = 9;
+// ── Font / size constants (matched to original Word documents) ───────────────
+const FONT         = 'Arial';
+const FS_DATE      = 8;    // date line (top right)
+const FS_CLIENT    = 8;    // "לכבוד", client name, org
+const FS_TITLE     = 15;   // הנדון — bold, centered
+const FS_INTRO     = 8.5;  // intro / body paragraphs
+const FS_HEADING   = 9;    // section headings (bold)
+const FS_BODY      = 8.5;  // general body text
+const FS_TABLE_H   = 9;    // table header row
+const FS_TABLE_D   = 8.5;  // table data cells
+const FS_PHOTO_CAP = 9;    // photo captions
 
 // ── Doc-type configuration ───────────────────────────────────────────────────
 const DOC_TYPES = {
@@ -163,8 +163,9 @@ function mkRun(text, opts = {}) {
 }
 
 /**
- * Create a Paragraph with bidirectional RTL support.
- * opts: { alignment, spacing, indent, pageBreak }
+ * Create a paragraph. RTL direction is inherited from the section (bidi: true in sectPr).
+ * Do NOT set bidirectional on individual paragraphs — it causes image mirroring.
+ * opts: { alignment, spacing, pageBreak }
  */
 function mkPara(children = [], opts = {}) {
   const {
@@ -175,7 +176,6 @@ function mkPara(children = [], opts = {}) {
 
   return new Paragraph({
     children,
-    bidirectional: true,
     alignment,
     spacing,
     pageBreakBefore: pageBreak,
@@ -213,7 +213,7 @@ function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
       verticalAlign: VerticalAlign.CENTER,
       shading: { type: ShadingType.CLEAR, fill: headerBg },
       borders: THIN_BORDER,
-      children: [mkPara([mkRun(h, { size: FS_TABLE, bold: true })], { alignment: AlignmentType.CENTER })],
+      children: [mkPara([mkRun(h, { size: FS_TABLE_H, bold: true })], { alignment: AlignmentType.CENTER })],
     })
   );
 
@@ -233,14 +233,12 @@ function mkTable(headers, rows, colWidthsCm, headerBg = 'EAF1DD') {
       if (isNotOk)        { color = 'C00000'; bold = true; }
       else if (isWatchOk) { color = 'C55A11'; bold = true; }
 
-      const alignment = AlignmentType.RIGHT;
-
       return new TableCell({
         width:         { size: colWidths[colIdx] ?? colWidths[colWidths.length - 1], type: WidthType.DXA },
         verticalAlign: VerticalAlign.CENTER,
         shading:       { type: ShadingType.CLEAR, fill: bg },
         borders:       THIN_BORDER,
-        children: [mkPara([mkRun(text, { size: FS_TABLE, bold, color })], { alignment })],
+        children: [mkPara([mkRun(text, { size: FS_TABLE_D, bold, color })], { alignment: AlignmentType.CENTER })],
       });
     });
 
@@ -282,27 +280,32 @@ export async function generateDocument(data) {
     ? data
     : { ...data, location: (data.client || '').trim() };
 
-  // ── Logo ─────────────────────────────────────────────────────────────────
-  // Only try PNG — docx cannot embed SVG.  Account for Vite base path on GitHub Pages.
-  let logoBuffer = null;
-  for (const path of [
-    `${import.meta.env.BASE_URL}logo.png`,
-    '/nir-reports/logo.png',
-    '/logo.png',
-  ]) {
-    try {
-      const res = await fetch(path);
-      if (res.ok) {
-        logoBuffer = new Uint8Array(await res.arrayBuffer());
-        break;
-      }
-    } catch (_) { /* try next */ }
-  }
+  // ── Logo images (extracted from original Word documents) ─────────────────
+  // header-logo.jpg: 8.91 × 3.52 cm (landscape letterhead)
+  // footer-logo.png: 15.05 × 1.03 cm (wide thin footer strip)
+  const fetchBuf = async (paths) => {
+    for (const path of paths) {
+      try {
+        const res = await fetch(path);
+        if (res.ok) return new Uint8Array(await res.arrayBuffer());
+      } catch (_) { /* try next */ }
+    }
+    return null;
+  };
 
-  // ── Header: page-number line (right) + logo (centered) ───────────────────
+  const base = import.meta.env.BASE_URL;
+  const [headerLogoBuffer, footerLogoBuffer] = await Promise.all([
+    fetchBuf([`${base}header-logo.jpg`, '/nir-reports/header-logo.jpg', '/header-logo.jpg']),
+    fetchBuf([`${base}footer-logo.png`, '/nir-reports/footer-logo.png', '/footer-logo.png']),
+  ]);
+
+  // ── Header: page-number + header logo (8.91 × 3.52 cm) ──────────────────
+  // Dimensions from original documents. No bidirectional on image paragraphs.
+  const HEADER_W = cmPx(8.91), HEADER_H = cmPx(3.52);
+  const FOOTER_W = cmPx(15.05), FOOTER_H = cmPx(1.03);
+
   const pageNumPara = new Paragraph({
     alignment: AlignmentType.RIGHT,
-    bidirectional: true,
     spacing: { after: 0 },
     children: [
       new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rtl: true }),
@@ -312,46 +315,45 @@ export async function generateDocument(data) {
     ],
   });
 
-  // Square PNG at 3.5 cm — NO bidirectional on image paragraphs (prevents Word from mirroring the image)
-  const LOGO_CM = 3.5;
-  const mkLogoPara = (buf) => new Paragraph({
-    alignment: AlignmentType.CENTER,
-    spacing: { before: 0, after: 0 },
-    children: [new ImageRun({ data: buf, transformation: { width: cmPx(LOGO_CM), height: cmPx(LOGO_CM) } })],
-  });
+  const headerLogoPara = headerLogoBuffer
+    ? new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 0 },
+        children: [new ImageRun({ data: headerLogoBuffer, transformation: { width: HEADER_W, height: HEADER_H } })],
+      })
+    : null;
 
   const docHeader = new Header({
-    children: [
-      pageNumPara,
-      ...(logoBuffer ? [mkLogoPara(logoBuffer)] : []),
-    ],
+    children: [pageNumPara, ...(headerLogoPara ? [headerLogoPara] : [])],
   });
 
-  // ── Footer: logo image centered (same as header logo) ────────────────────
-  const docFooter = new Footer({
-    children: [
-      logoBuffer
-        ? mkLogoPara(logoBuffer)
-        : new Paragraph({ children: [] }),
-    ],
-  });
+  // ── Footer: footer strip image (15.05 × 1.03 cm) ─────────────────────────
+  const footerLogoPara = footerLogoBuffer
+    ? new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 0 },
+        children: [new ImageRun({ data: footerLogoBuffer, transformation: { width: FOOTER_W, height: FOOTER_H } })],
+      })
+    : new Paragraph({ children: [] });
 
-  // Shared spacing helpers  (lineRule must be lowercase 'auto' = LineRuleType.AUTO)
-  const SP_BODY    = { line: 276, lineRule: 'auto', after: 200 };  // single-spaced + ~10pt after
-  const SP_SECTION = { before: 280, after: 120 };                   // generous space around section titles
+  const docFooter = new Footer({ children: [footerLogoPara] });
 
-  // ── Date paragraph (left-aligned, not RTL) ────────────────────────────────
+  // Spacing matched to original documents: 1.5× line spacing, no paragraph gaps
+  const SP_BODY    = { line: 360, lineRule: 'auto', after: 0 };
+  const SP_SECTION = { line: 360, lineRule: 'auto', before: 120, after: 0 };
+
+  // ── Date paragraph (right-aligned, matching original documents) ──────────
   const dateStr  = formatDate(data.date);
   const datePara = new Paragraph({
-    alignment: AlignmentType.LEFT,
+    alignment: AlignmentType.RIGHT,
     spacing: { after: 0 },
-    children: [mkRun(dateStr, { size: FS_DATE, rtl: false })],
+    children: [mkRun(dateStr, { size: FS_DATE })],
   });
 
   // ── Client block ─────────────────────────────────────────────────────────
   const toLabel    = mkPara([mkRun('לכבוד',                   { size: FS_CLIENT })],         { spacing: { after: 0 } });
   const clientPara = mkPara([mkRun(data.client ?? '',          { size: FS_CLIENT })],         { spacing: { after: 0 } });
-  const orgPara    = mkPara([mkRun(data.organization ?? '',    { size: FS_CLIENT, underline: true })], { spacing: { after: 80 } });
+  const orgPara    = mkPara([mkRun(data.organization ?? '',    { size: FS_CLIENT, underline: true })], { spacing: { after: 0 } });
 
   // ── Subject ───────────────────────────────────────────────────────────────
   const subjectPara = mkPara(
@@ -595,18 +597,16 @@ export async function generateDocument(data) {
           page: {
             size: { width: mm(210), height: mm(297) },
             margin: {
-              // header: 0.5cm from top + page-num (~5mm) + logo (3.5cm) = ~4.5cm → top: 5cm
-              top:    mm(50),
-              // footer: 0.5cm from bottom + logo (3.5cm) = ~4cm → bottom: 4.5cm
-              bottom: mm(45),
-              left:   mm(20),
-              right:  mm(20),
-              header: mm(5),
-              footer: mm(5),
+              // Exact values from original Word documents
+              top:    mm(40),    // body starts 40mm from top (header image fits in header area)
+              bottom: mm(10),    // body ends 10mm from bottom
+              left:   mm(22),    // physical left margin
+              right:  mm(32),    // physical right margin (wider, Hebrew text starts here)
+              header: mm(2.5),   // header content starts 2.5mm from top edge
+              footer: mm(0),     // footer content at bottom edge
             },
           },
-          // RTL section flag — makes Word default all paragraphs to right-to-left
-          bidi: true,
+          bidi: true,  // RTL section — all paragraphs inherit right-to-left direction
         },
         headers: { default: docHeader },
         footers: { default: docFooter },
