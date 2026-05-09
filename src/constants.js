@@ -56,6 +56,7 @@ export const KNOWN_LOCATIONS = [];
 export const KNOWN_ADDRESSES = [];
 
 export const DRAFT_KEY = 'nir_v2_draft';
+export const FIELD_LOG_KEY = 'nir_v2_field_log';
 
 // ── Status & Priority options ─────────────────────────────────────────────────
 export const STATUS_OPTIONS = [
