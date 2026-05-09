@@ -1548,3 +1548,10 @@ html, body {
 }
 .btn-danger:hover { background: #fca5a5; }
 .btn-sm { padding: 6px 12px; font-size: 13px; }
+
+/* ── Event structures textarea ────────────────────────────────── */
+.event-structures-textarea {
+  line-height: 2.2;
+  min-height: 140px;
+  font-size: 15px;
+}
