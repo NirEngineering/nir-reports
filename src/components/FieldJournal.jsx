@@ -66,6 +66,10 @@ export default function FieldJournal({ onBack }) {
   const [dragIdx, setDragIdx]       = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
 
+  // Inline rename state (for list)
+  const [renamingId, setRenamingId]   = useState(null);
+  const [renameVal,  setRenameVal]    = useState('');
+
   const editorRef  = useRef(null);
   const savedRange = useRef(null);
   const fileRef    = useRef(null);
@@ -192,6 +196,23 @@ export default function FieldJournal({ onBack }) {
     }));
   };
 
+  // Intercept Ctrl+V with image clipboard data
+  const handleEditorPaste = (e) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItems = items.filter(it => it.type.startsWith('image/'));
+    if (imageItems.length === 0) return; // let normal text paste proceed
+    e.preventDefault();
+    handlePhotoAdd(imageItems.map(it => it.getAsFile()).filter(Boolean));
+  };
+
+  // Drop images onto the editor area
+  const handleEditorDrop = (e) => {
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+    e.preventDefault();
+    handlePhotoAdd(files);
+  };
+
   // ── Toolbar actions ───────────────────────────────────────────────────────
   const insertTimestamp = () => {
     restoreSelection();
@@ -312,8 +333,25 @@ export default function FieldJournal({ onBack }) {
               >
                 <span className="journal-drag-handle">⠿</span>
 
-                <div className="journal-item-body" onClick={() => openJournal(j.id)}>
-                  <div className="journal-item-title">{j.title}</div>
+                <div className="journal-item-body" onClick={() => renamingId !== j.id && openJournal(j.id)}>
+                  {renamingId === j.id ? (
+                    <input
+                      autoFocus
+                      className="journal-rename-input"
+                      value={renameVal}
+                      dir="rtl"
+                      onChange={e => setRenameVal(e.target.value)}
+                      onBlur={() => { updateJournal(j.id, { title: renameVal }); setRenamingId(null); }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { updateJournal(j.id, { title: renameVal }); setRenamingId(null); }
+                        if (e.key === 'Escape') setRenamingId(null);
+                        e.stopPropagation();
+                      }}
+                      onClick={e => e.stopPropagation()}
+                    />
+                  ) : (
+                    <div className="journal-item-title">{j.title}</div>
+                  )}
                   <div className="journal-item-date">{j.date}</div>
                   {j.content && (
                     <div className="journal-item-preview">{stripHtml(j.content).slice(0, 80)}</div>
@@ -324,6 +362,11 @@ export default function FieldJournal({ onBack }) {
                 </div>
 
                 <div className="journal-item-actions">
+                  <button
+                    className="btn-icon"
+                    onClick={e => { e.stopPropagation(); setRenamingId(j.id); setRenameVal(j.title); }}
+                    title="שנה שם"
+                  >✏️</button>
                   <button
                     className="btn-icon"
                     onClick={e => { e.stopPropagation(); moveUp(idx); }}
@@ -508,12 +551,30 @@ export default function FieldJournal({ onBack }) {
         onKeyUp={saveSelection}
         onMouseUp={saveSelection}
         onSelect={saveSelection}
+        onPaste={handleEditorPaste}
+        onDrop={handleEditorDrop}
+        onDragOver={e => e.preventDefault()}
       />
 
-      {/* ── Photos strip ── */}
-      {(activeJournal?.photos || []).length > 0 && (
-        <div className="card" style={{ marginTop: 12 }}>
-          <div className="card-title">📷 תמונות מצורפות</div>
+      {/* ── Photo zone ── always visible, prominent ── */}
+      <div className="journal-photo-zone">
+        <div className="journal-photo-zone-buttons">
+          <button
+            className="journal-photo-zone-btn"
+            onClick={() => { fileRef.current.removeAttribute('capture'); fileRef.current.click(); }}
+          >
+            <span>🖼️</span> בחר מהגלריה
+          </button>
+          <button
+            className="journal-photo-zone-btn"
+            onClick={() => { fileRef.current.setAttribute('capture', 'environment'); fileRef.current.click(); }}
+          >
+            <span>📷</span> צלם תמונה
+          </button>
+        </div>
+        <div className="journal-photo-zone-hint">או גרור תמונה לכאן · הדבק מהלוח (Ctrl+V)</div>
+
+        {(activeJournal?.photos || []).length > 0 && (
           <div className="journal-photos">
             {activeJournal.photos.map((ph, idx) => (
               <div key={idx} className="journal-photo">
@@ -529,8 +590,8 @@ export default function FieldJournal({ onBack }) {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Footer ── */}
       <div className="field-journal-footer">
