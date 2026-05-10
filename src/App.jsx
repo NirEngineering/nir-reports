@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import TableEditor from './components/TableEditor';
 import PhotoUpload from './components/PhotoUpload';
 import SearchDropdown from './components/SearchDropdown';
-import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY, FIELD_LOG_KEY } from './constants';
+import FieldJournal from './components/FieldJournal';
+import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
 import { generateDocument } from './lib/docGenerator';
 import { generateEventApproval } from './lib/eventApproval';
 import { importDocx, exportDocx } from './lib/docImporter';
@@ -187,13 +188,6 @@ export default function App() {
   const [editEdits, setEditEdits] = useState({});
   const [editLoading, setEditLoading] = useState(false);
 
-  // Field journal state
-  const [fieldLog, setFieldLog] = useState(() => {
-    try { return localStorage.getItem(FIELD_LOG_KEY) || ''; } catch { return ''; }
-  });
-  const [fieldCopied, setFieldCopied] = useState(false);
-  const fieldLogRef = useRef(null);
-
   // Event approval state
   const [eventForm, setEventForm] = useState(defaultEventForm());
   const setEventField = (key, val) => setEventForm(f => ({ ...f, [key]: val }));
@@ -246,27 +240,6 @@ export default function App() {
   useEffect(() => {
     if (mode === 'new' && docType) saveDraft();
   }, [mode, step, docType, form, tableRows, defectsRows]);
-
-  // Auto-save field log to localStorage on every change
-  useEffect(() => {
-    try { localStorage.setItem(FIELD_LOG_KEY, fieldLog); } catch (_) {}
-  }, [fieldLog]);
-
-  const insertFieldText = (text) => {
-    const ta = fieldLogRef.current;
-    if (!ta) return;
-    const pos = ta.selectionStart;
-    const next = fieldLog.slice(0, pos) + text + fieldLog.slice(pos);
-    setFieldLog(next);
-    requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = pos + text.length; ta.focus(); });
-  };
-
-  const copyFieldLog = () => {
-    navigator.clipboard.writeText(fieldLog).then(() => {
-      setFieldCopied(true);
-      setTimeout(() => setFieldCopied(false), 2000);
-    });
-  };
 
   // ── Event approval generate ───────────────────────────────────────────────
   const handleEventGenerate = async () => {
@@ -1028,53 +1001,7 @@ export default function App() {
           FIELD JOURNAL MODE
       ══════════════════════════════════════════════════════════════════════ */}
       {mode === 'field' && (
-        <div className="app-body">
-          <div className="field-journal-header">
-            <button className="btn btn-outline btn-sm" onClick={() => setMode('home')}>◀ חזור</button>
-            <span className="field-journal-title">📋 יומן שטח</span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                className="btn btn-outline btn-sm"
-                onClick={() => {
-                  const now = new Date();
-                  const d = now.toLocaleDateString('he-IL');
-                  const t = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-                  insertFieldText(`\n[${d} ${t}]\n`);
-                }}
-              >
-                + תאריך/שעה
-              </button>
-              <button
-                className="btn btn-outline btn-sm"
-                onClick={copyFieldLog}
-              >
-                {fieldCopied ? 'הועתק!' : 'העתק'}
-              </button>
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={() => { if (window.confirm('למחוק את כל הטקסט?')) setFieldLog(''); }}
-              >
-                נקה
-              </button>
-            </div>
-          </div>
-
-          <textarea
-            ref={fieldLogRef}
-            className="field-journal-textarea"
-            value={fieldLog}
-            onChange={e => setFieldLog(e.target.value)}
-            placeholder="רשום כאן הערות שטח – נשמר אוטומטית..."
-            dir="rtl"
-            spellCheck
-          />
-
-          {fieldLog.trim() && (
-            <div className="field-journal-footer">
-              {fieldLog.split('\n').filter(l => l.trim()).length} שורות · נשמר אוטומטית
-            </div>
-          )}
-        </div>
+        <FieldJournal onBack={goHome} />
       )}
     </div>
   );

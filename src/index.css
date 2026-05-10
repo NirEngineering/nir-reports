@@ -1602,3 +1602,282 @@ html, body {
   min-height: 140px;
   font-size: 15px;
 }
+
+/* ── Field Journal — shared header ────────────────────────────── */
+.field-journal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.field-journal-title {
+  font-size: 17px;
+  font-weight: 700;
+  flex: 1;
+  text-align: center;
+}
+.field-journal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 4px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Journal list ─────────────────────────────────────────────── */
+.journal-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--gray-500);
+}
+.journal-empty-icon { font-size: 56px; margin-bottom: 12px; }
+
+.journal-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.journal-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  box-shadow: var(--shadow-sm);
+  cursor: default;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  direction: rtl;
+}
+.journal-item:hover { border-color: var(--primary); box-shadow: var(--shadow); }
+.journal-item.drag-over {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(29,78,216,0.2);
+  background: var(--primary-light);
+}
+
+.journal-drag-handle {
+  font-size: 18px;
+  color: var(--gray-400);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+  padding: 4px 2px;
+}
+.journal-drag-handle:active { cursor: grabbing; }
+
+.journal-item-body {
+  flex: 1;
+  cursor: pointer;
+  min-width: 0;
+}
+.journal-item-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 2px;
+}
+.journal-item-date {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-bottom: 4px;
+}
+.journal-item-preview {
+  font-size: 13px;
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.journal-item-photos-hint {
+  font-size: 12px;
+  color: var(--primary);
+  margin-top: 4px;
+}
+.journal-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Journal editor header inputs ─────────────────────────────── */
+.journal-title-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1.5px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font);
+  direction: rtl;
+  background: white;
+  min-width: 0;
+}
+.journal-title-input:focus { outline: none; border-color: var(--primary); }
+
+.journal-date-input {
+  padding: 8px 10px;
+  border: 1.5px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: var(--font);
+  background: white;
+  flex-shrink: 0;
+}
+.journal-date-input:focus { outline: none; border-color: var(--primary); }
+
+/* ── Journal toolbar ──────────────────────────────────────────── */
+.journal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+  background: white;
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.journal-toolbar-btn {
+  padding: 5px 8px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: var(--font);
+  cursor: pointer;
+  color: var(--gray-700);
+  line-height: 1.2;
+  transition: all 0.12s;
+  white-space: nowrap;
+  min-height: 30px;
+}
+.journal-toolbar-btn:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+.journal-toolbar-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.journal-export-btn {
+  background: var(--success-light);
+  border-color: var(--success);
+  color: var(--success);
+  font-weight: 600;
+}
+.journal-export-btn:hover { background: var(--success); color: white; }
+
+.journal-toolbar-select {
+  padding: 4px 6px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: var(--font);
+  background: var(--gray-50);
+  color: var(--gray-700);
+  cursor: pointer;
+  min-height: 30px;
+}
+.journal-toolbar-select:focus { outline: none; border-color: var(--primary); }
+.journal-toolbar-size { width: 58px; }
+
+.journal-toolbar-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--gray-200);
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
+/* ── Journal content-editable area ───────────────────────────── */
+.journal-editor {
+  width: 100%;
+  min-height: 300px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  font-family: 'Arial', sans-serif;
+  background: white;
+  color: var(--gray-900);
+  line-height: 1.9;
+  outline: none;
+  overflow-y: auto;
+  box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
+  direction: rtl;
+  text-align: right;
+}
+.journal-editor:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(29,78,216,0.12);
+}
+.journal-editor:empty::before {
+  content: 'רשום כאן את הערות השטח...';
+  color: var(--gray-400);
+  pointer-events: none;
+}
+.journal-editor ul, .journal-editor ol {
+  padding-right: 24px;
+  padding-left: 0;
+}
+
+/* ── Journal photos ───────────────────────────────────────────── */
+.journal-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.journal-photo {
+  position: relative;
+  width: 140px;
+  flex-shrink: 0;
+}
+.journal-photo img {
+  width: 140px;
+  height: 105px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1.5px solid var(--gray-200);
+  display: block;
+  cursor: zoom-in;
+}
+.journal-photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(220,38,38,0.85);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.journal-photo-caption {
+  width: 100%;
+  margin-top: 5px;
+  padding: 5px 8px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: var(--font);
+  direction: rtl;
+  background: var(--gray-50);
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 36px;
+}
+.journal-photo-caption:focus { outline: none; border-color: var(--primary); }
