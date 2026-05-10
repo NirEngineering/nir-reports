@@ -275,7 +275,6 @@ function mkPara(children = [], opts = {}) {
     alignment,
     spacing,
     pageBreakBefore: pageBreak,
-    bidirectional: true,   // RTL paragraph direction — images use new Paragraph() directly to avoid mirroring
   });
 }
 
@@ -408,7 +407,6 @@ export async function generateDocument(data) {
 
   const pageNumPara = new Paragraph({
     alignment: AlignmentType.RIGHT,
-    bidirectional: true,
     spacing: { after: 0 },
     children: [
       new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rtl: true }),
@@ -450,7 +448,6 @@ export async function generateDocument(data) {
   const dateStr  = formatDate(data.date);
   const datePara = new Paragraph({
     alignment: AlignmentType.LEFT,
-    bidirectional: true,
     spacing: { after: 0 },
     children: [mkRun(dateStr, { size: 8 })],
   });
@@ -880,7 +877,6 @@ export async function generateDocument(data) {
           name: 'Normal',
           quickFormat: true,
           paragraph: {
-            bidirectional: true,
             alignment: AlignmentType.RIGHT,
           },
           run: { font: { name: FONT } },
