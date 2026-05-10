@@ -41,7 +41,7 @@ function mkRun(text, { size = 9, bold = false, underline = false } = {}) {
 }
 
 function mkPara(children = [], { alignment = AlignmentType.RIGHT, spacing } = {}) {
-  return new Paragraph({ children, alignment, spacing });
+  return new Paragraph({ children, alignment, spacing, bidirectional: true });
 }
 
 async function fetchBuf(paths) {
@@ -103,18 +103,26 @@ export async function generateEventApproval(data) {
   // ── Body paragraphs ───────────────────────────────────────────────────────
   const body = [
 
-    // Row 1: לכבוד ... תאריך (8pt, right-aligned, on same line via spaces)
-    mkPara([
-      mkRun(`לכבוד: ${data.to || ''}`, { size: 8 }),
-      mkRun(' '.repeat(55), { size: 8 }),
-      mkRun(`תאריך: ${data.date || ''}`, { size: 8 }),
-    ], { spacing: SP }),
+    // לכבוד — right-aligned; תאריך — left-aligned (separate paragraphs)
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      bidirectional: true,
+      spacing: SP,
+      children: [mkRun(`לכבוד: ${data.to || ''}`, { size: 8 })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      bidirectional: true,
+      spacing: SP,
+      children: [mkRun(`תאריך: ${data.date || ''}`, { size: 8 })],
+    }),
 
     mkPara([mkRun('')], { spacing: SP }),
 
     // הנדון — centered, bold/underline
     new Paragraph({
       alignment: AlignmentType.CENTER,
+      bidirectional: true,
       spacing: SP,
       children: [
         mkRun('הנדון  :  ', { size: 11.5, bold: true }),
