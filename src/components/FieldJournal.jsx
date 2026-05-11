@@ -1,8 +1,26 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Document, Packer, Paragraph, TextRun, ImageRun,
-  AlignmentType, convertMillimetersToTwip as mm,
+  Header, Footer, AlignmentType, convertMillimetersToTwip as mm,
+  UnderlineType,
 } from 'docx';
+
+// Pixels at 96 DPI for ImageRun
+const cmPx = (v) => Math.round(v / 2.54 * 96);
+const HEADER_W = cmPx(10.595), HEADER_H = cmPx(4.178);
+const FOOTER_W = cmPx(13.5),   FOOTER_H = cmPx(0.995);
+const FONT = 'Arial';
+const SP = { line: 360, lineRule: 'auto', after: 0 };
+
+async function fetchBuf(paths) {
+  for (const url of paths) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) return new Uint8Array(await r.arrayBuffer());
+    } catch { /* try next */ }
+  }
+  return new Uint8Array(0);
+}
 
 const JOURNALS_KEY = 'nir_v2_journals';
 const FONTS = ['Arial', 'Times New Roman', 'Courier New', 'David', 'FrankRuehl'];
@@ -244,13 +262,46 @@ export default function FieldJournal({ onBack }) {
     execCmd(d === 'rtl' ? 'justifyRight' : 'justifyLeft');
   };
 
-  // ── Word export ───────────────────────────────────────────────────────────
+  // ── Word export (company template: logos, RTL, proper formatting) ──────────
   const exportToWord = async () => {
     if (!activeJournal) return;
     saveContent();
-    const content = editorRef.current?.innerHTML || activeJournal.content || '';
-    const lines = stripHtml(content).split(/\n/).filter(l => l.trim());
 
+    const base = import.meta.env.BASE_URL || '/';
+    const [headerBuf, footerBuf] = await Promise.all([
+      fetchBuf([`${base}header-logo.jpg`, '/nir-reports/header-logo.jpg', '/header-logo.jpg']),
+      fetchBuf([`${base}footer-logo.png`, '/nir-reports/footer-logo.png', '/footer-logo.png']),
+    ]);
+
+    const mk = (text, { size = 11, bold = false } = {}) =>
+      new TextRun({ text: String(text ?? ''), font: FONT, size: size * 2, bold, rtl: true });
+
+    const mkP = (children, align = AlignmentType.RIGHT) =>
+      new Paragraph({ children, alignment: align, spacing: SP, bidirectional: true });
+
+    // Header / footer images
+    const headerSection = new Header({
+      children: [new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: headerBuf.length > 100
+          ? [new ImageRun({ data: headerBuf, transformation: { width: HEADER_W, height: HEADER_H } })]
+          : [new TextRun('')],
+      })],
+    });
+    const footerSection = new Footer({
+      children: [new Paragraph({
+        alignment: AlignmentType.LEFT,
+        children: footerBuf.length > 100
+          ? [new ImageRun({ data: footerBuf, transformation: { width: FOOTER_W, height: FOOTER_H } })]
+          : [new TextRun('')],
+      })],
+    });
+
+    // Parse HTML content into lines
+    const rawHtml = editorRef.current?.innerHTML || activeJournal.content || '';
+    const lines = stripHtml(rawHtml).split(/\n/).filter(l => l.trim());
+
+    // Photo paragraphs
     const photoParas = [];
     for (const ph of activeJournal.photos || []) {
       photoParas.push(new Paragraph({
@@ -258,34 +309,50 @@ export default function FieldJournal({ onBack }) {
         children: [new ImageRun({ data: base64ToUint8Array(ph.data), transformation: { width: 400, height: 300 } })],
       }));
       if (ph.caption) {
-        photoParas.push(new Paragraph({
-          alignment: AlignmentType.CENTER,
-          children: [new TextRun({ text: ph.caption, size: 18, font: 'Arial', rtl: true })],
-        }));
+        photoParas.push(mkP([mk(ph.caption, { size: 9 })], AlignmentType.CENTER));
       }
     }
 
     const doc = new Document({
+      styles: {
+        paragraphStyles: [{
+          id: 'Normal', name: 'Normal', quickFormat: true,
+          paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
+          run: { font: { name: FONT } },
+        }],
+      },
       sections: [{
         properties: {
-          page: { size: { width: mm(210), height: mm(297) }, margin: { top: mm(20), bottom: mm(20), left: mm(20), right: mm(20) } },
+          page: {
+            size: { width: mm(210), height: mm(297) },
+            margin: { top: mm(40), bottom: mm(2.5), left: mm(15), right: mm(15), header: mm(0), footer: mm(4.55) },
+          },
           bidi: true,
         },
+        headers: { default: headerSection },
+        footers: { default: footerSection },
         children: [
+          // Title
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: activeJournal.title, bold: true, size: 32, font: 'Arial', rtl: true })],
+            spacing: SP,
+            bidirectional: true,
+            children: [mk(activeJournal.title, { size: 14, bold: true })],
           }),
+          // Date
           new Paragraph({
             alignment: AlignmentType.LEFT,
-            children: [new TextRun({ text: activeJournal.date, size: 20, font: 'Arial' })],
+            spacing: SP,
+            bidirectional: true,
+            children: [mk(activeJournal.date, { size: 10 })],
           }),
-          new Paragraph({ children: [] }),
-          ...lines.map(line => new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            children: [new TextRun({ text: line, size: 24, font: 'Arial', rtl: true })],
-          })),
-          ...(photoParas.length ? [new Paragraph({ children: [] }), ...photoParas] : []),
+          mkP([mk('')]),
+
+          // Body lines
+          ...lines.map(line => mkP([mk(line, { size: 11 })])),
+
+          // Photos
+          ...(photoParas.length ? [mkP([mk('')]), ...photoParas] : []),
         ],
       }],
     });
@@ -294,7 +361,7 @@ export default function FieldJournal({ onBack }) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `${activeJournal.title || 'יומן'}.docx`;
+    a.download = `${activeJournal.title || 'יומן שטח'}.docx`;
     a.click();
     URL.revokeObjectURL(url);
   };

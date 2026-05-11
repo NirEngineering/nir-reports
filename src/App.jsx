@@ -3,6 +3,7 @@ import TableEditor from './components/TableEditor';
 import PhotoUpload from './components/PhotoUpload';
 import SearchDropdown from './components/SearchDropdown';
 import FieldJournal from './components/FieldJournal';
+import SmartPaste from './components/SmartPaste';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
 import { generateDocument } from './lib/docGenerator';
 import { generateEventApproval } from './lib/eventApproval';
@@ -169,7 +170,7 @@ function RichTextarea({ value, onChange, placeholder, rows = 4 }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'event'
+  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'event' | 'smartpaste'
   const [step, setStep] = useState(0);         // for 'new': 0=type,1=details,2=table,3=photos,4=generate
   const [docType, setDocType] = useState('');
   const [form, setForm] = useState(defaultForm());
@@ -471,6 +472,12 @@ export default function App() {
               <div className="home-card-icon">📋</div>
               <div className="home-card-title">יומן שטח</div>
               <div className="home-card-sub">רשום הערות בשטח – נשמר אוטומטית</div>
+            </div>
+
+            <div className="home-card" onClick={() => { setMode('smartpaste'); setError(''); setSuccess(''); }}>
+              <div className="home-card-icon">⚡</div>
+              <div className="home-card-title">הדבק וייצא</div>
+              <div className="home-card-sub">הדבק טקסט ותמונות – יוצר מסמך מסודר אוטומטית</div>
             </div>
           </div>
         </div>
@@ -1002,6 +1009,13 @@ export default function App() {
       ══════════════════════════════════════════════════════════════════════ */}
       {mode === 'field' && (
         <FieldJournal onBack={goHome} />
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SMART PASTE MODE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mode === 'smartpaste' && (
+        <SmartPaste onBack={goHome} />
       )}
     </div>
   );

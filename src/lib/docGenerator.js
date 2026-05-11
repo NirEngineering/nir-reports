@@ -259,9 +259,9 @@ function mkRun(text, opts = {}) {
 }
 
 /**
- * Create a paragraph. RTL direction is inherited from the section (bidi: true in sectPr).
- * Do NOT set bidirectional on individual paragraphs — it causes image mirroring.
- * opts: { alignment, spacing, pageBreak }
+ * Create a RTL paragraph. bidirectional:true sets paragraph direction to RTL,
+ * which is required for AlignmentType.RIGHT to anchor Hebrew text to the right margin.
+ * Image paragraphs use plain new Paragraph() to avoid mirroring.
  */
 function mkPara(children = [], opts = {}) {
   const {
@@ -275,6 +275,7 @@ function mkPara(children = [], opts = {}) {
     alignment,
     spacing,
     pageBreakBefore: pageBreak,
+    bidirectional: true,
   });
 }
 
@@ -407,6 +408,7 @@ export async function generateDocument(data) {
 
   const pageNumPara = new Paragraph({
     alignment: AlignmentType.RIGHT,
+    bidirectional: true,
     spacing: { after: 0 },
     children: [
       new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rtl: true }),
@@ -448,6 +450,7 @@ export async function generateDocument(data) {
   const dateStr  = formatDate(data.date);
   const datePara = new Paragraph({
     alignment: AlignmentType.LEFT,
+    bidirectional: true,
     spacing: { after: 0 },
     children: [mkRun(dateStr, { size: 8 })],
   });
@@ -877,6 +880,7 @@ export async function generateDocument(data) {
           name: 'Normal',
           quickFormat: true,
           paragraph: {
+            bidirectional: true,
             alignment: AlignmentType.RIGHT,
           },
           run: { font: { name: FONT } },
