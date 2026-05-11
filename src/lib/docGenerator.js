@@ -23,6 +23,10 @@ import {
 // ── Font constant ─────────────────────────────────────────────────────────────
 const FONT = 'Arial';
 
+// Exact pixel sizes derived from sample Word document (914400 EMU = 1 inch = 96px)
+const HEADER_W = 359, HEADER_H = 142;   // 95.12mm × 37.57mm
+const FOOTER_W = 568, FOOTER_H = 39;    // 150.50mm × 10.28mm
+
 // ── Doc-type configuration ────────────────────────────────────────────────────
 // Per-type font sizes and content extracted from 48 original Hebrew Word documents
 const DOC_TYPES = {
@@ -31,7 +35,7 @@ const DOC_TYPES = {
     name: 'אלמנטים תלויים',
     layout: 'simple',
     titleSize: 16,
-    bodySize: 10,
+    bodySize: 9,
     headingSize: 10,
     tableHdrSize: 10,
     tableDataSize: 9,
@@ -403,8 +407,6 @@ export async function generateDocument(data) {
   ]);
 
   // ── 2. Build header (page num + logo) and footer (logo only) ─────────────
-  const HEADER_W = cmPx(8.91), HEADER_H = cmPx(3.52);
-  const FOOTER_W = cmPx(15.05), FOOTER_H = cmPx(1.03);
 
   const pageNumPara = new Paragraph({
     alignment: AlignmentType.RIGHT,
@@ -452,7 +454,7 @@ export async function generateDocument(data) {
     alignment: AlignmentType.LEFT,
     bidirectional: true,
     spacing: { after: 0 },
-    children: [mkRun(dateStr, { size: 8 })],
+    children: [mkRun(dateStr, { size: 10 })],
   });
 
   // ── 5. Client block ───────────────────────────────────────────────────────
@@ -893,12 +895,12 @@ export async function generateDocument(data) {
           page: {
             size: { width: mm(210), height: mm(297) },
             margin: {
-              top:    mm(40),
-              bottom: mm(10),
-              left:   mm(22),
-              right:  mm(32),
-              header: mm(2.5),
-              footer: mm(0),
+              top:    mm(31.70),
+              bottom: mm(12.51),
+              left:   mm(20.00),
+              right:  mm(24.98),
+              header: mm(3.00),
+              footer: mm(1.99),
             },
           },
           bidi: true,  // RTL section — all paragraphs inherit right-to-left direction

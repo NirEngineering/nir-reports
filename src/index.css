@@ -2,10 +2,10 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --primary: #1a56db;
-  --primary-dark: #1e3a8a;
-  --primary-light: #dbeafe;
-  --primary-mid: #60a5fa;
+  --primary: #2d6a4f;
+  --primary-dark: #1b4332;
+  --primary-light: #d8f3dc;
+  --primary-mid: #74c69d;
   --accent: #f59e0b;
   --accent-light: #fef3c7;
   --success: #059669;
@@ -35,7 +35,7 @@
 html, body {
   direction: rtl;
   font-family: var(--font);
-  background: #f0f4fb;
+  background: #eef7f1;
   color: var(--gray-900);
   font-size: 16px;
   line-height: 1.5;
@@ -50,7 +50,7 @@ html, body {
 
 /* ── Header ──────────────────────────────────────────────────────── */
 .app-header {
-  background: linear-gradient(135deg, #0f2461 0%, #1a56db 100%);
+  background: linear-gradient(135deg, #0d3321 0%, #2d6a4f 100%);
   color: white;
   padding: 0;
   box-shadow: 0 2px 12px rgba(15,36,97,0.45);
@@ -156,7 +156,7 @@ html, body {
 
 /* ── Draft banner ─────────────────────────────────────────────────── */
 .draft-banner {
-  background: linear-gradient(135deg, #1e3a8a, #1a56db);
+  background: linear-gradient(135deg, #1b4332, #2d6a4f);
   color: white;
   border-radius: var(--radius);
   padding: 14px 16px;
@@ -1201,7 +1201,7 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 16px 18px;
-  background: linear-gradient(135deg, #0f2461, #1a56db);
+  background: linear-gradient(135deg, #0d3321, #2d6a4f);
   color: white;
   flex-shrink: 0;
 }
@@ -1455,7 +1455,7 @@ html, body {
   margin-bottom: 4px;
 }
 .home-logo img { height: 56px; }
-.home-logo-name { font-size: 22px; font-weight: 700; color: #0f2461; }
+.home-logo-name { font-size: 22px; font-weight: 700; color: #0d3321; }
 
 /* ── Edit mode ────────────────────────────────────────────────────────────────── */
 .edit-para-list {

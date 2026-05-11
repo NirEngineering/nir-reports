@@ -5,10 +5,9 @@ import {
   UnderlineType,
 } from 'docx';
 
-// Pixels at 96 DPI for ImageRun
-const cmPx = (v) => Math.round(v / 2.54 * 96);
-const HEADER_W = cmPx(10.595), HEADER_H = cmPx(4.178);
-const FOOTER_W = cmPx(13.5),   FOOTER_H = cmPx(0.995);
+// Exact pixel sizes derived from sample Word document (914400 EMU = 1 inch = 96px)
+const HEADER_W = 359, HEADER_H = 142;   // 95.12mm × 37.57mm
+const FOOTER_W = 568, FOOTER_H = 39;    // 150.50mm × 10.28mm
 const FONT = 'Arial';
 const SP = { line: 360, lineRule: 'auto', after: 0 };
 
@@ -290,7 +289,7 @@ export default function FieldJournal({ onBack }) {
     });
     const footerSection = new Footer({
       children: [new Paragraph({
-        alignment: AlignmentType.LEFT,
+        alignment: AlignmentType.CENTER,
         children: footerBuf.length > 100
           ? [new ImageRun({ data: footerBuf, transformation: { width: FOOTER_W, height: FOOTER_H } })]
           : [new TextRun('')],
@@ -325,7 +324,7 @@ export default function FieldJournal({ onBack }) {
         properties: {
           page: {
             size: { width: mm(210), height: mm(297) },
-            margin: { top: mm(40), bottom: mm(2.5), left: mm(15), right: mm(15), header: mm(0), footer: mm(4.55) },
+            margin: { top: mm(31.70), bottom: mm(12.51), left: mm(20.00), right: mm(24.98), header: mm(3.00), footer: mm(1.99) },
           },
           bidi: true,
         },

@@ -182,6 +182,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [lastBlob, setLastBlob] = useState(null);
   const [hasDraft, setHasDraft] = useState(false);
 
   // Edit mode state
@@ -251,6 +252,7 @@ export default function App() {
         ...eventForm,
         date: isoToDisplay(eventForm.date),
       });
+      setLastBlob(blob);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -305,6 +307,7 @@ export default function App() {
       };
 
       const blob = await generateDocument(payload);
+      setLastBlob(blob);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -355,6 +358,18 @@ export default function App() {
     } finally {
       setEditLoading(false);
     }
+  };
+
+  // ── Share ──────────────────────────────────────────────────────────────────
+  const handleShare = async () => {
+    if (!lastBlob || !navigator.share) return;
+    try {
+      const fileName = `${form.subject || 'דוח'} - ${form.client}.docx`;
+      await navigator.share({
+        title: fileName,
+        files: [new File([lastBlob], fileName, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })],
+      });
+    } catch (_) {}
   };
 
   // ── Validation ─────────────────────────────────────────────────────────────
@@ -427,7 +442,14 @@ export default function App() {
       )}
       {success && (
         <div className="app-body" style={{ paddingBottom: 0 }}>
-          <div className="alert alert-success">{success}</div>
+          <div className="alert alert-success" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span>{success}</span>
+            {lastBlob && typeof navigator !== 'undefined' && navigator.share && navigator.canShare && (
+              <button className="btn btn-sm btn-outline" style={{ flexShrink: 0 }} onClick={handleShare}>
+                📤 שתף
+              </button>
+            )}
+          </div>
         </div>
       )}
 
