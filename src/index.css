@@ -1897,6 +1897,25 @@ html, body {
 }
 .journal-rename-input:focus { outline: none; }
 
+/* ── Smart Paste photo drop zone ─────────────────────────────── */
+.sp-photo-drop {
+  min-height: 90px;
+  border: 2px dashed var(--gray-300);
+  border-radius: var(--radius);
+  padding: 14px;
+  background: var(--gray-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sp-photo-drop:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
 /* ── Photo zone (below editor) ───────────────────────────────── */
 .journal-photo-zone {
   margin-top: 10px;
