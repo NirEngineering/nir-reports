@@ -307,6 +307,7 @@ const THIN_BORDER = {
  */
 function mkTable(headers, rows, colWidthsCm, opts = {}) {
   const { headerBg = 'EAF1DD', hdrSize, dataSize } = opts;
+  const FINDINGS_COLS = new Set(['נתונים וממצאים', 'נתונים ופירוט', "מידות (מ') ונתונים", 'ממצאים וליקויים', 'ממצאי הסיור', 'ממצאי ליקויים ודרישות', 'הממצא, מהותו ומיקומו', 'הערות/פירוט ליקוי כולל סעיף', 'ממצאי ליקויים ודרישות']);
   const colWidths = colWidthsCm.map((w) => cm(w));
 
   // Header row – always centered
@@ -344,7 +345,7 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
         borders:       THIN_BORDER,
         children: [mkPara(
           [mkRun(text, { size: dataSize ?? 8.5, bold, color })],
-          { alignment: AlignmentType.CENTER }
+          { alignment: FINDINGS_COLS.has(headers[colIdx]) ? AlignmentType.RIGHT : AlignmentType.CENTER }
         )],
       });
     });
@@ -355,6 +356,7 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
   return new Table({
     visuallyRightToLeft: true,
     layout: TableLayoutType.FIXED,
+    alignment: AlignmentType.CENTER,
     rows: [headerRow, ...dataRows],
   });
 }
@@ -446,7 +448,7 @@ export async function generateDocument(data) {
 
   // ── 3. Spacing constants ──────────────────────────────────────────────────
   const SP_BODY    = { line: 360, lineRule: 'auto', after: 0 };
-  const SP_SECTION = { line: 360, lineRule: 'auto', before: 120, after: 0 };
+  const SP_SECTION = { line: 360, lineRule: 'auto', before: 360, after: 0 };
 
   // ── 4. Date paragraph (LEFT aligned — matches original documents)
   const dateStr  = formatDate(data.date);
@@ -470,7 +472,7 @@ export async function generateDocument(data) {
 
   const subjectPara = mkPara(
     [mkRun(subjectText, { size: cfg.titleSize, bold: true, underline: true })],
-    { alignment: AlignmentType.CENTER, spacing: { before: 40, after: 160 } }
+    { alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 } }
   );
 
   // ── 7. Table (shared between layouts) ────────────────────────────────────
@@ -499,10 +501,10 @@ export async function generateDocument(data) {
       ? introRaw + '\n' + data.intro_extra
       : introRaw;
 
-    const introParas = introText.split('\n').map((line) =>
+    const introParas = introText.split('\n').map((line, idx) =>
       mkPara(
         [mkRun(line, { size: cfg.bodySize, bold: cfg.introBold })],
-        { spacing: SP_BODY }
+        { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY }
       )
     );
     bodyChildren.push(...introParas);
@@ -518,10 +520,9 @@ export async function generateDocument(data) {
     // Main data table
     if (mainTable) bodyChildren.push(mainTable);
 
-    // "מסקנות והערות:" — plain, NOT bold
     bodyChildren.push(
       mkPara(
-        [mkRun('מסקנות והערות:', { size: cfg.bodySize, bold: false })],
+        [mkRun('מסקנות והערות:', { size: cfg.bodySize, bold: true })],
         { spacing: SP_SECTION }
       )
     );
@@ -548,10 +549,9 @@ export async function generateDocument(data) {
       );
     }
 
-    // "מסקנות:" — plain, NOT bold
     bodyChildren.push(
       mkPara(
-        [mkRun('מסקנות:', { size: cfg.bodySize, bold: false })],
+        [mkRun('מסקנות:', { size: cfg.bodySize, bold: true })],
         { spacing: SP_SECTION }
       )
     );
@@ -589,11 +589,11 @@ export async function generateDocument(data) {
       ? [...introParts, { text: data.intro_extra, bold: false }]
       : introParts;
 
-    effectiveParts.forEach((part) => {
+    effectiveParts.forEach((part, idx) => {
       bodyChildren.push(
         mkPara(
           [mkRun(part.text, { size: cfg.bodySize, bold: part.bold })],
-          { spacing: SP_BODY }
+          { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY }
         )
       );
     });
@@ -681,9 +681,9 @@ export async function generateDocument(data) {
       ? [...introParts, { text: data.intro_extra, bold: false }]
       : introParts;
 
-    effectiveParts.forEach((part) => {
+    effectiveParts.forEach((part, idx) => {
       bodyChildren.push(
-        mkPara([mkRun(part.text, { size: cfg.bodySize, bold: part.bold })], { spacing: SP_BODY })
+        mkPara([mkRun(part.text, { size: cfg.bodySize, bold: part.bold })], { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY })
       );
     });
 
