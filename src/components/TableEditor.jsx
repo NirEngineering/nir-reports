@@ -230,7 +230,7 @@ function CardPhotoSection({ photos, onChange }) {
 // ── Single row card ──────────────────────────────────────────────────────────
 function RowCard({
   rowIdx, columns, row, onCellChange, photos, onPhotosChange,
-  onDelete, onMoveUp, onMoveDown, isFirst, isLast,
+  onDelete, onMoveUp, onMoveDown, onDuplicate, isFirst, isLast,
   elementOptions, elementFindings, prevLocation,
 }) {
   // Find element value to look up suggestions
@@ -299,36 +299,66 @@ function RowCard({
       );
     }
 
-    // Findings col → dropdown suggestions + textarea
+    // Findings col → chip suggestions + textarea
     if (isFindingsCol(col)) {
+      const allSuggestions = (() => {
+        if (!elementVal.trim() || !elementFindings) return [];
+        const key = Object.keys(elementFindings).find(
+          k => k.trim().toLowerCase() === elementVal.trim().toLowerCase()
+        );
+        return key ? (elementFindings[key] || []) : [];
+      })();
+      const alreadyUsed = new Set(val.split('\n').map(l => l.replace(/^•\s*/, '').trim()).filter(Boolean));
+      const remaining = allSuggestions.filter(s => !alreadyUsed.has(s));
       return (
         <div>
-          {suggestions.length > 0 && (
+          {remaining.length > 0 && (
             <div style={{ marginBottom: 6 }}>
-              <select
-                className="card-field-select"
-                value=""
-                onChange={e => {
-                  if (!e.target.value) return;
-                  const current = val.trim();
-                  const newVal = current ? `${current}\n• ${e.target.value}` : `• ${e.target.value}`;
-                  onCellChange(colIdx, newVal);
-                  e.target.value = '';
-                }}
-                dir="rtl"
-              >
-                <option value="">💡 בחר ממצא מהרשימה ({suggestions.length} אפשרויות)...</option>
-                {suggestions.map((s, i) => (
-                  <option key={i} value={s}>{s}</option>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, direction: 'rtl' }}>
+                💡 ממצאים נפוצים ({remaining.length}):
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+                {remaining.slice(0, 6).map((s, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    style={{
+                      padding: '4px 10px', fontSize: 12, borderRadius: 20,
+                      background: '#d8f3dc', border: '1px solid #74c69d',
+                      color: '#1b4332', cursor: 'pointer', direction: 'rtl',
+                      fontFamily: 'inherit', textAlign: 'right',
+                    }}
+                    onClick={() => {
+                      const current = val.trim();
+                      onCellChange(colIdx, current ? `${current}\n• ${s}` : `• ${s}`);
+                    }}
+                  >+ {s.length > 40 ? s.slice(0, 40) + '…' : s}</button>
                 ))}
-              </select>
+                {remaining.length > 6 && (
+                  <select
+                    className="card-field-select"
+                    style={{ fontSize: 11, padding: '4px 8px', minHeight: 'unset' }}
+                    value=""
+                    onChange={e => {
+                      if (!e.target.value) return;
+                      const current = val.trim();
+                      onCellChange(colIdx, current ? `${current}\n• ${e.target.value}` : `• ${e.target.value}`);
+                      e.target.value = '';
+                    }}
+                    dir="rtl"
+                  >
+                    <option value="">עוד {remaining.length - 6} ממצאים...</option>
+                    {remaining.slice(6).map((s, i) => <option key={i} value={s}>{s}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
           )}
           <textarea
             className="card-field-textarea"
             value={val}
             onChange={e => onCellChange(colIdx, e.target.value)}
-            placeholder={col}
+            placeholder={elementVal ? 'לחץ על ממצא למעלה או הקלד חופשי...' : col}
             rows={3}
             dir="rtl"
           />
@@ -406,6 +436,7 @@ function RowCard({
           {!isLast && (
             <button className="btn-icon" onClick={onMoveDown} title="הזז למטה">↓</button>
           )}
+          <button className="btn-icon" onClick={onDuplicate} title="שכפל שורה">⧉</button>
           <button className="btn-icon del" onClick={onDelete} title="מחק שורה">🗑</button>
         </div>
       </div>
@@ -445,8 +476,19 @@ export default function TableEditor({
 
   // ── Row operations ─────────────────────────────────────────────────────────
   const addRow = () => {
-    onChange([...rows, columns.map(() => '')]);
+    const mesIdx = columns.findIndex(c => c === "מס'");
+    const newRow = columns.map((_, i) => i === mesIdx ? String(rows.length + 1) : '');
+    onChange([...rows, newRow]);
     onRowPhotosChange?.([...rowPhotos, []]);
+  };
+
+  const duplicateRow = (idx) => {
+    const findIdx = columns.findIndex(c => isFindingsCol(c));
+    const newRow = rows[idx].map((v, i) => i === findIdx ? '' : v);
+    const mesIdx = columns.findIndex(c => c === "מס'");
+    if (mesIdx >= 0) newRow[mesIdx] = String(rows.length + 1);
+    onChange([...rows.slice(0, idx + 1), newRow, ...rows.slice(idx + 1)]);
+    onRowPhotosChange?.([...rowPhotos.slice(0, idx + 1), [], ...rowPhotos.slice(idx + 1)]);
   };
 
   const updateCell = (rowIdx, colIdx, value) => {
@@ -516,6 +558,7 @@ export default function TableEditor({
               onDelete={() => removeRow(rowIdx)}
               onMoveUp={() => moveRow(rowIdx, -1)}
               onMoveDown={() => moveRow(rowIdx, 1)}
+              onDuplicate={() => duplicateRow(rowIdx)}
               isFirst={rowIdx === 0}
               isLast={rowIdx === rows.length - 1}
               elementOptions={elements}
@@ -528,13 +571,18 @@ export default function TableEditor({
 
       {/* Bottom actions */}
       <div className="table-actions">
-        <button type="button" className="btn btn-outline btn-sm" onClick={addRow}>
+        <button type="button" className="btn btn-primary btn-sm" onClick={addRow}>
           + הוסף שורה
         </button>
         {rows.length > 0 && (
+          <span style={{ fontSize: 12, color: '#6b7280', marginRight: 4 }}>
+            {rows.length} שורות | לחץ ⧉ לשכפול שורה
+          </span>
+        )}
+        {rows.length > 0 && (
           <button
             type="button" className="btn btn-sm"
-            style={{ background: '#fee2e2', color: '#991b1b' }}
+            style={{ background: '#fee2e2', color: '#991b1b', marginRight: 'auto' }}
             onClick={() => { if (confirm('למחוק את כל השורות?')) { onChange([]); onRowPhotosChange?.([]); } }}
           >
             נקה הכל

@@ -16,11 +16,9 @@ const FONT = 'Arial';
 // Pixels at 96 DPI — used for ImageRun.transformation
 const cmPx = (v) => Math.round(v / 2.54 * 96);
 
-// Image display sizes from original document (exact measurements)
-const HEADER_W = cmPx(10.595);  // 105.95 mm
-const HEADER_H = cmPx(4.178);   // 41.78 mm
-const FOOTER_W = cmPx(13.5);    // 135.00 mm
-const FOOTER_H = cmPx(0.995);   // 9.95 mm
+// Exact pixel sizes derived from sample Word document (914400 EMU = 1 inch = 96px)
+const HEADER_W = 359, HEADER_H = 142;   // 95.12mm × 37.57mm
+const FOOTER_W = 568, FOOTER_H = 39;    // 150.50mm × 10.28mm
 const STAMP_W  = cmPx(2.349);   // 23.49 mm
 const STAMP_H  = cmPx(1.313);   // 13.13 mm
 
@@ -85,7 +83,7 @@ export async function generateEventApproval(data) {
   const footerSection = new Footer({
     children: [
       new Paragraph({
-        alignment: AlignmentType.LEFT,
+        alignment: AlignmentType.CENTER,
         children: [new ImageRun({ data: footerBuf, transformation: { width: FOOTER_W, height: FOOTER_H } })],
       }),
     ],
@@ -217,12 +215,12 @@ export async function generateEventApproval(data) {
         page: {
           size: { width: mm(210), height: mm(297) },
           margin: {
-            top:    mm(40),
-            bottom: mm(2.5),
-            left:   mm(15),
-            right:  mm(15),
-            header: mm(0),
-            footer: mm(4.55),
+            top:    mm(31.70),
+            bottom: mm(12.51),
+            left:   mm(20.00),
+            right:  mm(24.98),
+            header: mm(3.00),
+            footer: mm(1.99),
           },
         },
         bidi: true,

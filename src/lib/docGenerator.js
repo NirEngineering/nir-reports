@@ -23,6 +23,10 @@ import {
 // ── Font constant ─────────────────────────────────────────────────────────────
 const FONT = 'Arial';
 
+// Exact pixel sizes derived from sample Word document (914400 EMU = 1 inch = 96px)
+const HEADER_W = 359, HEADER_H = 142;   // 95.12mm × 37.57mm
+const FOOTER_W = 568, FOOTER_H = 39;    // 150.50mm × 10.28mm
+
 // ── Doc-type configuration ────────────────────────────────────────────────────
 // Per-type font sizes and content extracted from 48 original Hebrew Word documents
 const DOC_TYPES = {
@@ -31,7 +35,7 @@ const DOC_TYPES = {
     name: 'אלמנטים תלויים',
     layout: 'simple',
     titleSize: 16,
-    bodySize: 10,
+    bodySize: 9,
     headingSize: 10,
     tableHdrSize: 10,
     tableDataSize: 9,
@@ -303,6 +307,7 @@ const THIN_BORDER = {
  */
 function mkTable(headers, rows, colWidthsCm, opts = {}) {
   const { headerBg = 'EAF1DD', hdrSize, dataSize } = opts;
+  const FINDINGS_COLS = new Set(['נתונים וממצאים', 'נתונים ופירוט', "מידות (מ') ונתונים", 'ממצאים וליקויים', 'ממצאי הסיור', 'ממצאי ליקויים ודרישות', 'הממצא, מהותו ומיקומו', 'הערות/פירוט ליקוי כולל סעיף', 'ממצאי ליקויים ודרישות']);
   const colWidths = colWidthsCm.map((w) => cm(w));
 
   // Header row – always centered
@@ -340,7 +345,7 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
         borders:       THIN_BORDER,
         children: [mkPara(
           [mkRun(text, { size: dataSize ?? 8.5, bold, color })],
-          { alignment: AlignmentType.CENTER }
+          { alignment: FINDINGS_COLS.has(headers[colIdx]) ? AlignmentType.RIGHT : AlignmentType.CENTER }
         )],
       });
     });
@@ -351,6 +356,7 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
   return new Table({
     visuallyRightToLeft: true,
     layout: TableLayoutType.FIXED,
+    alignment: AlignmentType.CENTER,
     rows: [headerRow, ...dataRows],
   });
 }
@@ -403,8 +409,6 @@ export async function generateDocument(data) {
   ]);
 
   // ── 2. Build header (page num + logo) and footer (logo only) ─────────────
-  const HEADER_W = cmPx(8.91), HEADER_H = cmPx(3.52);
-  const FOOTER_W = cmPx(15.05), FOOTER_H = cmPx(1.03);
 
   const pageNumPara = new Paragraph({
     alignment: AlignmentType.RIGHT,
@@ -444,7 +448,7 @@ export async function generateDocument(data) {
 
   // ── 3. Spacing constants ──────────────────────────────────────────────────
   const SP_BODY    = { line: 360, lineRule: 'auto', after: 0 };
-  const SP_SECTION = { line: 360, lineRule: 'auto', before: 120, after: 0 };
+  const SP_SECTION = { line: 360, lineRule: 'auto', before: 360, after: 0 };
 
   // ── 4. Date paragraph (LEFT aligned — matches original documents)
   const dateStr  = formatDate(data.date);
@@ -452,7 +456,7 @@ export async function generateDocument(data) {
     alignment: AlignmentType.LEFT,
     bidirectional: true,
     spacing: { after: 0 },
-    children: [mkRun(dateStr, { size: 8 })],
+    children: [mkRun(dateStr, { size: 10 })],
   });
 
   // ── 5. Client block ───────────────────────────────────────────────────────
@@ -468,7 +472,7 @@ export async function generateDocument(data) {
 
   const subjectPara = mkPara(
     [mkRun(subjectText, { size: cfg.titleSize, bold: true, underline: true })],
-    { alignment: AlignmentType.CENTER, spacing: { before: 40, after: 160 } }
+    { alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 } }
   );
 
   // ── 7. Table (shared between layouts) ────────────────────────────────────
@@ -497,10 +501,10 @@ export async function generateDocument(data) {
       ? introRaw + '\n' + data.intro_extra
       : introRaw;
 
-    const introParas = introText.split('\n').map((line) =>
+    const introParas = introText.split('\n').map((line, idx) =>
       mkPara(
         [mkRun(line, { size: cfg.bodySize, bold: cfg.introBold })],
-        { spacing: SP_BODY }
+        { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY }
       )
     );
     bodyChildren.push(...introParas);
@@ -516,10 +520,9 @@ export async function generateDocument(data) {
     // Main data table
     if (mainTable) bodyChildren.push(mainTable);
 
-    // "מסקנות והערות:" — plain, NOT bold
     bodyChildren.push(
       mkPara(
-        [mkRun('מסקנות והערות:', { size: cfg.bodySize, bold: false })],
+        [mkRun('מסקנות והערות:', { size: cfg.bodySize, bold: true })],
         { spacing: SP_SECTION }
       )
     );
@@ -546,10 +549,9 @@ export async function generateDocument(data) {
       );
     }
 
-    // "מסקנות:" — plain, NOT bold
     bodyChildren.push(
       mkPara(
-        [mkRun('מסקנות:', { size: cfg.bodySize, bold: false })],
+        [mkRun('מסקנות:', { size: cfg.bodySize, bold: true })],
         { spacing: SP_SECTION }
       )
     );
@@ -587,11 +589,11 @@ export async function generateDocument(data) {
       ? [...introParts, { text: data.intro_extra, bold: false }]
       : introParts;
 
-    effectiveParts.forEach((part) => {
+    effectiveParts.forEach((part, idx) => {
       bodyChildren.push(
         mkPara(
           [mkRun(part.text, { size: cfg.bodySize, bold: part.bold })],
-          { spacing: SP_BODY }
+          { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY }
         )
       );
     });
@@ -679,9 +681,9 @@ export async function generateDocument(data) {
       ? [...introParts, { text: data.intro_extra, bold: false }]
       : introParts;
 
-    effectiveParts.forEach((part) => {
+    effectiveParts.forEach((part, idx) => {
       bodyChildren.push(
-        mkPara([mkRun(part.text, { size: cfg.bodySize, bold: part.bold })], { spacing: SP_BODY })
+        mkPara([mkRun(part.text, { size: cfg.bodySize, bold: part.bold })], { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY })
       );
     });
 
@@ -893,12 +895,12 @@ export async function generateDocument(data) {
           page: {
             size: { width: mm(210), height: mm(297) },
             margin: {
-              top:    mm(40),
-              bottom: mm(10),
-              left:   mm(22),
-              right:  mm(32),
-              header: mm(2.5),
-              footer: mm(0),
+              top:    mm(31.70),
+              bottom: mm(12.51),
+              left:   mm(20.00),
+              right:  mm(24.98),
+              header: mm(3.00),
+              footer: mm(1.99),
             },
           },
           bidi: true,  // RTL section — all paragraphs inherit right-to-left direction

@@ -92,11 +92,16 @@ const defaultEventForm = () => ({
 });
 
 // ── StepBar ───────────────────────────────────────────────────────────────────
-function StepBar({ step, labels }) {
+function StepBar({ step, labels, onStepClick }) {
   return (
     <div className="stepbar">
       {labels.map((l, i) => (
-        <div key={i} className={`stepbar-item${i === step ? ' active' : i < step ? ' done' : ''}`}>
+        <div
+          key={i}
+          className={`stepbar-item${i === step ? ' active' : i < step ? ' done' : ''}`}
+          onClick={() => onStepClick?.(i + 1)}
+          style={{ cursor: onStepClick ? 'pointer' : 'default' }}
+        >
           <div className="stepbar-circle">{i < step ? '✓' : i + 1}</div>
           <div className="stepbar-label">{l}</div>
         </div>
@@ -182,6 +187,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [lastBlob, setLastBlob] = useState(null);
   const [hasDraft, setHasDraft] = useState(false);
 
   // Edit mode state
@@ -251,6 +257,7 @@ export default function App() {
         ...eventForm,
         date: isoToDisplay(eventForm.date),
       });
+      setLastBlob(blob);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -305,6 +312,7 @@ export default function App() {
       };
 
       const blob = await generateDocument(payload);
+      setLastBlob(blob);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -355,6 +363,18 @@ export default function App() {
     } finally {
       setEditLoading(false);
     }
+  };
+
+  // ── Share ──────────────────────────────────────────────────────────────────
+  const handleShare = async () => {
+    if (!lastBlob || !navigator.share) return;
+    try {
+      const fileName = `${form.subject || 'דוח'} - ${form.client}.docx`;
+      await navigator.share({
+        title: fileName,
+        files: [new File([lastBlob], fileName, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })],
+      });
+    } catch (_) {}
   };
 
   // ── Validation ─────────────────────────────────────────────────────────────
@@ -427,7 +447,14 @@ export default function App() {
       )}
       {success && (
         <div className="app-body" style={{ paddingBottom: 0 }}>
-          <div className="alert alert-success">{success}</div>
+          <div className="alert alert-success" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span>{success}</span>
+            {lastBlob && typeof navigator !== 'undefined' && navigator.share && navigator.canShare && (
+              <button className="btn btn-sm btn-outline" style={{ flexShrink: 0 }} onClick={handleShare}>
+                📤 שתף
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -522,7 +549,7 @@ export default function App() {
           {/* Step 1 — פרטי הדוח */}
           {step === 1 && (
             <div>
-              <StepBar step={0} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} />
+              <StepBar step={0} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} onStepClick={setStep} />
 
               <div className="card">
                 <div className="card-title">📋 פרטי הדוח</div>
@@ -625,7 +652,7 @@ export default function App() {
           {/* Step 2 — טבלת ממצאים */}
           {step === 2 && (
             <div>
-              <StepBar step={1} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} />
+              <StepBar step={1} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} onStepClick={setStep} />
 
               <div className="card">
                 <div className="card-title">📊 טבלת ממצאים ראשית</div>
@@ -709,7 +736,7 @@ export default function App() {
           {/* Step 3 — תמונות כלליות */}
           {step === 3 && (
             <div>
-              <StepBar step={2} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} />
+              <StepBar step={2} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} onStepClick={setStep} />
 
               <div className="card">
                 <div className="card-title">🖼️ תמונות כלליות</div>
@@ -732,7 +759,7 @@ export default function App() {
           {/* Step 4 — יצירה */}
           {step === 4 && (
             <div>
-              <StepBar step={3} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} />
+              <StepBar step={3} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} onStepClick={setStep} />
 
               <div className="card">
                 <div className="card-title">📄 סיכום</div>
