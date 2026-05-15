@@ -19,6 +19,7 @@ import {
   convertMillimetersToTwip as mm,
   TableLayoutType,
 } from 'docx';
+import JSZip from 'jszip';
 
 // ── Font constant ─────────────────────────────────────────────────────────────
 const FONT = 'Arial';
@@ -46,8 +47,9 @@ const DOC_TYPES = {
     tableColumns: ['מיקום', 'האלמנט/המתקן', 'נתונים וממצאים', 'הערות'],
     colWidths: [3.5, 4.5, 6.0, 3.0],
     defaultNotes: [
-      "על כל שינוי קונסטרוקטיבי ועיוותים באופן חיבור/תליות האלמנטים (סדקים, עיוותים, שקיעות, ניתוקים, קורוזיה וכד') – לדווח לח''מ מיד.",
+      "על כל שינוי קונסטרוקטיבי ועיוותים באופן חיבור/תליות האלמנטים (סדקים, עיוותים, שקיעות, ניתוקים, חלודה, אלמנטים רופפים, חוסרים/תוספות וכדומה) יש לדווח על כך לבדיקה חוזרת וטיפול מתאים עפ''י הממצאים.",
       'אין להעמיס עומסים על האלמנטים שנבדקו שאינם מיועדים לכך.',
+      'יש להקפיד על הגבלת עומסים במתקנים שהוגבלו בעומסים מותרים.',
       'הבדיקה הינה ויזואלית ונכונה ליום הבדיקה.',
     ],
     hasValidityLine: true,  // validity line appended after notes
@@ -310,7 +312,7 @@ function mkRun(text, opts = {}) {
     size: size * 2,           // docx uses half-points
     bold,
     color,
-    rtl,
+    rightToLeft: rtl,         // docx library property name is rightToLeft, not rtl
     italics: italic,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
   });
@@ -415,12 +417,12 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
   });
 }
 
-/** Build the standard 3-line signature block paragraphs */
+/** Build the standard 3-line signature block paragraphs — left-aligned per Hebrew doc convention */
 function mkSignatureBlock(bodySize) {
   return [
-    mkPara([mkRun('ניר בן דוד', { size: bodySize, bold: true })], { spacing: { before: 240, after: 0 } }),
-    mkPara([mkRun('מהנדס מבנים B.sc', { size: bodySize })], { spacing: { after: 0 } }),
-    mkPara([mkRun('מ.ר 28566561', { size: bodySize })], { spacing: { after: 0 } }),
+    mkPara([mkRun('ניר בן דוד', { size: bodySize, bold: true })], { alignment: AlignmentType.LEFT, spacing: { before: 240, after: 0 } }),
+    mkPara([mkRun('מהנדס מבנים B.sc', { size: bodySize })], { alignment: AlignmentType.LEFT, spacing: { after: 0 } }),
+    mkPara([mkRun('מ.ר 28566561', { size: bodySize })], { alignment: AlignmentType.LEFT, spacing: { after: 0 } }),
   ];
 }
 
@@ -595,9 +597,9 @@ export async function generateDocument(data) {
       ? data.notes_custom
       : [...cfg.defaultNotes];
 
-    notesSource.forEach((note, i) => {
+    notesSource.forEach((note) => {
       bodyChildren.push(
-        mkPara([mkRun(`${i + 1}. ${note}`, { size: cfg.bodySize })], { spacing: SP_BODY })
+        mkPara([mkRun(note, { size: cfg.bodySize })], { spacing: SP_BODY })
       );
     });
 
@@ -1027,6 +1029,8 @@ export async function generateDocument(data) {
     styles: {
       default: {
         document: {
+          // Set RTL + right-align as document-wide defaults (docDefaults in styles.xml)
+          paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
           run: { font: { name: FONT } },
         },
       },
@@ -1057,7 +1061,7 @@ export async function generateDocument(data) {
               footer: mm(1.99),
             },
           },
-          bidi: true,  // RTL section — all paragraphs inherit right-to-left direction
+          // Note: bidi is injected via JSZip post-processing below (docx library ignores it here)
         },
         headers: { default: docHeader },
         footers: { default: docFooter },
@@ -1066,5 +1070,27 @@ export async function generateDocument(data) {
     ],
   });
 
-  return await Packer.toBlob(doc);
+  const blob = await Packer.toBlob(doc);
+
+  // Post-process: inject <w:bidi/> into <w:sectPr> so Word treats the section as RTL.
+  // The docx library silently ignores bidi:true in SectionProperties, so we patch the XML directly.
+  try {
+    const zip = await JSZip.loadAsync(blob);
+    const docXml = await zip.file('word/document.xml').async('string');
+    // Insert <w:bidi/> just before the closing </w:sectPr> tag (once — the last sectPr is the section)
+    const patched = docXml.replace(/<\/w:sectPr>/, '<w:bidi/></w:sectPr>');
+    if (patched !== docXml) {
+      zip.file('word/document.xml', patched);
+      return await zip.generateAsync({
+        type: 'blob',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 },
+      });
+    }
+  } catch (_) {
+    // If post-processing fails, return the original blob
+  }
+
+  return blob;
 }
