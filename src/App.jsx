@@ -41,6 +41,45 @@ const ALL_FINDINGS = (() => {
 const LOGO_PNG = `${import.meta.env.BASE_URL}logo.png`;
 const LOGO_SVG = `${import.meta.env.BASE_URL}logo.svg`;
 
+// ── IndexedDB helpers for Web Share Target ────────────────────────────────────
+const SHARE_DB = 'nir-share-db';
+const SHARE_STORE = 'shared-images';
+
+function openShareDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(SHARE_DB, 1);
+    req.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore(SHARE_STORE, { autoIncrement: true });
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function popSharedImages() {
+  try {
+    const db = await openShareDB();
+    const blobs = await new Promise((resolve, reject) => {
+      const tx = db.transaction(SHARE_STORE, 'readwrite');
+      const store = tx.objectStore(SHARE_STORE);
+      const items = [];
+      store.openCursor().onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) { items.push({ key: cursor.key, value: cursor.value }); cursor.continue(); }
+        else {
+          items.forEach(({ key }) => store.delete(key));
+          resolve(items.map(i => i.value));
+        }
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    return blobs;
+  } catch (_) {
+    return [];
+  }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const isoToDisplay = (iso) => {
@@ -200,6 +239,28 @@ export default function App() {
   const setEventField = (key, val) => setEventForm(f => ({ ...f, [key]: val }));
   const [editFile, setEditFile] = useState(null);
   const fileRef = useRef(null);
+
+  // ── Web Share Target: load images shared from WhatsApp/other apps ─────────
+  useEffect(() => {
+    if (!location.search.includes('shared=1')) return;
+    // Remove query param so refresh doesn't re-trigger
+    history.replaceState(null, '', location.pathname);
+    (async () => {
+      const blobs = await popSharedImages();
+      if (!blobs.length) return;
+      const newPhotos = await Promise.all(blobs.map(blob => new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const compressed = await compressImage(e.target.result);
+          resolve({ data: compressed, caption: '' });
+        };
+        reader.readAsDataURL(blob);
+      })));
+      setPhotos(prev => [...prev, ...newPhotos.filter(Boolean)]);
+      setMode('new');
+      setStep(3);
+    })();
+  }, []);
 
   // ── Draft ──────────────────────────────────────────────────────────────────
   useEffect(() => {
