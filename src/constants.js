@@ -36,6 +36,18 @@ export const DOC_TYPES_CONFIG = {
     name: 'חוות דעת\nהנדסיות',
     subject_default: 'חוות דעת הנדסית',
   },
+  group7: {
+    id: 'group7',
+    icon: '📄',
+    name: 'מסמך\nכללי',
+    subject_default: '',
+  },
+  group8: {
+    id: 'group8',
+    icon: '🏗️',
+    name: 'אישור מבנים\nארעיים',
+    subject_default: 'אישור יציבות מבנה/מתקן ארעי',
+  },
 };
 
 export const TABLE_COLUMNS = {

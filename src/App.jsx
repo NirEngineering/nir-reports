@@ -619,21 +619,23 @@ export default function App() {
                   />
                 </Field>
 
-                <Field label='טבלת ליקויים נפרדת'>
-                  <label className="toggle-row">
-                    <span className="toggle">
-                      <input
-                        type="checkbox"
-                        checked={form.has_defects}
-                        onChange={e => setField('has_defects', e.target.checked)}
-                      />
-                      <span className="toggle-slider" />
-                    </span>
-                    <span className="toggle-label" style={{ fontSize: 13, color: '#64748b' }}>
-                      {form.has_defects ? 'כן – תוצג בשלב הטבלה' : 'לא (מזוהה אוטומטית מהטבלה)'}
-                    </span>
-                  </label>
-                </Field>
+                {!['group6', 'group7', 'group8'].includes(docType) && (
+                  <Field label='טבלת ליקויים נפרדת'>
+                    <label className="toggle-row">
+                      <span className="toggle">
+                        <input
+                          type="checkbox"
+                          checked={form.has_defects}
+                          onChange={e => setField('has_defects', e.target.checked)}
+                        />
+                        <span className="toggle-slider" />
+                      </span>
+                      <span className="toggle-label" style={{ fontSize: 13, color: '#64748b' }}>
+                        {form.has_defects ? 'כן – תוצג בשלב הטבלה' : 'לא (מזוהה אוטומטית מהטבלה)'}
+                      </span>
+                    </label>
+                  </Field>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
@@ -654,10 +656,12 @@ export default function App() {
             <div>
               <StepBar step={1} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} onStepClick={setStep} />
 
-              {docType === 'group6' ? (
-                /* ── חוות דעת הנדסיות: free-text content instead of table ── */
+              {['group6', 'group8'].includes(docType) ? (
+                /* ── חוות דעת / אישור ארעיים: free-text content instead of table ── */
                 <div className="card">
-                  <div className="card-title">📝 תוכן חוות הדעת</div>
+                  <div className="card-title">
+                    {docType === 'group8' ? '🏗️ תוכן האישור' : '📝 תוכן חוות הדעת'}
+                  </div>
                   <Field label="פסקת פתיחה (אופציונלי)">
                     <textarea
                       className="form-textarea"
@@ -668,7 +672,7 @@ export default function App() {
                       dir="rtl"
                     />
                   </Field>
-                  <Field label="נתונים כלליים וממצאים (שורה = נקודה אחת)">
+                  <Field label={docType === 'group8' ? 'נתונים טכניים וממצאים (שורה = נקודה אחת)' : 'נתונים כלליים וממצאים (שורה = נקודה אחת)'}>
                     <RichTextarea
                       value={form.notes_custom}
                       onChange={v => setField('notes_custom', v)}
@@ -676,12 +680,35 @@ export default function App() {
                       rows={6}
                     />
                   </Field>
-                  <Field label="הערות ומסקנות (שורה = סעיף ממוספר)">
+                  <Field label={docType === 'group8' ? 'תנאי האישור ומסקנות (שורה = סעיף ממוספר)' : 'הערות ומסקנות (שורה = סעיף ממוספר)'}>
                     <RichTextarea
                       value={form.conclusion_custom}
                       onChange={v => setField('conclusion_custom', v)}
-                      placeholder="יש לבצע חיזוק...&#10;יש לפרק ולהסיר...&#10;לנעול את החדר..."
+                      placeholder={docType === 'group8'
+                        ? 'המבנה נמצא יציב ובטוח לשימוש...&#10;תוקף האישור לתקופה מ... עד...'
+                        : 'יש לבצע חיזוק...&#10;יש לפרק ולהסיר...&#10;לנעול את החדר...'}
                       rows={5}
+                    />
+                  </Field>
+                </div>
+              ) : docType === 'group7' ? (
+                /* ── מסמך כללי: completely free-form ── */
+                <div className="card">
+                  <div className="card-title">📄 תוכן המסמך</div>
+                  <Field label="כותרת / הקדמה (אופציונלי, שורה = פסקה)">
+                    <RichTextarea
+                      value={form.notes_custom}
+                      onChange={v => setField('notes_custom', v)}
+                      placeholder="הקדמה, רקע, או כותרת משנה..."
+                      rows={3}
+                    />
+                  </Field>
+                  <Field label="גוף המסמך (שורה = פסקה חדשה)">
+                    <RichTextarea
+                      value={form.conclusion_custom}
+                      onChange={v => setField('conclusion_custom', v)}
+                      placeholder="כתוב כאן את תוכן המסמך...&#10;שורה חדשה = פסקה חדשה..."
+                      rows={10}
                     />
                   </Field>
                 </div>

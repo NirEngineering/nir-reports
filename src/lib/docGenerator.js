@@ -208,7 +208,7 @@ const DOC_TYPES = {
     defectsColumns: ['מספר סככה', 'מיקום', 'ממצאי ליקויים ודרישות', 'תמונות הליקוי', 'קדימות'],
     defectsColWidths: [2.0, 3.0, 6.0, 4.0, 2.0],
   },
-  // group6: חוות דעת הנדסיות — 'opinion' layout, free-text without standard table
+  // group6: חוות דעת הנדסיות — 'opinion' layout, free-text findings + numbered conclusions
   group6: {
     name: 'חוות דעת הנדסיות',
     layout: 'opinion',
@@ -223,6 +223,43 @@ const DOC_TYPES = {
     conclusionSectionHeading: 'הערות ומסקנות:',
     defaultFindings: [],
     defaultConclusions: [],
+    hasDefectsTable: false,
+  },
+
+  // group7: מסמך כללי — 'freeform' layout, completely free text
+  group7: {
+    name: 'מסמך כללי',
+    layout: 'freeform',
+    titleSize: 14,
+    bodySize: 9,
+    headingSize: 10,
+    titleSuffix: false,
+    hasDefectsTable: false,
+  },
+
+  // group8: אישור מבנים ארעיים — 'opinion' layout, temporary structure approval
+  group8: {
+    name: 'אישור מבנים ארעיים',
+    layout: 'opinion',
+    titleSize: 14,
+    bodySize: 9,
+    headingSize: 10,
+    titleSuffix: true,
+    introBold: true,
+    introTemplate: (d) =>
+      `בתאריך ${d.inspection_date} ערכתי סיור בדיקה ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות ובטיחות המבנה/המתקן הארעי המפורט לעיל.`,
+    findingsSectionHeading: 'נתונים טכניים וממצאים:',
+    conclusionSectionHeading: 'תנאי האישור ומסקנות:',
+    defaultFindings: [
+      'סוג המבנה/המתקן:',
+      'חומרים וחתכים:',
+      'אופן עיגון לקרקע/תשתית:',
+      'עומסי תכן:',
+    ],
+    defaultConclusions: [
+      'המבנה/המתקן נמצא יציב ובטוח לשימוש נכון ליום הבדיקה.',
+      'תוקף האישור מותנה בהתאמה למסקנות הבדיקה.',
+    ],
     hasDefectsTable: false,
   },
 };
@@ -702,8 +739,32 @@ export async function generateDocument(data) {
 
     bodyChildren.push(...mkSignatureBlock(cfg.bodySize));
 
+  } else if (cfg.layout === 'freeform') {
+    // ── 'freeform' layout: group7 (מסמך כללי) ────────────────────────────────
+    // User provides all content as free text in conclusion_custom (newline = paragraph)
+    // notes_custom used for an optional first section with heading
+
+    const freeformNotes = Array.isArray(data.notes_custom) ? data.notes_custom.filter(s => s.trim()) : [];
+    freeformNotes.forEach((line, idx) => {
+      bodyChildren.push(
+        mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY })
+      );
+    });
+
+    const bodyText = data.conclusion_custom && String(data.conclusion_custom).trim()
+      ? String(data.conclusion_custom).trim()
+      : '';
+
+    bodyText.split('\n').forEach((line, idx) => {
+      bodyChildren.push(
+        mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY })
+      );
+    });
+
+    bodyChildren.push(...mkSignatureBlock(cfg.bodySize));
+
   } else if (cfg.layout === 'opinion') {
-    // ── 'opinion' layout: group6 (חוות דעת הנדסיות) ─────────────────────────
+    // ── 'opinion' layout: group6, group8 ─────────────────────────────────────
 
     // Intro paragraph
     const introText = typeof cfg.introTemplate === 'function'
