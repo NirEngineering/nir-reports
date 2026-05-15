@@ -117,7 +117,7 @@ const DOC_TYPES = {
         bold: true,
       },
     ],
-    tableColumns: ['מיקום/חדר', 'סוג התקרה', 'תקין/לא תקין', 'קדימות ליקויים', 'הערות/פירוט ליקוי כולל סעיף'],
+    tableColumns: ['מיקום/חדר', 'סוג התקרה', 'תקין/לא תקין', 'קדימות ליקויים', 'הערות'],
     colWidths: [3.5, 3.5, 3.0, 3.0, 4.0],
     defaultNotes: [
       "ממצאי סקר זה הם כפי שהועברו לח''מ ע''י בעלי התפקידים באתר ומציגים מצב קיים ביום הסיור בלבד, מזמין העבודה אחראי לביצוע תיקון הליקויים שנמצאו בפרק זמן שהוגדר, לא תשמע טענה כנגד הח''מ בגין ליקויים שהצביע עליהם במסגרת סקר זה ושאינם תוקנו בתוך מסגרת הזמן שנקבעה.",
@@ -133,11 +133,11 @@ const DOC_TYPES = {
       'אין לטפס, להיתלות ו/או להעמיס עומסים על התקרות שנבדקו.',
       "תוקף הדו''ח הינו לחמש שנים מיום הבדיקה בכפוף למסקנות הבדיקה.",
     ],
-    conclusionOk: 'התקרות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה ומיום הבדיקה.',
+    conclusionOk: 'התקרות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
     conclusionDefects: 'נמצאו ליקויים בתקרות התותב. יש לטפל בליקויים בהתאם לטבלת הליקויים המצורפת. שאר התקרות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
     hasDefectsTable: true,
-    defectsColumns: ["מס'", 'מיקום', 'ממצאים וליקויים', 'טיפול נדרש', 'תמונות', 'קדימות'],
-    defectsColWidths: [1.5, 3.0, 5.0, 4.0, 2.0, 2.0],
+    defectsColumns: ['מיקום', 'ממצאים וליקויים', 'הדרישה', 'תמונות', 'קדימות ליקוי'],
+    defectsColWidths: [3.5, 5.5, 4.0, 2.0, 2.0],
   },
 
   // group4: סקר תקופתי — 'simple' layout, first-person "ביקרתי", has location in title
@@ -202,11 +202,65 @@ const DOC_TYPES = {
       'הסככות נבדקו מבדיקה ויזואלית לתקינות ושלמות כללית.',
       "תוקף הדו''ח הינו לשנה מיום הבדיקה בכפוף למסקנות הבדיקה.",
     ],
-    conclusionOk: 'הסקקות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה ומיום הבדיקה.',
-    conclusionDefects: 'נמצאו ליקויים בסקקות. יש לטפל בליקויים בהתאם לטבלת הליקויים המצורפת. שאר הסקקות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
+    conclusionOk: 'הסככות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
+    conclusionDefects: 'נמצאו ליקויים בסככות. יש לטפל בליקויים בהתאם לטבלת הליקויים המצורפת. שאר הסככות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
     hasDefectsTable: true,
     defectsColumns: ['מספר סככה', 'מיקום', 'ממצאי ליקויים ודרישות', 'תמונות הליקוי', 'קדימות'],
     defectsColWidths: [2.0, 3.0, 6.0, 4.0, 2.0],
+  },
+  // group6: חוות דעת הנדסיות — 'opinion' layout, free-text findings + numbered conclusions
+  group6: {
+    name: 'חוות דעת הנדסיות',
+    layout: 'opinion',
+    titleSize: 14,
+    bodySize: 9,
+    headingSize: 10,
+    titleSuffix: true,
+    introBold: true,
+    introTemplate: (d) =>
+      `בתאריך ${d.inspection_date} ערכתי ביקור ב${d.location}${d.address ? ', ' + d.address : ''} ובחנתי את יציבות ותקינות הנושא המפורט לעיל.`,
+    findingsSectionHeading: 'נתונים כלליים וממצאים:',
+    conclusionSectionHeading: 'הערות ומסקנות:',
+    defaultFindings: [],
+    defaultConclusions: [],
+    hasDefectsTable: false,
+  },
+
+  // group7: מסמך כללי — 'freeform' layout, completely free text
+  group7: {
+    name: 'מסמך כללי',
+    layout: 'freeform',
+    titleSize: 14,
+    bodySize: 9,
+    headingSize: 10,
+    titleSuffix: false,
+    hasDefectsTable: false,
+  },
+
+  // group8: אישור מבנים ארעיים — 'opinion' layout, temporary structure approval
+  group8: {
+    name: 'אישור מבנים ארעיים',
+    layout: 'opinion',
+    titleSize: 14,
+    bodySize: 9,
+    headingSize: 10,
+    titleSuffix: true,
+    introBold: true,
+    introTemplate: (d) =>
+      `בתאריך ${d.inspection_date} ערכתי סיור בדיקה ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות ובטיחות המבנה/המתקן הארעי המפורט לעיל.`,
+    findingsSectionHeading: 'נתונים טכניים וממצאים:',
+    conclusionSectionHeading: 'תנאי האישור ומסקנות:',
+    defaultFindings: [
+      'סוג המבנה/המתקן:',
+      'חומרים וחתכים:',
+      'אופן עיגון לקרקע/תשתית:',
+      'עומסי תכן:',
+    ],
+    defaultConclusions: [
+      'המבנה/המתקן נמצא יציב ובטוח לשימוש נכון ליום הבדיקה.',
+      'תוקף האישור מותנה בהתאמה למסקנות הבדיקה.',
+    ],
+    hasDefectsTable: false,
   },
 };
 
@@ -359,6 +413,15 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
     alignment: AlignmentType.CENTER,
     rows: [headerRow, ...dataRows],
   });
+}
+
+/** Build the standard 3-line signature block paragraphs */
+function mkSignatureBlock(bodySize) {
+  return [
+    mkPara([mkRun('ניר בן דוד', { size: bodySize, bold: true })], { spacing: { before: 240, after: 0 } }),
+    mkPara([mkRun('מהנדס מבנים B.sc', { size: bodySize })], { spacing: { after: 0 } }),
+    mkPara([mkRun('מ.ר 28566561', { size: bodySize })], { spacing: { after: 0 } }),
+  ];
 }
 
 /** Convert base64 string to Uint8Array */
@@ -572,6 +635,8 @@ export async function generateDocument(data) {
       );
     });
 
+    bodyChildren.push(...mkSignatureBlock(cfg.bodySize));
+
   } else if (cfg.layout === 'survey') {
     // ── 'survey' layout: group3, group5 ────────────────────────────────────
 
@@ -672,6 +737,93 @@ export async function generateDocument(data) {
       );
     });
 
+    bodyChildren.push(...mkSignatureBlock(cfg.bodySize));
+
+  } else if (cfg.layout === 'freeform') {
+    // ── 'freeform' layout: group7 (מסמך כללי) ────────────────────────────────
+    // User provides all content as free text in conclusion_custom (newline = paragraph)
+    // notes_custom used for an optional first section with heading
+
+    const freeformNotes = Array.isArray(data.notes_custom) ? data.notes_custom.filter(s => s.trim()) : [];
+    freeformNotes.forEach((line, idx) => {
+      bodyChildren.push(
+        mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY })
+      );
+    });
+
+    const bodyText = data.conclusion_custom && String(data.conclusion_custom).trim()
+      ? String(data.conclusion_custom).trim()
+      : '';
+
+    bodyText.split('\n').forEach((line, idx) => {
+      bodyChildren.push(
+        mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY })
+      );
+    });
+
+    bodyChildren.push(...mkSignatureBlock(cfg.bodySize));
+
+  } else if (cfg.layout === 'opinion') {
+    // ── 'opinion' layout: group6, group8 ─────────────────────────────────────
+
+    // Intro paragraph
+    const introText = typeof cfg.introTemplate === 'function'
+      ? cfg.introTemplate(effectiveData)
+      : '';
+    const fullIntro = data.intro_extra ? introText + '\n' + data.intro_extra : introText;
+
+    fullIntro.split('\n').forEach((line, idx) => {
+      bodyChildren.push(
+        mkPara(
+          [mkRun(line, { size: cfg.bodySize, bold: cfg.introBold })],
+          { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY }
+        )
+      );
+    });
+
+    // "נתונים כלליים וממצאים:" heading
+    bodyChildren.push(
+      mkPara(
+        [mkRun(cfg.findingsSectionHeading, { size: cfg.headingSize, bold: true })],
+        { spacing: SP_SECTION }
+      )
+    );
+
+    // Findings as bullet paragraphs
+    const findingsSource = Array.isArray(data.notes_custom) && data.notes_custom.length > 0
+      ? data.notes_custom
+      : cfg.defaultFindings;
+
+    findingsSource.forEach((item) => {
+      const text = String(item).replace(/^[•\-]\s*/, '');
+      bodyChildren.push(
+        mkPara([mkRun(`• ${text}`, { size: cfg.bodySize })], { spacing: SP_BODY })
+      );
+    });
+
+    // "הערות ומסקנות:" heading
+    bodyChildren.push(
+      mkPara(
+        [mkRun(cfg.conclusionSectionHeading, { size: cfg.headingSize, bold: true })],
+        { spacing: SP_SECTION }
+      )
+    );
+
+    // Conclusions as numbered paragraphs
+    const conclusionsRaw = data.conclusion_custom && String(data.conclusion_custom).trim()
+      ? String(data.conclusion_custom).trim()
+      : '';
+
+    if (conclusionsRaw) {
+      conclusionsRaw.split('\n').forEach((line, i) => {
+        bodyChildren.push(
+          mkPara([mkRun(`${i + 1}. ${line}`, { size: cfg.bodySize })], { spacing: SP_BODY })
+        );
+      });
+    }
+
+    bodyChildren.push(...mkSignatureBlock(cfg.bodySize));
+
   } else {
     // ── 'gap-survey' layout: group2 (סקר פערי בטיחות) ─────────────────────
 
@@ -742,6 +894,8 @@ export async function generateDocument(data) {
         mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: SP_BODY })
       );
     });
+
+    bodyChildren.push(...mkSignatureBlock(cfg.bodySize));
   }
 
   // ── 9. Defects table (if applicable) ─────────────────────────────────────
@@ -753,7 +907,7 @@ export async function generateDocument(data) {
     data.defects_rows.length > 0
   ) {
     const defectsTitlePara = mkPara(
-      [mkRun('נספח טבלת ליקויים:', { size: cfg.headingSize, bold: true })],
+      [mkRun('טבלת הליקויים', { size: cfg.headingSize, bold: true })],
       { pageBreak: true }
     );
     const defectsTable = mkTable(

@@ -41,6 +41,45 @@ const ALL_FINDINGS = (() => {
 const LOGO_PNG = `${import.meta.env.BASE_URL}logo.png`;
 const LOGO_SVG = `${import.meta.env.BASE_URL}logo.svg`;
 
+// ── IndexedDB helpers for Web Share Target ────────────────────────────────────
+const SHARE_DB = 'nir-share-db';
+const SHARE_STORE = 'shared-images';
+
+function openShareDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(SHARE_DB, 1);
+    req.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore(SHARE_STORE, { autoIncrement: true });
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function popSharedImages() {
+  try {
+    const db = await openShareDB();
+    const blobs = await new Promise((resolve, reject) => {
+      const tx = db.transaction(SHARE_STORE, 'readwrite');
+      const store = tx.objectStore(SHARE_STORE);
+      const items = [];
+      store.openCursor().onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) { items.push({ key: cursor.key, value: cursor.value }); cursor.continue(); }
+        else {
+          items.forEach(({ key }) => store.delete(key));
+          resolve(items.map(i => i.value));
+        }
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    return blobs;
+  } catch (_) {
+    return [];
+  }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const isoToDisplay = (iso) => {
@@ -200,6 +239,28 @@ export default function App() {
   const setEventField = (key, val) => setEventForm(f => ({ ...f, [key]: val }));
   const [editFile, setEditFile] = useState(null);
   const fileRef = useRef(null);
+
+  // ── Web Share Target: load images shared from WhatsApp/other apps ─────────
+  useEffect(() => {
+    if (!location.search.includes('shared=1')) return;
+    // Remove query param so refresh doesn't re-trigger
+    history.replaceState(null, '', location.pathname);
+    (async () => {
+      const blobs = await popSharedImages();
+      if (!blobs.length) return;
+      const newPhotos = await Promise.all(blobs.map(blob => new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const compressed = await compressImage(e.target.result);
+          resolve({ data: compressed, caption: '' });
+        };
+        reader.readAsDataURL(blob);
+      })));
+      setPhotos(prev => [...prev, ...newPhotos.filter(Boolean)]);
+      setMode('new');
+      setStep(3);
+    })();
+  }, []);
 
   // ── Draft ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -619,21 +680,23 @@ export default function App() {
                   />
                 </Field>
 
-                <Field label='טבלת ליקויים נפרדת'>
-                  <label className="toggle-row">
-                    <span className="toggle">
-                      <input
-                        type="checkbox"
-                        checked={form.has_defects}
-                        onChange={e => setField('has_defects', e.target.checked)}
-                      />
-                      <span className="toggle-slider" />
-                    </span>
-                    <span className="toggle-label" style={{ fontSize: 13, color: '#64748b' }}>
-                      {form.has_defects ? 'כן – תוצג בשלב הטבלה' : 'לא (מזוהה אוטומטית מהטבלה)'}
-                    </span>
-                  </label>
-                </Field>
+                {!['group6', 'group7', 'group8'].includes(docType) && (
+                  <Field label='טבלת ליקויים נפרדת'>
+                    <label className="toggle-row">
+                      <span className="toggle">
+                        <input
+                          type="checkbox"
+                          checked={form.has_defects}
+                          onChange={e => setField('has_defects', e.target.checked)}
+                        />
+                        <span className="toggle-slider" />
+                      </span>
+                      <span className="toggle-label" style={{ fontSize: 13, color: '#64748b' }}>
+                        {form.has_defects ? 'כן – תוצג בשלב הטבלה' : 'לא (מזוהה אוטומטית מהטבלה)'}
+                      </span>
+                    </label>
+                  </Field>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
@@ -654,66 +717,126 @@ export default function App() {
             <div>
               <StepBar step={1} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} onStepClick={setStep} />
 
-              <div className="card">
-                <div className="card-title">📊 טבלת ממצאים ראשית</div>
-                <TableEditor
-                  columns={TABLE_COLUMNS[docType] || []}
-                  rows={tableRows}
-                  onRowsChange={setTableRows}
-                  rowPhotos={rowPhotos}
-                  onRowPhotosChange={setRowPhotos}
-                  docType={docType}
-                  elements={ALL_ELEMENTS}
-                  findings={ALL_FINDINGS}
-                />
-              </div>
-
-              {/* Defects table – shown when auto-detected OR manually enabled */}
-              {(autoHasDefects || form.has_defects) && DEFECTS_COLUMNS[docType] && (
+              {['group6', 'group8'].includes(docType) ? (
+                /* ── חוות דעת / אישור ארעיים: free-text content instead of table ── */
                 <div className="card">
                   <div className="card-title">
-                    ⚠️ טבלת ליקויים
-                    {autoHasDefects && (
-                      <span style={{ fontSize: 11, fontWeight: 400, color: '#c55a11', marginRight: 8 }}>
-                        (זוהתה אוטומטית)
-                      </span>
-                    )}
+                    {docType === 'group8' ? '🏗️ תוכן האישור' : '📝 תוכן חוות הדעת'}
                   </div>
-                  <TableEditor
-                    columns={DEFECTS_COLUMNS[docType]}
-                    rows={defectsRows}
-                    onRowsChange={setDefectsRows}
-                    rowPhotos={defectsRowPhotos}
-                    onRowPhotosChange={setDefectsRowPhotos}
-                    docType={docType}
-                    elements={ALL_ELEMENTS}
-                    findings={ALL_FINDINGS}
-                  />
+                  <Field label="פסקת פתיחה (אופציונלי)">
+                    <textarea
+                      className="form-textarea"
+                      value={form.intro_extra}
+                      onChange={e => setField('intro_extra', e.target.value)}
+                      placeholder="תיאור הביקור וסוג הבדיקה (ריק = ברירת מחדל אוטומטית)..."
+                      rows={3}
+                      dir="rtl"
+                    />
+                  </Field>
+                  <Field label={docType === 'group8' ? 'נתונים טכניים וממצאים (שורה = נקודה אחת)' : 'נתונים כלליים וממצאים (שורה = נקודה אחת)'}>
+                    <RichTextarea
+                      value={form.notes_custom}
+                      onChange={v => setField('notes_custom', v)}
+                      placeholder="• ממצא ראשון&#10;• ממצא שני&#10;• ממצא שלישי..."
+                      rows={6}
+                    />
+                  </Field>
+                  <Field label={docType === 'group8' ? 'תנאי האישור ומסקנות (שורה = סעיף ממוספר)' : 'הערות ומסקנות (שורה = סעיף ממוספר)'}>
+                    <RichTextarea
+                      value={form.conclusion_custom}
+                      onChange={v => setField('conclusion_custom', v)}
+                      placeholder={docType === 'group8'
+                        ? 'המבנה נמצא יציב ובטוח לשימוש...&#10;תוקף האישור לתקופה מ... עד...'
+                        : 'יש לבצע חיזוק...&#10;יש לפרק ולהסיר...&#10;לנעול את החדר...'}
+                      rows={5}
+                    />
+                  </Field>
                 </div>
-              )}
+              ) : docType === 'group7' ? (
+                /* ── מסמך כללי: completely free-form ── */
+                <div className="card">
+                  <div className="card-title">📄 תוכן המסמך</div>
+                  <Field label="כותרת / הקדמה (אופציונלי, שורה = פסקה)">
+                    <RichTextarea
+                      value={form.notes_custom}
+                      onChange={v => setField('notes_custom', v)}
+                      placeholder="הקדמה, רקע, או כותרת משנה..."
+                      rows={3}
+                    />
+                  </Field>
+                  <Field label="גוף המסמך (שורה = פסקה חדשה)">
+                    <RichTextarea
+                      value={form.conclusion_custom}
+                      onChange={v => setField('conclusion_custom', v)}
+                      placeholder="כתוב כאן את תוכן המסמך...&#10;שורה חדשה = פסקה חדשה..."
+                      rows={10}
+                    />
+                  </Field>
+                </div>
+              ) : (
+                <>
+                  <div className="card">
+                    <div className="card-title">📊 טבלת ממצאים ראשית</div>
+                    <TableEditor
+                      columns={TABLE_COLUMNS[docType] || []}
+                      rows={tableRows}
+                      onRowsChange={setTableRows}
+                      rowPhotos={rowPhotos}
+                      onRowPhotosChange={setRowPhotos}
+                      docType={docType}
+                      elements={ALL_ELEMENTS}
+                      findings={ALL_FINDINGS}
+                    />
+                  </div>
 
-              {/* Notes & conclusions quick-edit */}
-              <div className="card">
-                <div className="card-title">📝 הערות ומסקנות</div>
-                <Field label="הערות והנחיות (אופציונלי)">
-                  <RichTextarea
-                    value={form.notes_custom}
-                    onChange={v => setField('notes_custom', v)}
-                    placeholder="השאר ריק לשימוש בהערות ברירת המחדל..."
-                    rows={3}
-                  />
-                </Field>
-                <Field label="מסקנות (אופציונלי)">
-                  <textarea
-                    className="form-textarea"
-                    value={form.conclusion_custom}
-                    onChange={e => setField('conclusion_custom', e.target.value)}
-                    placeholder={autoHasDefects || form.has_defects ? 'ברירת מחדל: נמצאו ליקויים הדורשים טיפול...' : 'ברירת מחדל: הכל תקין...'}
-                    rows={2}
-                    dir="rtl"
-                  />
-                </Field>
-              </div>
+                  {/* Defects table – shown when auto-detected OR manually enabled */}
+                  {(autoHasDefects || form.has_defects) && DEFECTS_COLUMNS[docType] && (
+                    <div className="card">
+                      <div className="card-title">
+                        ⚠️ טבלת ליקויים
+                        {autoHasDefects && (
+                          <span style={{ fontSize: 11, fontWeight: 400, color: '#c55a11', marginRight: 8 }}>
+                            (זוהתה אוטומטית)
+                          </span>
+                        )}
+                      </div>
+                      <TableEditor
+                        columns={DEFECTS_COLUMNS[docType]}
+                        rows={defectsRows}
+                        onRowsChange={setDefectsRows}
+                        rowPhotos={defectsRowPhotos}
+                        onRowPhotosChange={setDefectsRowPhotos}
+                        docType={docType}
+                        elements={ALL_ELEMENTS}
+                        findings={ALL_FINDINGS}
+                      />
+                    </div>
+                  )}
+
+                  {/* Notes & conclusions quick-edit */}
+                  <div className="card">
+                    <div className="card-title">📝 הערות ומסקנות</div>
+                    <Field label="הערות והנחיות (אופציונלי)">
+                      <RichTextarea
+                        value={form.notes_custom}
+                        onChange={v => setField('notes_custom', v)}
+                        placeholder="השאר ריק לשימוש בהערות ברירת המחדל..."
+                        rows={3}
+                      />
+                    </Field>
+                    <Field label="מסקנות (אופציונלי)">
+                      <textarea
+                        className="form-textarea"
+                        value={form.conclusion_custom}
+                        onChange={e => setField('conclusion_custom', e.target.value)}
+                        placeholder={autoHasDefects || form.has_defects ? 'ברירת מחדל: נמצאו ליקויים הדורשים טיפול...' : 'ברירת מחדל: הכל תקין...'}
+                        rows={2}
+                        dir="rtl"
+                      />
+                    </Field>
+                  </div>
+                </>
+              )}
 
               <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
                 <button
