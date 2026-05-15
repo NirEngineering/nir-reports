@@ -654,66 +654,101 @@ export default function App() {
             <div>
               <StepBar step={1} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} onStepClick={setStep} />
 
-              <div className="card">
-                <div className="card-title">📊 טבלת ממצאים ראשית</div>
-                <TableEditor
-                  columns={TABLE_COLUMNS[docType] || []}
-                  rows={tableRows}
-                  onRowsChange={setTableRows}
-                  rowPhotos={rowPhotos}
-                  onRowPhotosChange={setRowPhotos}
-                  docType={docType}
-                  elements={ALL_ELEMENTS}
-                  findings={ALL_FINDINGS}
-                />
-              </div>
-
-              {/* Defects table – shown when auto-detected OR manually enabled */}
-              {(autoHasDefects || form.has_defects) && DEFECTS_COLUMNS[docType] && (
+              {docType === 'group6' ? (
+                /* ── חוות דעת הנדסיות: free-text content instead of table ── */
                 <div className="card">
-                  <div className="card-title">
-                    ⚠️ טבלת ליקויים
-                    {autoHasDefects && (
-                      <span style={{ fontSize: 11, fontWeight: 400, color: '#c55a11', marginRight: 8 }}>
-                        (זוהתה אוטומטית)
-                      </span>
-                    )}
-                  </div>
-                  <TableEditor
-                    columns={DEFECTS_COLUMNS[docType]}
-                    rows={defectsRows}
-                    onRowsChange={setDefectsRows}
-                    rowPhotos={defectsRowPhotos}
-                    onRowPhotosChange={setDefectsRowPhotos}
-                    docType={docType}
-                    elements={ALL_ELEMENTS}
-                    findings={ALL_FINDINGS}
-                  />
+                  <div className="card-title">📝 תוכן חוות הדעת</div>
+                  <Field label="פסקת פתיחה (אופציונלי)">
+                    <textarea
+                      className="form-textarea"
+                      value={form.intro_extra}
+                      onChange={e => setField('intro_extra', e.target.value)}
+                      placeholder="תיאור הביקור וסוג הבדיקה (ריק = ברירת מחדל אוטומטית)..."
+                      rows={3}
+                      dir="rtl"
+                    />
+                  </Field>
+                  <Field label="נתונים כלליים וממצאים (שורה = נקודה אחת)">
+                    <RichTextarea
+                      value={form.notes_custom}
+                      onChange={v => setField('notes_custom', v)}
+                      placeholder="• ממצא ראשון&#10;• ממצא שני&#10;• ממצא שלישי..."
+                      rows={6}
+                    />
+                  </Field>
+                  <Field label="הערות ומסקנות (שורה = סעיף ממוספר)">
+                    <RichTextarea
+                      value={form.conclusion_custom}
+                      onChange={v => setField('conclusion_custom', v)}
+                      placeholder="יש לבצע חיזוק...&#10;יש לפרק ולהסיר...&#10;לנעול את החדר..."
+                      rows={5}
+                    />
+                  </Field>
                 </div>
-              )}
+              ) : (
+                <>
+                  <div className="card">
+                    <div className="card-title">📊 טבלת ממצאים ראשית</div>
+                    <TableEditor
+                      columns={TABLE_COLUMNS[docType] || []}
+                      rows={tableRows}
+                      onRowsChange={setTableRows}
+                      rowPhotos={rowPhotos}
+                      onRowPhotosChange={setRowPhotos}
+                      docType={docType}
+                      elements={ALL_ELEMENTS}
+                      findings={ALL_FINDINGS}
+                    />
+                  </div>
 
-              {/* Notes & conclusions quick-edit */}
-              <div className="card">
-                <div className="card-title">📝 הערות ומסקנות</div>
-                <Field label="הערות והנחיות (אופציונלי)">
-                  <RichTextarea
-                    value={form.notes_custom}
-                    onChange={v => setField('notes_custom', v)}
-                    placeholder="השאר ריק לשימוש בהערות ברירת המחדל..."
-                    rows={3}
-                  />
-                </Field>
-                <Field label="מסקנות (אופציונלי)">
-                  <textarea
-                    className="form-textarea"
-                    value={form.conclusion_custom}
-                    onChange={e => setField('conclusion_custom', e.target.value)}
-                    placeholder={autoHasDefects || form.has_defects ? 'ברירת מחדל: נמצאו ליקויים הדורשים טיפול...' : 'ברירת מחדל: הכל תקין...'}
-                    rows={2}
-                    dir="rtl"
-                  />
-                </Field>
-              </div>
+                  {/* Defects table – shown when auto-detected OR manually enabled */}
+                  {(autoHasDefects || form.has_defects) && DEFECTS_COLUMNS[docType] && (
+                    <div className="card">
+                      <div className="card-title">
+                        ⚠️ טבלת ליקויים
+                        {autoHasDefects && (
+                          <span style={{ fontSize: 11, fontWeight: 400, color: '#c55a11', marginRight: 8 }}>
+                            (זוהתה אוטומטית)
+                          </span>
+                        )}
+                      </div>
+                      <TableEditor
+                        columns={DEFECTS_COLUMNS[docType]}
+                        rows={defectsRows}
+                        onRowsChange={setDefectsRows}
+                        rowPhotos={defectsRowPhotos}
+                        onRowPhotosChange={setDefectsRowPhotos}
+                        docType={docType}
+                        elements={ALL_ELEMENTS}
+                        findings={ALL_FINDINGS}
+                      />
+                    </div>
+                  )}
+
+                  {/* Notes & conclusions quick-edit */}
+                  <div className="card">
+                    <div className="card-title">📝 הערות ומסקנות</div>
+                    <Field label="הערות והנחיות (אופציונלי)">
+                      <RichTextarea
+                        value={form.notes_custom}
+                        onChange={v => setField('notes_custom', v)}
+                        placeholder="השאר ריק לשימוש בהערות ברירת המחדל..."
+                        rows={3}
+                      />
+                    </Field>
+                    <Field label="מסקנות (אופציונלי)">
+                      <textarea
+                        className="form-textarea"
+                        value={form.conclusion_custom}
+                        onChange={e => setField('conclusion_custom', e.target.value)}
+                        placeholder={autoHasDefects || form.has_defects ? 'ברירת מחדל: נמצאו ליקויים הדורשים טיפול...' : 'ברירת מחדל: הכל תקין...'}
+                        rows={2}
+                        dir="rtl"
+                      />
+                    </Field>
+                  </div>
+                </>
+              )}
 
               <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
                 <button
