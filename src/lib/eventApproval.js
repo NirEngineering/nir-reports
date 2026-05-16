@@ -122,7 +122,7 @@ export async function generateEventApproval(data) {
       alignment: AlignmentType.LEFT,
       bidirectional: true,
       spacing: SP,
-      children: [mkRun(`תאריך: ${data.date || ''}`, { size: 10 })],
+      children: [mkRun(`תאריך: ${data.date || ''}`, { size: 8 })],
     }),
 
     mkPara([mkRun('')], { spacing: SP }),
@@ -133,15 +133,15 @@ export async function generateEventApproval(data) {
       bidirectional: true,
       spacing: { before: 480, after: 0 },
       children: [
-        mkRun('הנדון  :  ', { size: 16, bold: true }),
-        mkRun('אישור מבנים ומתקנים ארעיים/קבועים', { size: 16, bold: true, underline: true }),
+        mkRun('הנדון  :  ', { size: 15, bold: true }),
+        mkRun('אישור מבנים ומתקנים ארעיים/קבועים', { size: 15, bold: true, underline: true }),
       ],
     }),
 
     mkPara([mkRun('')], { spacing: SP }),
 
     // פרטי העסק ובעל העסק (section header)
-    mkPara([mkRun('פרטי העסק ובעל העסק', { size: 10, bold: true })], { spacing: { ...SP, before: 360 } }),
+    mkPara([mkRun('פרטי העסק ובעל העסק', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
 
     // כתובת + שם
     mkPara([
@@ -174,7 +174,7 @@ export async function generateEventApproval(data) {
     mkPara([mkRun('')], { spacing: SP }),
 
     // Inspected aspects
-    mkPara([mkRun('המתקנים לעיל נבדקו בהיבטים הבאים:', { size: 10, bold: true })], { spacing: { ...SP, before: 360 } }),
+    mkPara([mkRun('המתקנים לעיל נבדקו בהיבטים הבאים:', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
 
     ...['תקינות ויציבות המבנה',
         'יציבות הקרקע/התשתית עליה מונח המבנה',
@@ -185,7 +185,7 @@ export async function generateEventApproval(data) {
     mkPara([mkRun('')], { spacing: SP }),
 
     // Legal conditions
-    mkPara([mkRun('הערות:', { size: 10, bold: true })], { spacing: { ...SP, before: 360 } }),
+    mkPara([mkRun('הערות:', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
 
     ...['האישור תקף למבנים/מתקנים שצויינו במסמך זה בלבד.',
         "אין לבצע שינויים במבנים/מתקנים - כל שינוי מבני ו/או הפחתות/תוספות למבנים, ללא ידיעת הח''מ, תגרור לביטול אישור זה.",
@@ -214,9 +214,14 @@ export async function generateEventApproval(data) {
     mkPara([
       mkRun('תוקף האישור :   ', { size: 9, bold: true }),
       mkRun(data.validity || '', { size: 9, bold: true }),
-      mkRun(' '.repeat(50), { size: 9 }),
-      mkRun('חותמת וחתימה: _______________', { size: 9, bold: true }),
     ], { spacing: SP }),
+    // חותמת — left aligned
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      bidirectional: true,
+      spacing: { ...SP, before: 240 },
+      children: [mkRun('חותמת וחתימה: _______________', { size: 9, bold: true })],
+    }),
   ];
 
   // ── Photos section (2 per row) ────────────────────────────────────────────
@@ -237,7 +242,7 @@ export async function generateEventApproval(data) {
       margins: { top: 40, bottom: 40, left: 40, right: 40 },
     }));
     const capCells = pair.map(ph => new TableCell({
-      children: [mkPara([mkRun(ph.caption || '', { size: 9 })], { alignment: AlignmentType.CENTER, spacing: SP })],
+      children: [mkPara([mkRun(ph.caption || '', { size: 8 })], { alignment: AlignmentType.CENTER, spacing: SP })],
       width: { size: 50, type: WidthType.PERCENTAGE },
     }));
     if (pair.length < 2) { imgCells.push(emptyCell()); capCells.push(emptyCell()); }
@@ -257,7 +262,7 @@ export async function generateEventApproval(data) {
   if (photos.length > 0) {
     body.push(
       mkPara([mkRun('')], { spacing: SP }),
-      mkPara([mkRun('תמונות:', { size: 10, bold: true })], { spacing: { ...SP, before: 360 } }),
+      mkPara([mkRun('תמונות:', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
       ...photoItems
     );
   }
@@ -278,8 +283,8 @@ export async function generateEventApproval(data) {
           margin: {
             top:    mm(31.70),
             bottom: mm(12.51),
-            left:   mm(20.00),
-            right:  mm(24.98),
+            left:   mm(70.00),
+            right:  mm(70.00),
             header: mm(3.00),
             footer: mm(1.99),
           },

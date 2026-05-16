@@ -34,9 +34,9 @@ const DOC_TYPES = {
   group1: {
     name: 'אלמנטים תלויים',
     layout: 'simple',
-    titleSize: 16,
+    titleSize: 15,
     bodySize: 9,
-    headingSize: 10,
+    headingSize: 9,
     tableHdrSize: 10,
     tableDataSize: 9,
     titleSuffix: false,  // subject does NOT include "– {location}"
@@ -60,7 +60,7 @@ const DOC_TYPES = {
   group2: {
     name: 'סקר פערי בטיחות',
     layout: 'gap-survey',
-    titleSize: 14,
+    titleSize: 15,
     bodySize: 9,
     headingSize: 9,
     tableHdrSize: 9,
@@ -170,7 +170,7 @@ const DOC_TYPES = {
   group5: {
     name: 'סקקות',
     layout: 'survey',
-    titleSize: 14,
+    titleSize: 15,
     bodySize: 8.5,
     headingSize: 9,
     tableHdrSize: 9,
@@ -212,9 +212,9 @@ const DOC_TYPES = {
   group6: {
     name: 'חוות דעת הנדסיות',
     layout: 'opinion',
-    titleSize: 14,
+    titleSize: 15,
     bodySize: 9,
-    headingSize: 10,
+    headingSize: 9,
     titleSuffix: true,
     introBold: true,
     introTemplate: (d) =>
@@ -230,9 +230,9 @@ const DOC_TYPES = {
   group7: {
     name: 'מסמך כללי',
     layout: 'freeform',
-    titleSize: 14,
+    titleSize: 15,
     bodySize: 9,
-    headingSize: 10,
+    headingSize: 9,
     titleSuffix: false,
     hasDefectsTable: false,
   },
@@ -241,9 +241,9 @@ const DOC_TYPES = {
   group8: {
     name: 'אישור מבנים ארעיים',
     layout: 'opinion',
-    titleSize: 14,
+    titleSize: 15,
     bodySize: 9,
-    headingSize: 10,
+    headingSize: 9,
     titleSuffix: true,
     introBold: true,
     introTemplate: (d) =>
@@ -399,7 +399,7 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
         borders:       THIN_BORDER,
         children: [mkPara(
           [mkRun(text, { size: dataSize ?? 8.5, bold, color })],
-          { alignment: FINDINGS_COLS.has(headers[colIdx]) ? AlignmentType.RIGHT : AlignmentType.CENTER }
+          { alignment: AlignmentType.CENTER }
         )],
       });
     });
@@ -418,9 +418,9 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
 /** Build the standard 3-line signature block paragraphs */
 function mkSignatureBlock(bodySize) {
   return [
-    mkPara([mkRun('ניר בן דוד', { size: bodySize, bold: true })], { spacing: { before: 240, after: 0 } }),
-    mkPara([mkRun('מהנדס מבנים B.sc', { size: bodySize })], { spacing: { after: 0 } }),
-    mkPara([mkRun('מ.ר 28566561', { size: bodySize })], { spacing: { after: 0 } }),
+    mkPara([mkRun('ניר בן דוד', { size: 9, bold: true })], { alignment: AlignmentType.LEFT, spacing: { before: 240, after: 0 } }),
+    mkPara([mkRun('מהנדס מבנים B.sc', { size: 9 })], { alignment: AlignmentType.LEFT, spacing: { after: 0 } }),
+    mkPara([mkRun('מ.ר 28566561', { size: 9 })], { alignment: AlignmentType.LEFT, spacing: { after: 0 } }),
   ];
 }
 
@@ -519,7 +519,7 @@ export async function generateDocument(data) {
     alignment: AlignmentType.LEFT,
     bidirectional: true,
     spacing: { after: 0 },
-    children: [mkRun(dateStr, { size: 10 })],
+    children: [mkRun(dateStr, { size: 8 })],
   });
 
   // ── 5. Client block ───────────────────────────────────────────────────────
@@ -984,7 +984,7 @@ export async function generateDocument(data) {
         });
 
         const capPara = mkPara(
-          [mkRun(p.caption, { size: 9 })],
+          [mkRun(p.caption, { size: 8 })],
           { alignment: AlignmentType.CENTER }
         );
 
@@ -1051,8 +1051,8 @@ export async function generateDocument(data) {
             margin: {
               top:    mm(31.70),
               bottom: mm(12.51),
-              left:   mm(20.00),
-              right:  mm(24.98),
+              left:   mm(70.00),
+              right:  mm(70.00),
               header: mm(3.00),
               footer: mm(1.99),
             },

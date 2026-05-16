@@ -145,7 +145,10 @@ export default function FieldJournal({ onBack }) {
   const addJournal = () => {
     setNewTitle('');
     setCreatingNew(true);
-    setTimeout(() => newTitleRef.current?.focus(), 50);
+    setTimeout(() => {
+      newTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      newTitleRef.current?.focus();
+    }, 80);
   };
 
   const confirmNewJournal = () => {
@@ -414,6 +417,7 @@ export default function FieldJournal({ onBack }) {
               }}
               dir="rtl"
               autoComplete="off"
+              autoFocus
             />
             <div className="journal-new-card-actions">
               <button className="btn btn-primary" onClick={confirmNewJournal}>
