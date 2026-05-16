@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Document, Packer, Paragraph, TextRun, ImageRun,
   Header, Footer, AlignmentType, convertMillimetersToTwip as mm,
@@ -77,6 +77,21 @@ export default function SmartPaste({ onBack }) {
   const fileRef   = useRef(null);
   const cameraRef = useRef(null);
 
+  // Global document-level paste handler: captures images pasted anywhere on the page
+  // (skips text inputs and textareas so normal text paste still works there)
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
+      if (!imgs.length) return;
+      e.preventDefault();
+      imgs.forEach(it => { const f = it.getAsFile(); if (f) handlePhotoFiles([f]); });
+    };
+    document.addEventListener('paste', handler);
+    return () => document.removeEventListener('paste', handler);
+  }, []);
+
   // ── Handle photo paste into the textarea ──────────────────────────────────
   const handleTextareaPaste = (e) => {
     const items = Array.from(e.clipboardData?.items || []);
@@ -145,10 +160,10 @@ export default function SmartPaste({ onBack }) {
         // Header block
         mkP([mk(`לכבוד: ${parsed.client}`, { size: 8 })]),
         new Paragraph({ alignment: AlignmentType.LEFT, spacing: SP, bidirectional: true,
-          children: [mk(parsed.date || new Date().toLocaleDateString('he-IL'), { size: 10 })] }),
+          children: [mk(parsed.date || new Date().toLocaleDateString('he-IL'), { size: 8 })] }),
         mkP([mk('')]),
         new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 }, bidirectional: true,
-          children: [mk(`הנדון: ${parsed.subject || (cfg?.subject_default ?? '')}`, { size: 16, bold: true })] }),
+          children: [mk(`הנדון: ${parsed.subject || (cfg?.subject_default ?? '')}`, { size: 15, bold: true })] }),
         mkP([mk('')]),
         ...(parsed.organization ? [mkP([mk(parsed.organization, { size: 9 })])] : []),
         ...(parsed.address ? [mkP([mk(`כתובת: ${parsed.address}`, { size: 9 })])] : []),
@@ -187,7 +202,7 @@ export default function SmartPaste({ onBack }) {
           properties: {
             page: {
               size: { width: mm(210), height: mm(297) },
-              margin: { top: mm(31.70), bottom: mm(12.51), left: mm(20.00), right: mm(24.98), header: mm(3.00), footer: mm(1.99) },
+              margin: { top: mm(31.70), bottom: mm(12.51), left: mm(70.00), right: mm(70.00), header: mm(3.00), footer: mm(1.99) },
             },
             bidi: true,
           },

@@ -232,6 +232,22 @@ export default function FieldJournal({ onBack }) {
     }));
   };
 
+  // Global document-level paste handler: captures images pasted anywhere on the page
+  // (only active when a journal is open; skips text inputs and textareas)
+  useEffect(() => {
+    if (!activeId) return;
+    const handler = (e) => {
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
+      if (!imgs.length) return;
+      e.preventDefault();
+      imgs.forEach(it => { const f = it.getAsFile(); if (f) handlePhotoAdd([f]); });
+    };
+    document.addEventListener('paste', handler);
+    return () => document.removeEventListener('paste', handler);
+  }, [activeId]);
+
   // Intercept Ctrl+V with image clipboard data
   const handleEditorPaste = (e) => {
     const items = Array.from(e.clipboardData?.items || []);
@@ -327,7 +343,7 @@ export default function FieldJournal({ onBack }) {
         children: [new ImageRun({ data: base64ToUint8Array(ph.data), transformation: { width: 400, height: 300 } })],
       }));
       if (ph.caption) {
-        photoParas.push(mkP([mk(ph.caption, { size: 9 })], AlignmentType.CENTER));
+        photoParas.push(mkP([mk(ph.caption, { size: 8 })], AlignmentType.CENTER));
       }
     }
 
@@ -343,7 +359,7 @@ export default function FieldJournal({ onBack }) {
         properties: {
           page: {
             size: { width: mm(210), height: mm(297) },
-            margin: { top: mm(31.70), bottom: mm(12.51), left: mm(20.00), right: mm(24.98), header: mm(3.00), footer: mm(1.99) },
+            margin: { top: mm(31.70), bottom: mm(12.51), left: mm(70.00), right: mm(70.00), header: mm(3.00), footer: mm(1.99) },
           },
           bidi: true,
         },
@@ -355,14 +371,14 @@ export default function FieldJournal({ onBack }) {
             alignment: AlignmentType.CENTER,
             spacing: { before: 480, after: 0 },
             bidirectional: true,
-            children: [mk(activeJournal.title, { size: 16, bold: true })],
+            children: [mk(activeJournal.title, { size: 15, bold: true })],
           }),
           // Date
           new Paragraph({
             alignment: AlignmentType.LEFT,
             spacing: SP,
             bidirectional: true,
-            children: [mk(activeJournal.date, { size: 10 })],
+            children: [mk(activeJournal.date, { size: 8 })],
           }),
           mkP([mk('')]),
 

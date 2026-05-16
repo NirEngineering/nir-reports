@@ -188,6 +188,22 @@ export default function InfoCards({ onBack }) {
     });
   }, [activeId]);
 
+  // Global document-level paste handler: captures images pasted anywhere on the page
+  // (only active when a card is open; skips text inputs and textareas)
+  useEffect(() => {
+    if (!activeId) return;
+    const handler = (e) => {
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
+      if (!imgs.length) return;
+      e.preventDefault();
+      imgs.forEach(it => { const f = it.getAsFile(); if (f) addPhotos([f]); });
+    };
+    document.addEventListener('paste', handler);
+    return () => document.removeEventListener('paste', handler);
+  }, [activeId, addPhotos]);
+
   const handleEditorPaste = (e) => {
     const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
     if (imgs.length === 0) return;
@@ -273,7 +289,7 @@ export default function InfoCards({ onBack }) {
           margins: { top: 40, bottom: 40, left: 40, right: 40 },
         }));
         const capCells = pair.map(ph => new TableCell({
-          children: [mkP([mkR(ph.caption || '', { size: 9 })], { align: AlignmentType.CENTER })],
+          children: [mkP([mkR(ph.caption || '', { size: 8 })], { align: AlignmentType.CENTER })],
           width: { size: 50, type: WidthType.PERCENTAGE },
         }));
 
@@ -297,13 +313,13 @@ export default function InfoCards({ onBack }) {
           alignment: AlignmentType.CENTER,
           spacing: { before: 480, after: 0 },
           bidirectional: true,
-          children: [mkR(activeCard.title, { size: 16, bold: true })],
+          children: [mkR(activeCard.title, { size: 15, bold: true })],
         }),
         new Paragraph({
           alignment: AlignmentType.LEFT,
           spacing: SP,
           bidirectional: true,
-          children: [mkR(activeCard.date, { size: 10 })],
+          children: [mkR(activeCard.date, { size: 8 })],
         }),
         mkP([mkR('')]),
         ...lines.map((line, idx) => new Paragraph({
@@ -328,7 +344,7 @@ export default function InfoCards({ onBack }) {
           properties: {
             page: {
               size: { width: mm(210), height: mm(297) },
-              margin: { top: mm(31.70), bottom: mm(12.51), left: mm(20.00), right: mm(24.98), header: mm(3.00), footer: mm(1.99) },
+              margin: { top: mm(31.70), bottom: mm(12.51), left: mm(70.00), right: mm(70.00), header: mm(3.00), footer: mm(1.99) },
             },
             bidi: true,
           },
@@ -380,7 +396,7 @@ export default function InfoCards({ onBack }) {
             properties: {
               page: {
                 size: { width: mm(210), height: mm(297) },
-                margin: { top: mm(31.70), bottom: mm(12.51), left: mm(20.00), right: mm(24.98), header: mm(3.00), footer: mm(1.99) },
+                margin: { top: mm(31.70), bottom: mm(12.51), left: mm(70.00), right: mm(70.00), header: mm(3.00), footer: mm(1.99) },
               },
               bidi: true,
             },
@@ -403,11 +419,11 @@ export default function InfoCards({ onBack }) {
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 }, bidirectional: true,
-                children: [new TextRun({ text: activeCard.title, bold: true, size: 32, font: FONT, rtl: true })],
+                children: [new TextRun({ text: activeCard.title, bold: true, size: 30, font: FONT, rtl: true })],
               }),
               new Paragraph({
                 alignment: AlignmentType.LEFT, spacing: SP, bidirectional: true,
-                children: [new TextRun({ text: activeCard.date, size: 20, font: FONT })],
+                children: [new TextRun({ text: activeCard.date, size: 16, font: FONT })],
               }),
               new Paragraph({ children: [] }),
               ...lines.map((l, i) => new Paragraph({

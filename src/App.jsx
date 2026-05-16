@@ -330,6 +330,21 @@ export default function App() {
     imgs.forEach(it => { const f = it.getAsFile(); if (f) addEventPhotos([f]); });
   };
 
+  // Global document-level paste handler for event approval mode
+  useEffect(() => {
+    if (mode !== 'event') return;
+    const handler = (e) => {
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
+      if (!imgs.length) return;
+      e.preventDefault();
+      imgs.forEach(it => { const f = it.getAsFile(); if (f) addEventPhotos([f]); });
+    };
+    document.addEventListener('paste', handler);
+    return () => document.removeEventListener('paste', handler);
+  }, [mode]);
+
   const handleEventGenerate = async () => {
     if (!eventForm.to.trim()) { setError('יש למלא את שדה "לכבוד"'); return; }
     setLoading(true); setError(''); setSuccess('');
