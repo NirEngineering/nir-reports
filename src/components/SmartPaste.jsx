@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Document, Packer, Paragraph, TextRun, ImageRun,
   Header, Footer, AlignmentType, convertMillimetersToTwip as mm,
@@ -74,7 +74,23 @@ export default function SmartPaste({ onBack }) {
   const [success,  setSuccess]  = useState('');
   const [step,     setStep]     = useState(0); // 0=paste, 1=review, 2=done
 
-  const fileRef = useRef(null);
+  const fileRef   = useRef(null);
+  const cameraRef = useRef(null);
+
+  // Global document-level paste handler: captures images pasted anywhere on the page
+  // (skips text inputs and textareas so normal text paste still works there)
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
+      if (!imgs.length) return;
+      e.preventDefault();
+      imgs.forEach(it => { const f = it.getAsFile(); if (f) handlePhotoFiles([f]); });
+    };
+    document.addEventListener('paste', handler);
+    return () => document.removeEventListener('paste', handler);
+  }, []);
 
   // ── Handle photo paste into the textarea ──────────────────────────────────
   const handleTextareaPaste = (e) => {
@@ -142,20 +158,25 @@ export default function SmartPaste({ onBack }) {
       const cfg = DOC_TYPES_CONFIG[docType];
       const body = [
         // Header block
-        mkP([mk(`לכבוד: ${parsed.client}`, { size: 9 })]),
+        mkP([mk(`לכבוד: ${parsed.client}`, { size: 8 })]),
         new Paragraph({ alignment: AlignmentType.LEFT, spacing: SP, bidirectional: true,
-          children: [mk(parsed.date || new Date().toLocaleDateString('he-IL'), { size: 9 })] }),
+          children: [mk(parsed.date || new Date().toLocaleDateString('he-IL'), { size: 8 })] }),
         mkP([mk('')]),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: SP, bidirectional: true,
-          children: [mk(`הנדון: ${parsed.subject || (cfg?.subject_default ?? '')}`, { size: 13, bold: true })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 }, bidirectional: true,
+          children: [mk(`הנדון: ${parsed.subject || (cfg?.subject_default ?? '')}`, { size: 15, bold: true })] }),
         mkP([mk('')]),
         ...(parsed.organization ? [mkP([mk(parsed.organization, { size: 9 })])] : []),
         ...(parsed.address ? [mkP([mk(`כתובת: ${parsed.address}`, { size: 9 })])] : []),
         ...(parsed.location  ? [mkP([mk(`מיקום: ${parsed.location}`, { size: 9 })])] : []),
         mkP([mk('')]),
         // Body text
-        ...rawText.split('\n').filter(l => l.trim() && !isMetaLine(l)).map(l =>
-          mkP([mk(l, { size: 11 })])
+        ...rawText.split('\n').filter(l => l.trim() && !isMetaLine(l)).map((l, i) =>
+          new Paragraph({
+            children: [mk(l, { size: 9 })],
+            alignment: AlignmentType.RIGHT,
+            spacing: i === 0 ? { ...SP, before: 360 } : SP,
+            bidirectional: true,
+          })
         ),
         mkP([mk('')]),
         // Notes
@@ -181,7 +202,7 @@ export default function SmartPaste({ onBack }) {
           properties: {
             page: {
               size: { width: mm(210), height: mm(297) },
-              margin: { top: mm(31.70), bottom: mm(12.51), left: mm(20.00), right: mm(24.98), header: mm(3.00), footer: mm(1.99) },
+              margin: { top: mm(31.70), bottom: mm(12.51), left: mm(70.00), right: mm(70.00), header: mm(3.00), footer: mm(1.99) },
             },
             bidi: true,
           },
@@ -263,10 +284,13 @@ export default function SmartPaste({ onBack }) {
                 )
               }
             </div>
-            <button className="btn btn-outline" style={{ marginTop: 10 }} onClick={() => fileRef.current?.click()}>
-              📁 בחר תמונות
-            </button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <button className="btn btn-outline" onClick={() => fileRef.current?.click()}>📎 בחר קובץ</button>
+              <button className="btn btn-outline" onClick={() => cameraRef.current?.click()}>📸 צלם</button>
+            </div>
             <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+              onChange={e => { handlePhotoFiles(e.target.files); e.target.value = ''; }} />
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
               onChange={e => { handlePhotoFiles(e.target.files); e.target.value = ''; }} />
           </div>
 

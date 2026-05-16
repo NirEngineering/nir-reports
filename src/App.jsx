@@ -3,6 +3,7 @@ import TableEditor from './components/TableEditor';
 import PhotoUpload from './components/PhotoUpload';
 import SearchDropdown from './components/SearchDropdown';
 import FieldJournal from './components/FieldJournal';
+import InfoCards from './components/InfoCards';
 import SmartPaste from './components/SmartPaste';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
 import { generateDocument } from './lib/docGenerator';
@@ -214,7 +215,7 @@ function RichTextarea({ value, onChange, placeholder, rows = 4 }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'event' | 'smartpaste'
+  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'event' | 'smartpaste' | 'info'
   const [step, setStep] = useState(0);         // for 'new': 0=type,1=details,2=table,3=photos,4=generate
   const [docType, setDocType] = useState('');
   const [form, setForm] = useState(defaultForm());
@@ -237,8 +238,11 @@ export default function App() {
   // Event approval state
   const [eventForm, setEventForm] = useState(defaultEventForm());
   const setEventField = (key, val) => setEventForm(f => ({ ...f, [key]: val }));
+  const [eventPhotos, setEventPhotos] = useState([]);
   const [editFile, setEditFile] = useState(null);
-  const fileRef = useRef(null);
+  const fileRef      = useRef(null);
+  const evtFileRef   = useRef(null);
+  const evtCameraRef = useRef(null);
 
   // ── Web Share Target: load images shared from WhatsApp/other apps ─────────
   useEffect(() => {
@@ -310,6 +314,37 @@ export default function App() {
   }, [mode, step, docType, form, tableRows, defectsRows]);
 
   // ── Event approval generate ───────────────────────────────────────────────
+  const addEventPhotos = (files) => {
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => setEventPhotos(prev => [...prev, { data: e.target.result, caption: '' }]);
+      reader.readAsDataURL(file);
+    });
+  };
+  const removeEventPhoto = (idx) => setEventPhotos(prev => prev.filter((_, i) => i !== idx));
+  const updateEventCaption = (idx, v) => setEventPhotos(prev => prev.map((p, i) => i === idx ? { ...p, caption: v } : p));
+  const handleEventPhotoPaste = (e) => {
+    const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
+    if (!imgs.length) return;
+    e.preventDefault();
+    imgs.forEach(it => { const f = it.getAsFile(); if (f) addEventPhotos([f]); });
+  };
+
+  // Global document-level paste handler for event approval mode
+  useEffect(() => {
+    if (mode !== 'event') return;
+    const handler = (e) => {
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
+      if (!imgs.length) return;
+      e.preventDefault();
+      imgs.forEach(it => { const f = it.getAsFile(); if (f) addEventPhotos([f]); });
+    };
+    document.addEventListener('paste', handler);
+    return () => document.removeEventListener('paste', handler);
+  }, [mode]);
+
   const handleEventGenerate = async () => {
     if (!eventForm.to.trim()) { setError('יש למלא את שדה "לכבוד"'); return; }
     setLoading(true); setError(''); setSuccess('');
@@ -317,6 +352,7 @@ export default function App() {
       const blob = await generateEventApproval({
         ...eventForm,
         date: isoToDisplay(eventForm.date),
+        photos: eventPhotos,
       });
       setLastBlob(blob);
       const url = URL.createObjectURL(blob);
@@ -451,6 +487,7 @@ export default function App() {
   const goHome = () => {
     setMode('home'); setStep(0); setError(''); setSuccess('');
     setDocType(''); setEditImport(null); setEditFile(null); setEditEdits({});
+    setEventPhotos([]);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -550,7 +587,7 @@ export default function App() {
               <div className="home-card-sub">טען קובץ Word ועדכן את התוכן שלו</div>
             </div>
 
-            <div className="home-card" onClick={() => { setEventForm(defaultEventForm()); setMode('event'); setError(''); setSuccess(''); }}>
+            <div className="home-card" onClick={() => { setEventForm(defaultEventForm()); setEventPhotos([]); setMode('event'); setError(''); setSuccess(''); }}>
               <div className="home-card-icon">🎪</div>
               <div className="home-card-title">אישור לאירוע</div>
               <div className="home-card-sub">אישור מבנים ומתקנים ארעיים/קבועים</div>
@@ -566,6 +603,12 @@ export default function App() {
               <div className="home-card-icon">⚡</div>
               <div className="home-card-title">הדבק וייצא</div>
               <div className="home-card-sub">הדבק טקסט ותמונות – יוצר מסמך מסודר אוטומטית</div>
+            </div>
+
+            <div className="home-card" onClick={() => setMode('info')}>
+              <div className="home-card-icon">🗂</div>
+              <div className="home-card-title">כרטיסיות מידע</div>
+              <div className="home-card-sub">שמור נתונים ותמונות בכרטיסיות – ייצא לוורד ושתף</div>
             </div>
           </div>
         </div>
@@ -1141,6 +1184,38 @@ export default function App() {
             </Field>
           </div>
 
+          <div className="card"
+            onPaste={handleEventPhotoPaste}
+            onDrop={e => { e.preventDefault(); addEventPhotos(e.dataTransfer.files); }}
+            onDragOver={e => e.preventDefault()}
+          >
+            <div className="card-title">📷 תמונות ({eventPhotos.length})</div>
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 10, direction: 'rtl' }}>
+              הדבק תמונות (Ctrl+V), גרור לכאן, צלם או בחר מהגלריה. יתווספו לסוף מסמך הוורד.
+            </p>
+            {eventPhotos.length > 0 && (
+              <div className="journal-photos" style={{ marginBottom: 12 }}>
+                {eventPhotos.map((ph, idx) => (
+                  <div key={idx} className="journal-photo">
+                    <img src={ph.data} alt={`תמונה ${idx + 1}`} />
+                    <button className="journal-photo-remove" onClick={() => removeEventPhoto(idx)}>✕</button>
+                    <input className="journal-photo-caption" value={ph.caption}
+                      onChange={e => updateEventCaption(idx, e.target.value)}
+                      placeholder="כיתוב..." dir="rtl" />
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn btn-outline btn-sm" onClick={() => evtFileRef.current?.click()}>📎 בחר קובץ</button>
+              <button className="btn btn-outline btn-sm" onClick={() => evtCameraRef.current?.click()}>📸 צלם</button>
+            </div>
+            <input ref={evtFileRef} type="file" accept="image/*" multiple hidden
+              onChange={e => { addEventPhotos(e.target.files); e.target.value = ''; }} />
+            <input ref={evtCameraRef} type="file" accept="image/*" capture="environment" hidden
+              onChange={e => { addEventPhotos(e.target.files); e.target.value = ''; }} />
+          </div>
+
           {error && <div className="error-msg">{error}</div>}
           {success && <div className="success-msg">{success}</div>}
 
@@ -1166,6 +1241,13 @@ export default function App() {
       ══════════════════════════════════════════════════════════════════════ */}
       {mode === 'smartpaste' && (
         <SmartPaste onBack={goHome} />
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          INFO CARDS MODE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mode === 'info' && (
+        <InfoCards onBack={goHome} />
       )}
     </div>
   );

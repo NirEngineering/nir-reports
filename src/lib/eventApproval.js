@@ -9,6 +9,10 @@ import {
   ImageRun,
   convertMillimetersToTwip as mm,
   UnderlineType,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
 } from 'docx';
 
 const FONT = 'Arial';
@@ -23,9 +27,7 @@ const STAMP_W  = cmPx(2.349);   // 23.49 mm
 const STAMP_H  = cmPx(1.313);   // 13.13 mm
 
 // Line spacing constants
-const SP     = { line: 276, lineRule: 'auto', after: 0 };
-const SP_DBL = { line: 480, lineRule: 'auto', after: 0 };
-const SP_15  = { line: 360, lineRule: 'auto', after: 0 };
+const SP = { line: 360, lineRule: 'auto', after: 0 };
 
 function mkRun(text, { size = 9, bold = false, underline = false } = {}) {
   return new TextRun({
@@ -40,6 +42,14 @@ function mkRun(text, { size = 9, bold = false, underline = false } = {}) {
 
 function mkPara(children = [], { alignment = AlignmentType.RIGHT, spacing } = {}) {
   return new Paragraph({ children, alignment, spacing, bidirectional: true });
+}
+
+function b64ToUint8(b64) {
+  const raw = b64.replace(/^data:[^,]+,/, '');
+  const bin = atob(raw);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
 }
 
 async function fetchBuf(paths) {
@@ -93,10 +103,10 @@ export async function generateEventApproval(data) {
   const stampPara = stampBuf.length > 100
     ? new Paragraph({
         alignment: AlignmentType.RIGHT,
-        spacing: SP_15,
+        spacing: SP,
         children: [new ImageRun({ data: stampBuf, transformation: { width: STAMP_W, height: STAMP_H } })],
       })
-    : mkPara([mkRun('')], { spacing: SP_15 });
+    : mkPara([mkRun('')], { spacing: SP });
 
   // ── Body paragraphs ───────────────────────────────────────────────────────
   const body = [
@@ -121,31 +131,31 @@ export async function generateEventApproval(data) {
     new Paragraph({
       alignment: AlignmentType.CENTER,
       bidirectional: true,
-      spacing: SP,
+      spacing: { before: 480, after: 0 },
       children: [
-        mkRun('הנדון  :  ', { size: 11.5, bold: true }),
-        mkRun('אישור מבנים ומתקנים ארעיים/קבועים', { size: 11.5, bold: true, underline: true }),
+        mkRun('הנדון  :  ', { size: 15, bold: true }),
+        mkRun('אישור מבנים ומתקנים ארעיים/קבועים', { size: 15, bold: true, underline: true }),
       ],
     }),
 
     mkPara([mkRun('')], { spacing: SP }),
 
-    // פרטי העסק ובעל העסק (underlined section header)
-    mkPara([mkRun('פרטי העסק ובעל העסק ', { size: 9, underline: true })], { spacing: SP }),
+    // פרטי העסק ובעל העסק (section header)
+    mkPara([mkRun('פרטי העסק ובעל העסק', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
 
-    // כתובת + שם (double spacing)
+    // כתובת + שם
     mkPara([
       mkRun(`כתובת העסק: ${data.address || ''}`, { size: 9 }),
       mkRun(' '.repeat(12), { size: 9 }),
       mkRun(`שם בעל העסק/המזמין: ${data.owner || ''}`, { size: 9 }),
-    ], { spacing: SP_DBL }),
+    ], { spacing: SP }),
 
-    // ת.זהות + טלפון (double spacing)
+    // ת.זהות + טלפון
     mkPara([
       mkRun(`מספר ת.זהות: ${data.id_num || ''}`, { size: 9 }),
       mkRun(' '.repeat(12), { size: 9 }),
       mkRun(`טלפון סלולארי: ${data.phone || ''}`, { size: 9 }),
-    ], { spacing: SP_DBL }),
+    ], { spacing: SP }),
 
     mkPara([mkRun('')], { spacing: SP }),
 
@@ -164,7 +174,7 @@ export async function generateEventApproval(data) {
     mkPara([mkRun('')], { spacing: SP }),
 
     // Inspected aspects
-    mkPara([mkRun('המתקנים לעיל נבדקו בהיבטים הבאים:', { size: 9 })], { spacing: SP_15 }),
+    mkPara([mkRun('המתקנים לעיל נבדקו בהיבטים הבאים:', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
 
     ...['תקינות ויציבות המבנה',
         'יציבות הקרקע/התשתית עליה מונח המבנה',
@@ -175,7 +185,7 @@ export async function generateEventApproval(data) {
     mkPara([mkRun('')], { spacing: SP }),
 
     // Legal conditions
-    mkPara([mkRun('הערות:', { size: 9 })], { spacing: SP_15 }),
+    mkPara([mkRun('הערות:', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
 
     ...['האישור תקף למבנים/מתקנים שצויינו במסמך זה בלבד.',
         "אין לבצע שינויים במבנים/מתקנים - כל שינוי מבני ו/או הפחתות/תוספות למבנים, ללא ידיעת הח''מ, תגרור לביטול אישור זה.",
@@ -184,13 +194,13 @@ export async function generateEventApproval(data) {
     ].map(t => mkPara([mkRun(`•  ${t}`, { size: 9 })], { spacing: SP })),
 
     mkPara([mkRun('')], { spacing: SP }),
-    mkPara([mkRun('')], { spacing: SP_15 }),
+    mkPara([mkRun('')], { spacing: SP }),
 
     // Additional notes
     mkPara([
       mkRun('הערות נוספות:  ', { size: 9, bold: true }),
       mkRun(data.notes || '', { size: 9 }),
-    ], { spacing: SP_15 }),
+    ], { spacing: SP }),
 
     mkPara([mkRun('')], { spacing: SP }),
     mkPara([mkRun('')], { spacing: SP }),
@@ -204,12 +214,68 @@ export async function generateEventApproval(data) {
     mkPara([
       mkRun('תוקף האישור :   ', { size: 9, bold: true }),
       mkRun(data.validity || '', { size: 9, bold: true }),
-      mkRun(' '.repeat(50), { size: 9 }),
-      mkRun('חותמת וחתימה: _______________', { size: 9, bold: true }),
     ], { spacing: SP }),
+    // חותמת — left aligned
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      bidirectional: true,
+      spacing: { ...SP, before: 240 },
+      children: [mkRun('חותמת וחתימה: _______________', { size: 9, bold: true })],
+    }),
   ];
 
+  // ── Photos section (2 per row) ────────────────────────────────────────────
+  const photos = Array.isArray(data.photos) ? data.photos : [];
+  const photoItems = [];
+  for (let i = 0; i < photos.length; i += 2) {
+    const pair = photos.slice(i, i + 2);
+    const emptyCell = () => new TableCell({
+      children: [new Paragraph({ children: [] })],
+      width: { size: 50, type: WidthType.PERCENTAGE },
+    });
+    const imgCells = pair.map(ph => new TableCell({
+      children: [new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new ImageRun({ data: b64ToUint8(ph.data), transformation: { width: 255, height: 191 } })],
+      })],
+      width: { size: 50, type: WidthType.PERCENTAGE },
+      margins: { top: 40, bottom: 40, left: 40, right: 40 },
+    }));
+    const capCells = pair.map(ph => new TableCell({
+      children: [mkPara([mkRun(ph.caption || '', { size: 8 })], { alignment: AlignmentType.CENTER, spacing: SP })],
+      width: { size: 50, type: WidthType.PERCENTAGE },
+    }));
+    if (pair.length < 2) { imgCells.push(emptyCell()); capCells.push(emptyCell()); }
+    photoItems.push(
+      new Table({
+        alignment: AlignmentType.CENTER,
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({ children: imgCells }),
+          new TableRow({ children: capCells }),
+        ],
+      }),
+      mkPara([mkRun('')], { spacing: SP })
+    );
+  }
+
+  if (photos.length > 0) {
+    body.push(
+      mkPara([mkRun('')], { spacing: SP }),
+      mkPara([mkRun('תמונות:', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
+      ...photoItems
+    );
+  }
+
   const doc = new Document({
+    styles: {
+      default: { document: { run: { font: { name: FONT } } } },
+      paragraphStyles: [{
+        id: 'Normal', name: 'Normal', quickFormat: true,
+        paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
+        run: { font: { name: FONT } },
+      }],
+    },
     sections: [{
       properties: {
         page: {
@@ -217,8 +283,8 @@ export async function generateEventApproval(data) {
           margin: {
             top:    mm(31.70),
             bottom: mm(12.51),
-            left:   mm(20.00),
-            right:  mm(24.98),
+            left:   mm(70.00),
+            right:  mm(70.00),
             header: mm(3.00),
             footer: mm(1.99),
           },

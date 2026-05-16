@@ -87,6 +87,11 @@ export default function FieldJournal({ onBack }) {
   const [renamingId, setRenamingId]   = useState(null);
   const [renameVal,  setRenameVal]    = useState('');
 
+  // New-journal creation card state
+  const [creatingNew, setCreatingNew] = useState(false);
+  const [newTitle,    setNewTitle]    = useState('');
+  const newTitleRef = useRef(null);
+
   const editorRef  = useRef(null);
   const savedRange = useRef(null);
   const fileRef    = useRef(null);
@@ -138,11 +143,25 @@ export default function FieldJournal({ onBack }) {
 
   // ── Journal list operations ───────────────────────────────────────────────
   const addJournal = () => {
-    const j = newJournal();
+    setNewTitle('');
+    setCreatingNew(true);
+    setTimeout(() => {
+      newTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      newTitleRef.current?.focus();
+    }, 80);
+  };
+
+  const confirmNewJournal = () => {
+    const title = newTitle.trim() || `יומן שטח ${new Date().toLocaleDateString('he-IL')}`;
+    const j = { ...newJournal(), title };
     setJournals(prev => [j, ...prev]);
     setFont('Arial'); setFontSize(16); setTextDir('rtl');
+    setCreatingNew(false);
+    setNewTitle('');
     setActiveId(j.id);
   };
+
+  const cancelNewJournal = () => { setCreatingNew(false); setNewTitle(''); };
 
   const openJournal = (id) => {
     saveContent();
@@ -212,6 +231,22 @@ export default function FieldJournal({ onBack }) {
       return { ...j, photos };
     }));
   };
+
+  // Global document-level paste handler: captures images pasted anywhere on the page
+  // (only active when a journal is open; skips text inputs and textareas)
+  useEffect(() => {
+    if (!activeId) return;
+    const handler = (e) => {
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
+      if (!imgs.length) return;
+      e.preventDefault();
+      imgs.forEach(it => { const f = it.getAsFile(); if (f) handlePhotoAdd([f]); });
+    };
+    document.addEventListener('paste', handler);
+    return () => document.removeEventListener('paste', handler);
+  }, [activeId]);
 
   // Intercept Ctrl+V with image clipboard data
   const handleEditorPaste = (e) => {
@@ -308,7 +343,7 @@ export default function FieldJournal({ onBack }) {
         children: [new ImageRun({ data: base64ToUint8Array(ph.data), transformation: { width: 400, height: 300 } })],
       }));
       if (ph.caption) {
-        photoParas.push(mkP([mk(ph.caption, { size: 9 })], AlignmentType.CENTER));
+        photoParas.push(mkP([mk(ph.caption, { size: 8 })], AlignmentType.CENTER));
       }
     }
 
@@ -324,7 +359,7 @@ export default function FieldJournal({ onBack }) {
         properties: {
           page: {
             size: { width: mm(210), height: mm(297) },
-            margin: { top: mm(31.70), bottom: mm(12.51), left: mm(20.00), right: mm(24.98), header: mm(3.00), footer: mm(1.99) },
+            margin: { top: mm(31.70), bottom: mm(12.51), left: mm(70.00), right: mm(70.00), header: mm(3.00), footer: mm(1.99) },
           },
           bidi: true,
         },
@@ -334,21 +369,26 @@ export default function FieldJournal({ onBack }) {
           // Title
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: SP,
+            spacing: { before: 480, after: 0 },
             bidirectional: true,
-            children: [mk(activeJournal.title, { size: 14, bold: true })],
+            children: [mk(activeJournal.title, { size: 15, bold: true })],
           }),
           // Date
           new Paragraph({
             alignment: AlignmentType.LEFT,
             spacing: SP,
             bidirectional: true,
-            children: [mk(activeJournal.date, { size: 10 })],
+            children: [mk(activeJournal.date, { size: 8 })],
           }),
           mkP([mk('')]),
 
           // Body lines
-          ...lines.map(line => mkP([mk(line, { size: 11 })])),
+          ...lines.map((line, i) => new Paragraph({
+            children: [mk(line, { size: 9 })],
+            alignment: AlignmentType.RIGHT,
+            spacing: i === 0 ? { ...SP, before: 360 } : SP,
+            bidirectional: true,
+          })),
 
           // Photos
           ...(photoParas.length ? [mkP([mk('')]), ...photoParas] : []),
@@ -377,7 +417,36 @@ export default function FieldJournal({ onBack }) {
           <button className="btn btn-primary btn-sm" onClick={addJournal}>+ חדש</button>
         </div>
 
-        {journals.length === 0 ? (
+        {/* ── New journal creation card ── */}
+        {creatingNew && (
+          <div className="journal-new-card">
+            <div className="journal-new-card-label">שם היומן</div>
+            <input
+              ref={newTitleRef}
+              className="journal-new-card-input"
+              placeholder="לדוגמה: ביקור שטח מוסד חינוך..."
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') confirmNewJournal();
+                if (e.key === 'Escape') cancelNewJournal();
+              }}
+              dir="rtl"
+              autoComplete="off"
+              autoFocus
+            />
+            <div className="journal-new-card-actions">
+              <button className="btn btn-primary" onClick={confirmNewJournal}>
+                פתח עורך ←
+              </button>
+              <button className="btn btn-outline" onClick={cancelNewJournal}>
+                ביטול
+              </button>
+            </div>
+          </div>
+        )}
+
+        {journals.length === 0 && !creatingNew ? (
           <div className="journal-empty">
             <div className="journal-empty-icon">📋</div>
             <p>אין יומנים עדיין</p>
