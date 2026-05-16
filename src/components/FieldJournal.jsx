@@ -684,8 +684,8 @@ export default function FieldJournal({ onBack }) {
         style={{ fontFamily: font, fontSize: `${fontSize}px` }}
         onInput={saveContent}
         onKeyDown={e => {
-          if (e.ctrlKey && e.key === 'r') { e.preventDefault(); execCmd('justifyRight'); }
-          if (e.ctrlKey && e.key === 'l') { e.preventDefault(); execCmd('justifyLeft'); }
+          if (e.ctrlKey && e.key === "r") { e.preventDefault(); execCmd("justifyRight"); }
+          if (e.ctrlKey && e.key === "l") { e.preventDefault(); execCmd("justifyLeft"); }
         }}
         onKeyUp={saveSelection}
         onMouseUp={saveSelection}

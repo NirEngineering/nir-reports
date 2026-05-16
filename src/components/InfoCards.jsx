@@ -530,8 +530,8 @@ export default function InfoCards({ onBack }) {
           suppressContentEditableWarning
           onInput={saveContent}
           onKeyDown={e => {
-            if (e.ctrlKey && e.key === 'r') { e.preventDefault(); exec('justifyRight'); }
-            if (e.ctrlKey && e.key === 'l') { e.preventDefault(); exec('justifyLeft'); }
+            if (e.ctrlKey && e.key === "r") { e.preventDefault(); exec("justifyRight"); }
+            if (e.ctrlKey && e.key === "l") { e.preventDefault(); exec("justifyLeft"); }
           }}
           onPaste={handleEditorPaste}
           onKeyUp={saveRange}
