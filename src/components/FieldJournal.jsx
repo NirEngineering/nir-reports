@@ -87,6 +87,11 @@ export default function FieldJournal({ onBack }) {
   const [renamingId, setRenamingId]   = useState(null);
   const [renameVal,  setRenameVal]    = useState('');
 
+  // New-journal creation card state
+  const [creatingNew, setCreatingNew] = useState(false);
+  const [newTitle,    setNewTitle]    = useState('');
+  const newTitleRef = useRef(null);
+
   const editorRef  = useRef(null);
   const savedRange = useRef(null);
   const fileRef    = useRef(null);
@@ -138,11 +143,22 @@ export default function FieldJournal({ onBack }) {
 
   // ── Journal list operations ───────────────────────────────────────────────
   const addJournal = () => {
-    const j = newJournal();
+    setNewTitle('');
+    setCreatingNew(true);
+    setTimeout(() => newTitleRef.current?.focus(), 50);
+  };
+
+  const confirmNewJournal = () => {
+    const title = newTitle.trim() || `יומן שטח ${new Date().toLocaleDateString('he-IL')}`;
+    const j = { ...newJournal(), title };
     setJournals(prev => [j, ...prev]);
     setFont('Arial'); setFontSize(16); setTextDir('rtl');
+    setCreatingNew(false);
+    setNewTitle('');
     setActiveId(j.id);
   };
+
+  const cancelNewJournal = () => { setCreatingNew(false); setNewTitle(''); };
 
   const openJournal = (id) => {
     saveContent();
@@ -382,7 +398,35 @@ export default function FieldJournal({ onBack }) {
           <button className="btn btn-primary btn-sm" onClick={addJournal}>+ חדש</button>
         </div>
 
-        {journals.length === 0 ? (
+        {/* ── New journal creation card ── */}
+        {creatingNew && (
+          <div className="journal-new-card">
+            <div className="journal-new-card-label">שם היומן</div>
+            <input
+              ref={newTitleRef}
+              className="journal-new-card-input"
+              placeholder="לדוגמה: ביקור שטח מוסד חינוך..."
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') confirmNewJournal();
+                if (e.key === 'Escape') cancelNewJournal();
+              }}
+              dir="rtl"
+              autoComplete="off"
+            />
+            <div className="journal-new-card-actions">
+              <button className="btn btn-primary" onClick={confirmNewJournal}>
+                פתח עורך ←
+              </button>
+              <button className="btn btn-outline" onClick={cancelNewJournal}>
+                ביטול
+              </button>
+            </div>
+          </div>
+        )}
+
+        {journals.length === 0 && !creatingNew ? (
           <div className="journal-empty">
             <div className="journal-empty-icon">📋</div>
             <p>אין יומנים עדיין</p>
