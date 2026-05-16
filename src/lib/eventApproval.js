@@ -283,8 +283,8 @@ export async function generateEventApproval(data) {
           margin: {
             top:    mm(31.70),
             bottom: mm(12.51),
-            left:   mm(70.00),
-            right:  mm(70.00),
+            left:   mm(7.00),
+            right:  mm(7.00),
             header: mm(3.00),
             footer: mm(1.99),
           },

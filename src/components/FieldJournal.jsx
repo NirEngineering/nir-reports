@@ -359,7 +359,7 @@ export default function FieldJournal({ onBack }) {
         properties: {
           page: {
             size: { width: mm(210), height: mm(297) },
-            margin: { top: mm(31.70), bottom: mm(12.51), left: mm(70.00), right: mm(70.00), header: mm(3.00), footer: mm(1.99) },
+            margin: { top: mm(31.70), bottom: mm(12.51), left: mm(7.00), right: mm(7.00), header: mm(3.00), footer: mm(1.99) },
           },
           bidi: true,
         },
@@ -683,6 +683,10 @@ export default function FieldJournal({ onBack }) {
         dir={textDir}
         style={{ fontFamily: font, fontSize: `${fontSize}px` }}
         onInput={saveContent}
+        onKeyDown={e => {
+          if (e.ctrlKey && e.key === 'r') { e.preventDefault(); execCmd('justifyRight'); }
+          if (e.ctrlKey && e.key === 'l') { e.preventDefault(); execCmd('justifyLeft'); }
+        }}
         onKeyUp={saveSelection}
         onMouseUp={saveSelection}
         onSelect={saveSelection}
