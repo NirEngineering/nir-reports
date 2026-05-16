@@ -9,6 +9,10 @@ import {
   ImageRun,
   convertMillimetersToTwip as mm,
   UnderlineType,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
 } from 'docx';
 
 const FONT = 'Arial';
@@ -38,6 +42,14 @@ function mkRun(text, { size = 9, bold = false, underline = false } = {}) {
 
 function mkPara(children = [], { alignment = AlignmentType.RIGHT, spacing } = {}) {
   return new Paragraph({ children, alignment, spacing, bidirectional: true });
+}
+
+function b64ToUint8(b64) {
+  const raw = b64.replace(/^data:[^,]+,/, '');
+  const bin = atob(raw);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
 }
 
 async function fetchBuf(paths) {
@@ -207,7 +219,58 @@ export async function generateEventApproval(data) {
     ], { spacing: SP }),
   ];
 
+  // ── Photos section (2 per row) ────────────────────────────────────────────
+  const photos = Array.isArray(data.photos) ? data.photos : [];
+  const photoItems = [];
+  for (let i = 0; i < photos.length; i += 2) {
+    const pair = photos.slice(i, i + 2);
+    const emptyCell = () => new TableCell({
+      children: [new Paragraph({ children: [] })],
+      width: { size: 50, type: WidthType.PERCENTAGE },
+    });
+    const imgCells = pair.map(ph => new TableCell({
+      children: [new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new ImageRun({ data: b64ToUint8(ph.data), transformation: { width: 255, height: 191 } })],
+      })],
+      width: { size: 50, type: WidthType.PERCENTAGE },
+      margins: { top: 40, bottom: 40, left: 40, right: 40 },
+    }));
+    const capCells = pair.map(ph => new TableCell({
+      children: [mkPara([mkRun(ph.caption || '', { size: 9 })], { alignment: AlignmentType.CENTER, spacing: SP })],
+      width: { size: 50, type: WidthType.PERCENTAGE },
+    }));
+    if (pair.length < 2) { imgCells.push(emptyCell()); capCells.push(emptyCell()); }
+    photoItems.push(
+      new Table({
+        alignment: AlignmentType.CENTER,
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({ children: imgCells }),
+          new TableRow({ children: capCells }),
+        ],
+      }),
+      mkPara([mkRun('')], { spacing: SP })
+    );
+  }
+
+  if (photos.length > 0) {
+    body.push(
+      mkPara([mkRun('')], { spacing: SP }),
+      mkPara([mkRun('תמונות:', { size: 10, bold: true })], { spacing: { ...SP, before: 360 } }),
+      ...photoItems
+    );
+  }
+
   const doc = new Document({
+    styles: {
+      default: { document: { run: { font: { name: FONT } } } },
+      paragraphStyles: [{
+        id: 'Normal', name: 'Normal', quickFormat: true,
+        paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
+        run: { font: { name: FONT } },
+      }],
+    },
     sections: [{
       properties: {
         page: {

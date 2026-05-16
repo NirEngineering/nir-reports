@@ -316,6 +316,14 @@ export default function InfoCards({ onBack }) {
       ];
 
       const doc = new Document({
+        styles: {
+          default: { document: { run: { font: { name: FONT } } } },
+          paragraphStyles: [{
+            id: 'Normal', name: 'Normal', quickFormat: true,
+            paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
+            run: { font: { name: FONT } },
+          }],
+        },
         sections: [{
           properties: {
             page: {
@@ -360,6 +368,14 @@ export default function InfoCards({ onBack }) {
         ]);
         const lines = textContent.split('\n').filter(l => l.trim());
         const doc = new Document({
+          styles: {
+            default: { document: { run: { font: { name: FONT } } } },
+            paragraphStyles: [{
+              id: 'Normal', name: 'Normal', quickFormat: true,
+              paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
+              run: { font: { name: FONT } },
+            }],
+          },
           sections: [{
             properties: {
               page: {

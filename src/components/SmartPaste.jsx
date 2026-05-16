@@ -74,7 +74,8 @@ export default function SmartPaste({ onBack }) {
   const [success,  setSuccess]  = useState('');
   const [step,     setStep]     = useState(0); // 0=paste, 1=review, 2=done
 
-  const fileRef = useRef(null);
+  const fileRef   = useRef(null);
+  const cameraRef = useRef(null);
 
   // ── Handle photo paste into the textarea ──────────────────────────────────
   const handleTextareaPaste = (e) => {
@@ -268,10 +269,13 @@ export default function SmartPaste({ onBack }) {
                 )
               }
             </div>
-            <button className="btn btn-outline" style={{ marginTop: 10 }} onClick={() => fileRef.current?.click()}>
-              📁 בחר תמונות
-            </button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <button className="btn btn-outline" onClick={() => fileRef.current?.click()}>📎 בחר קובץ</button>
+              <button className="btn btn-outline" onClick={() => cameraRef.current?.click()}>📸 צלם</button>
+            </div>
             <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+              onChange={e => { handlePhotoFiles(e.target.files); e.target.value = ''; }} />
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
               onChange={e => { handlePhotoFiles(e.target.files); e.target.value = ''; }} />
           </div>
 
