@@ -334,9 +334,9 @@ export default function FieldJournal({ onBack }) {
           // Title
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: SP,
+            spacing: { before: 480, after: 0 },
             bidirectional: true,
-            children: [mk(activeJournal.title, { size: 14, bold: true })],
+            children: [mk(activeJournal.title, { size: 16, bold: true })],
           }),
           // Date
           new Paragraph({
@@ -348,7 +348,12 @@ export default function FieldJournal({ onBack }) {
           mkP([mk('')]),
 
           // Body lines
-          ...lines.map(line => mkP([mk(line, { size: 11 })])),
+          ...lines.map((line, i) => new Paragraph({
+            children: [mk(line, { size: 9 })],
+            alignment: AlignmentType.RIGHT,
+            spacing: i === 0 ? { ...SP, before: 360 } : SP,
+            bidirectional: true,
+          })),
 
           // Photos
           ...(photoParas.length ? [mkP([mk('')]), ...photoParas] : []),

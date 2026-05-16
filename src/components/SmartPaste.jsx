@@ -142,20 +142,25 @@ export default function SmartPaste({ onBack }) {
       const cfg = DOC_TYPES_CONFIG[docType];
       const body = [
         // Header block
-        mkP([mk(`לכבוד: ${parsed.client}`, { size: 9 })]),
+        mkP([mk(`לכבוד: ${parsed.client}`, { size: 8 })]),
         new Paragraph({ alignment: AlignmentType.LEFT, spacing: SP, bidirectional: true,
-          children: [mk(parsed.date || new Date().toLocaleDateString('he-IL'), { size: 9 })] }),
+          children: [mk(parsed.date || new Date().toLocaleDateString('he-IL'), { size: 10 })] }),
         mkP([mk('')]),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: SP, bidirectional: true,
-          children: [mk(`הנדון: ${parsed.subject || (cfg?.subject_default ?? '')}`, { size: 13, bold: true })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 }, bidirectional: true,
+          children: [mk(`הנדון: ${parsed.subject || (cfg?.subject_default ?? '')}`, { size: 16, bold: true })] }),
         mkP([mk('')]),
         ...(parsed.organization ? [mkP([mk(parsed.organization, { size: 9 })])] : []),
         ...(parsed.address ? [mkP([mk(`כתובת: ${parsed.address}`, { size: 9 })])] : []),
         ...(parsed.location  ? [mkP([mk(`מיקום: ${parsed.location}`, { size: 9 })])] : []),
         mkP([mk('')]),
         // Body text
-        ...rawText.split('\n').filter(l => l.trim() && !isMetaLine(l)).map(l =>
-          mkP([mk(l, { size: 11 })])
+        ...rawText.split('\n').filter(l => l.trim() && !isMetaLine(l)).map((l, i) =>
+          new Paragraph({
+            children: [mk(l, { size: 9 })],
+            alignment: AlignmentType.RIGHT,
+            spacing: i === 0 ? { ...SP, before: 360 } : SP,
+            bidirectional: true,
+          })
         ),
         mkP([mk('')]),
         // Notes

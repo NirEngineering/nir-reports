@@ -23,9 +23,7 @@ const STAMP_W  = cmPx(2.349);   // 23.49 mm
 const STAMP_H  = cmPx(1.313);   // 13.13 mm
 
 // Line spacing constants
-const SP     = { line: 276, lineRule: 'auto', after: 0 };
-const SP_DBL = { line: 480, lineRule: 'auto', after: 0 };
-const SP_15  = { line: 360, lineRule: 'auto', after: 0 };
+const SP = { line: 360, lineRule: 'auto', after: 0 };
 
 function mkRun(text, { size = 9, bold = false, underline = false } = {}) {
   return new TextRun({
@@ -93,10 +91,10 @@ export async function generateEventApproval(data) {
   const stampPara = stampBuf.length > 100
     ? new Paragraph({
         alignment: AlignmentType.RIGHT,
-        spacing: SP_15,
+        spacing: SP,
         children: [new ImageRun({ data: stampBuf, transformation: { width: STAMP_W, height: STAMP_H } })],
       })
-    : mkPara([mkRun('')], { spacing: SP_15 });
+    : mkPara([mkRun('')], { spacing: SP });
 
   // ── Body paragraphs ───────────────────────────────────────────────────────
   const body = [
@@ -112,7 +110,7 @@ export async function generateEventApproval(data) {
       alignment: AlignmentType.LEFT,
       bidirectional: true,
       spacing: SP,
-      children: [mkRun(`תאריך: ${data.date || ''}`, { size: 8 })],
+      children: [mkRun(`תאריך: ${data.date || ''}`, { size: 10 })],
     }),
 
     mkPara([mkRun('')], { spacing: SP }),
@@ -121,31 +119,31 @@ export async function generateEventApproval(data) {
     new Paragraph({
       alignment: AlignmentType.CENTER,
       bidirectional: true,
-      spacing: SP,
+      spacing: { before: 480, after: 0 },
       children: [
-        mkRun('הנדון  :  ', { size: 11.5, bold: true }),
-        mkRun('אישור מבנים ומתקנים ארעיים/קבועים', { size: 11.5, bold: true, underline: true }),
+        mkRun('הנדון  :  ', { size: 16, bold: true }),
+        mkRun('אישור מבנים ומתקנים ארעיים/קבועים', { size: 16, bold: true, underline: true }),
       ],
     }),
 
     mkPara([mkRun('')], { spacing: SP }),
 
-    // פרטי העסק ובעל העסק (underlined section header)
-    mkPara([mkRun('פרטי העסק ובעל העסק ', { size: 9, underline: true })], { spacing: SP }),
+    // פרטי העסק ובעל העסק (section header)
+    mkPara([mkRun('פרטי העסק ובעל העסק', { size: 10, bold: true })], { spacing: { ...SP, before: 360 } }),
 
-    // כתובת + שם (double spacing)
+    // כתובת + שם
     mkPara([
       mkRun(`כתובת העסק: ${data.address || ''}`, { size: 9 }),
       mkRun(' '.repeat(12), { size: 9 }),
       mkRun(`שם בעל העסק/המזמין: ${data.owner || ''}`, { size: 9 }),
-    ], { spacing: SP_DBL }),
+    ], { spacing: SP }),
 
-    // ת.זהות + טלפון (double spacing)
+    // ת.זהות + טלפון
     mkPara([
       mkRun(`מספר ת.זהות: ${data.id_num || ''}`, { size: 9 }),
       mkRun(' '.repeat(12), { size: 9 }),
       mkRun(`טלפון סלולארי: ${data.phone || ''}`, { size: 9 }),
-    ], { spacing: SP_DBL }),
+    ], { spacing: SP }),
 
     mkPara([mkRun('')], { spacing: SP }),
 
@@ -164,7 +162,7 @@ export async function generateEventApproval(data) {
     mkPara([mkRun('')], { spacing: SP }),
 
     // Inspected aspects
-    mkPara([mkRun('המתקנים לעיל נבדקו בהיבטים הבאים:', { size: 9 })], { spacing: SP_15 }),
+    mkPara([mkRun('המתקנים לעיל נבדקו בהיבטים הבאים:', { size: 10, bold: true })], { spacing: { ...SP, before: 360 } }),
 
     ...['תקינות ויציבות המבנה',
         'יציבות הקרקע/התשתית עליה מונח המבנה',
@@ -175,7 +173,7 @@ export async function generateEventApproval(data) {
     mkPara([mkRun('')], { spacing: SP }),
 
     // Legal conditions
-    mkPara([mkRun('הערות:', { size: 9 })], { spacing: SP_15 }),
+    mkPara([mkRun('הערות:', { size: 10, bold: true })], { spacing: { ...SP, before: 360 } }),
 
     ...['האישור תקף למבנים/מתקנים שצויינו במסמך זה בלבד.',
         "אין לבצע שינויים במבנים/מתקנים - כל שינוי מבני ו/או הפחתות/תוספות למבנים, ללא ידיעת הח''מ, תגרור לביטול אישור זה.",
@@ -184,13 +182,13 @@ export async function generateEventApproval(data) {
     ].map(t => mkPara([mkRun(`•  ${t}`, { size: 9 })], { spacing: SP })),
 
     mkPara([mkRun('')], { spacing: SP }),
-    mkPara([mkRun('')], { spacing: SP_15 }),
+    mkPara([mkRun('')], { spacing: SP }),
 
     // Additional notes
     mkPara([
       mkRun('הערות נוספות:  ', { size: 9, bold: true }),
       mkRun(data.notes || '', { size: 9 }),
-    ], { spacing: SP_15 }),
+    ], { spacing: SP }),
 
     mkPara([mkRun('')], { spacing: SP }),
     mkPara([mkRun('')], { spacing: SP }),
