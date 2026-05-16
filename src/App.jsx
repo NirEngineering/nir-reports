@@ -3,6 +3,7 @@ import TableEditor from './components/TableEditor';
 import PhotoUpload from './components/PhotoUpload';
 import SearchDropdown from './components/SearchDropdown';
 import FieldJournal from './components/FieldJournal';
+import InfoCards from './components/InfoCards';
 import SmartPaste from './components/SmartPaste';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
 import { generateDocument } from './lib/docGenerator';
@@ -214,7 +215,7 @@ function RichTextarea({ value, onChange, placeholder, rows = 4 }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'event' | 'smartpaste'
+  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'event' | 'smartpaste' | 'info'
   const [step, setStep] = useState(0);         // for 'new': 0=type,1=details,2=table,3=photos,4=generate
   const [docType, setDocType] = useState('');
   const [form, setForm] = useState(defaultForm());
@@ -566,6 +567,12 @@ export default function App() {
               <div className="home-card-icon">⚡</div>
               <div className="home-card-title">הדבק וייצא</div>
               <div className="home-card-sub">הדבק טקסט ותמונות – יוצר מסמך מסודר אוטומטית</div>
+            </div>
+
+            <div className="home-card" onClick={() => setMode('info')}>
+              <div className="home-card-icon">🗂</div>
+              <div className="home-card-title">כרטיסיות מידע</div>
+              <div className="home-card-sub">שמור נתונים ותמונות בכרטיסיות – ייצא לוורד ושתף</div>
             </div>
           </div>
         </div>
@@ -1166,6 +1173,13 @@ export default function App() {
       ══════════════════════════════════════════════════════════════════════ */}
       {mode === 'smartpaste' && (
         <SmartPaste onBack={goHome} />
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          INFO CARDS MODE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mode === 'info' && (
+        <InfoCards onBack={goHome} />
       )}
     </div>
   );
