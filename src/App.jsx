@@ -5,6 +5,7 @@ import SearchDropdown from './components/SearchDropdown';
 import FieldJournal from './components/FieldJournal';
 import InfoCards from './components/InfoCards';
 import SmartPaste from './components/SmartPaste';
+import AIWriter from './components/AIWriter';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
 import { generateDocument } from './lib/docGenerator';
 import { generateEventApproval } from './lib/eventApproval';
@@ -609,6 +610,12 @@ export default function App() {
               <div className="home-card-icon">🗂</div>
               <div className="home-card-title">כרטיסיות מידע</div>
               <div className="home-card-sub">שמור נתונים ותמונות בכרטיסיות – ייצא לוורד ושתף</div>
+            </div>
+
+            <div className="home-card home-card--ai" onClick={() => setMode('ai')}>
+              <div className="home-card-icon">🤖</div>
+              <div className="home-card-title">כתיבת דוח AI</div>
+              <div className="home-card-sub">הדבק הערות שטח ותמונות — Claude כותב את הדוח המלא</div>
             </div>
           </div>
         </div>
@@ -1248,6 +1255,10 @@ export default function App() {
       ══════════════════════════════════════════════════════════════════════ */}
       {mode === 'info' && (
         <InfoCards onBack={goHome} />
+      )}
+
+      {mode === 'ai' && (
+        <AIWriter onBack={goHome} />
       )}
     </div>
   );
