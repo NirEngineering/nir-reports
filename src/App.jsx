@@ -216,7 +216,7 @@ function RichTextarea({ value, onChange, placeholder, rows = 4 }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'event' | 'smartpaste' | 'info'
+  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'smartpaste' | 'info'
   const [step, setStep] = useState(0);         // for 'new': 0=type,1=details,2=table,3=photos,4=generate
   const [docType, setDocType] = useState('');
   const [form, setForm] = useState(defaultForm());
@@ -236,14 +236,11 @@ export default function App() {
   const [editEdits, setEditEdits] = useState({});
   const [editLoading, setEditLoading] = useState(false);
 
-  // Event approval state
+  // Event approval state (used for group8 doc type)
   const [eventForm, setEventForm] = useState(defaultEventForm());
   const setEventField = (key, val) => setEventForm(f => ({ ...f, [key]: val }));
-  const [eventPhotos, setEventPhotos] = useState([]);
   const [editFile, setEditFile] = useState(null);
-  const fileRef      = useRef(null);
-  const evtFileRef   = useRef(null);
-  const evtCameraRef = useRef(null);
+  const fileRef = useRef(null);
 
   // ── Web Share Target: load images shared from WhatsApp/other apps ─────────
   useEffect(() => {
@@ -314,55 +311,26 @@ export default function App() {
     if (mode === 'new' && docType) saveDraft();
   }, [mode, step, docType, form, tableRows, defectsRows]);
 
-  // ── Event approval generate ───────────────────────────────────────────────
-  const addEventPhotos = (files) => {
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = e => setEventPhotos(prev => [...prev, { data: e.target.result, caption: '' }]);
-      reader.readAsDataURL(file);
-    });
-  };
-  const removeEventPhoto = (idx) => setEventPhotos(prev => prev.filter((_, i) => i !== idx));
-  const updateEventCaption = (idx, v) => setEventPhotos(prev => prev.map((p, i) => i === idx ? { ...p, caption: v } : p));
-  const handleEventPhotoPaste = (e) => {
-    const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
-    if (!imgs.length) return;
-    e.preventDefault();
-    imgs.forEach(it => { const f = it.getAsFile(); if (f) addEventPhotos([f]); });
-  };
-
-  // Global document-level paste handler for event approval mode
-  useEffect(() => {
-    if (mode !== 'event') return;
-    const handler = (e) => {
-      const tag = e.target?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea') return;
-      const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
-      if (!imgs.length) return;
-      e.preventDefault();
-      imgs.forEach(it => { const f = it.getAsFile(); if (f) addEventPhotos([f]); });
-    };
-    document.addEventListener('paste', handler);
-    return () => document.removeEventListener('paste', handler);
-  }, [mode]);
-
+  // ── Event approval generate (group8) ─────────────────────────────────────
   const handleEventGenerate = async () => {
     if (!eventForm.to.trim()) { setError('יש למלא את שדה "לכבוד"'); return; }
     setLoading(true); setError(''); setSuccess('');
     try {
+      const mergedPhotos = [];
+      photos.forEach(ph => mergedPhotos.push({ data: ph.data, caption: ph.caption || '' }));
       const blob = await generateEventApproval({
         ...eventForm,
         date: isoToDisplay(eventForm.date),
-        photos: eventPhotos,
+        photos: mergedPhotos,
       });
       setLastBlob(blob);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `אישור_אירוע_${eventForm.to || 'מסמך'}.docx`;
+      a.download = `אישור_מבנים_ארעיים_${eventForm.to || 'מסמך'}.docx`;
       a.click();
       URL.revokeObjectURL(url);
-      setSuccess('המסמך נוצר בהצלחה!');
+      setSuccess('✅ המסמך נוצר בהצלחה!');
     } catch (e) {
       setError(`שגיאה: ${e.message}`);
     } finally {
@@ -488,7 +456,7 @@ export default function App() {
   const goHome = () => {
     setMode('home'); setStep(0); setError(''); setSuccess('');
     setDocType(''); setEditImport(null); setEditFile(null); setEditEdits({});
-    setEventPhotos([]);
+    setPhotos([]);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -588,13 +556,7 @@ export default function App() {
               <div className="home-card-sub">טען קובץ Word ועדכן את התוכן שלו</div>
             </div>
 
-            <div className="home-card" onClick={() => { setEventForm(defaultEventForm()); setEventPhotos([]); setMode('event'); setError(''); setSuccess(''); }}>
-              <div className="home-card-icon">🎪</div>
-              <div className="home-card-title">אישור לאירוע</div>
-              <div className="home-card-sub">אישור מבנים ומתקנים ארעיים/קבועים</div>
-            </div>
-
-            <div className="home-card" onClick={() => setMode('field')}>
+<div className="home-card" onClick={() => setMode('field')}>
               <div className="home-card-icon">📋</div>
               <div className="home-card-title">יומן שטח</div>
               <div className="home-card-sub">רשום הערות בשטח – נשמר אוטומטית</div>
@@ -645,7 +607,13 @@ export default function App() {
                       setDefectsRows([]);
                       setRowPhotos([]);
                       setDefectsRowPhotos([]);
-                      setStep(1);
+                      setPhotos([]);
+                      if (key === 'group8') {
+                        setEventForm(defaultEventForm());
+                        setStep(1);
+                      } else {
+                        setStep(1);
+                      }
                     }}
                   >
                     <div className="doc-type-check">✓</div>
@@ -660,101 +628,171 @@ export default function App() {
           {/* Step 1 — פרטי הדוח */}
           {step === 1 && (
             <div>
-              <StepBar step={0} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} onStepClick={setStep} />
+              <StepBar step={0} labels={['פרטים', 'תוכן', 'תמונות', 'יצור']} onStepClick={setStep} />
 
-              <div className="card">
-                <div className="card-title">📋 פרטי הדוח</div>
+              {docType === 'group8' ? (
+                /* ── אישור מבנים ארעיים: client info ── */
+                <div className="card">
+                  <div className="card-title">👤 פרטי הלקוח</div>
 
-                <Field label="לקוח" required>
-                  <SearchDropdown
-                    value={form.client}
-                    onChange={v => setField('client', v)}
-                    options={ALL_CLIENTS}
-                    placeholder="שם הלקוח..."
-                  />
-                </Field>
-
-                <Field label="גוף / ארגון">
-                  <SearchDropdown
-                    value={form.organization}
-                    onChange={v => setField('organization', v)}
-                    options={KNOWN_ORGANIZATIONS}
-                    placeholder="בחר ארגון..."
-                  />
-                </Field>
-
-                <Field label="מיקום">
-                  <input
-                    className="form-input"
-                    value={form.location}
-                    onChange={e => setField('location', e.target.value)}
-                    placeholder="שם המוסד / מיקום (ריק = שם הלקוח)..."
-                    dir="rtl"
-                  />
-                </Field>
-
-                <Field label="כתובת">
-                  <input
-                    className="form-input"
-                    value={form.address}
-                    onChange={e => setField('address', e.target.value)}
-                    placeholder="כתובת מלאה..."
-                    dir="rtl"
-                  />
-                </Field>
-
-                <Field label="נושא הדוח">
-                  <input
-                    className="form-input"
-                    value={form.subject}
-                    onChange={e => setField('subject', e.target.value)}
-                    dir="rtl"
-                  />
-                </Field>
-
-                <Field label="תאריך הדוח">
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={form.date}
-                    onChange={e => setField('date', e.target.value)}
-                  />
-                </Field>
-
-                <Field label="תאריך הביקור / הבדיקה">
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={form.inspection_date}
-                    onChange={e => setField('inspection_date', e.target.value)}
-                  />
-                </Field>
-
-                {!['group6', 'group7', 'group8'].includes(docType) && (
-                  <Field label='טבלת ליקויים נפרדת'>
-                    <label className="toggle-row">
-                      <span className="toggle">
-                        <input
-                          type="checkbox"
-                          checked={form.has_defects}
-                          onChange={e => setField('has_defects', e.target.checked)}
-                        />
-                        <span className="toggle-slider" />
-                      </span>
-                      <span className="toggle-label" style={{ fontSize: 13, color: '#64748b' }}>
-                        {form.has_defects ? 'כן – תוצג בשלב הטבלה' : 'לא (מזוהה אוטומטית מהטבלה)'}
-                      </span>
-                    </label>
+                  <Field label="לכבוד" required>
+                    <input
+                      className="form-input"
+                      value={eventForm.to}
+                      onChange={e => setEventField('to', e.target.value)}
+                      placeholder="שם הגוף / הלקוח..."
+                      dir="rtl"
+                    />
                   </Field>
-                )}
-              </div>
+                  <Field label="תאריך המסמך">
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={eventForm.date}
+                      onChange={e => setEventField('date', e.target.value)}
+                    />
+                  </Field>
+                  <Field label="כתובת העסק">
+                    <input
+                      className="form-input"
+                      value={eventForm.address}
+                      onChange={e => setEventField('address', e.target.value)}
+                      placeholder="כתובת מלאה..."
+                      dir="rtl"
+                    />
+                  </Field>
+                  <Field label="שם בעל העסק / המזמין">
+                    <input
+                      className="form-input"
+                      value={eventForm.owner}
+                      onChange={e => setEventField('owner', e.target.value)}
+                      placeholder="שם מלא..."
+                      dir="rtl"
+                    />
+                  </Field>
+                  <Field label="מספר ת.זהות">
+                    <input
+                      className="form-input"
+                      value={eventForm.id_num}
+                      onChange={e => setEventField('id_num', e.target.value)}
+                      placeholder="מספר ת.ז..."
+                      dir="rtl"
+                    />
+                  </Field>
+                  <Field label="טלפון סלולארי">
+                    <input
+                      className="form-input"
+                      value={eventForm.phone}
+                      onChange={e => setEventField('phone', e.target.value)}
+                      placeholder="050-0000000"
+                      dir="rtl"
+                    />
+                  </Field>
+                </div>
+              ) : (
+                /* ── Standard doc types ── */
+                <div className="card">
+                  <div className="card-title">📋 פרטי הדוח</div>
+
+                  <Field label="לקוח" required>
+                    <SearchDropdown
+                      value={form.client}
+                      onChange={v => setField('client', v)}
+                      options={ALL_CLIENTS}
+                      placeholder="שם הלקוח..."
+                    />
+                  </Field>
+
+                  <Field label="גוף / ארגון">
+                    <SearchDropdown
+                      value={form.organization}
+                      onChange={v => setField('organization', v)}
+                      options={KNOWN_ORGANIZATIONS}
+                      placeholder="בחר ארגון..."
+                    />
+                  </Field>
+
+                  <Field label="מיקום">
+                    <input
+                      className="form-input"
+                      value={form.location}
+                      onChange={e => setField('location', e.target.value)}
+                      placeholder="שם המוסד / מיקום (ריק = שם הלקוח)..."
+                      dir="rtl"
+                    />
+                  </Field>
+
+                  <Field label="כתובת">
+                    <input
+                      className="form-input"
+                      value={form.address}
+                      onChange={e => setField('address', e.target.value)}
+                      placeholder="כתובת מלאה..."
+                      dir="rtl"
+                    />
+                  </Field>
+
+                  <Field label="נושא הדוח">
+                    <input
+                      className="form-input"
+                      value={form.subject}
+                      onChange={e => setField('subject', e.target.value)}
+                      dir="rtl"
+                    />
+                  </Field>
+
+                  <Field label="תאריך הדוח">
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={form.date}
+                      onChange={e => setField('date', e.target.value)}
+                    />
+                  </Field>
+
+                  <Field label="תאריך הביקור / הבדיקה">
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={form.inspection_date}
+                      onChange={e => setField('inspection_date', e.target.value)}
+                    />
+                  </Field>
+
+                  {!['group6', 'group7'].includes(docType) && (
+                    <Field label='טבלת ליקויים נפרדת'>
+                      <label className="toggle-row">
+                        <span className="toggle">
+                          <input
+                            type="checkbox"
+                            checked={form.has_defects}
+                            onChange={e => setField('has_defects', e.target.checked)}
+                          />
+                          <span className="toggle-slider" />
+                        </span>
+                        <span className="toggle-label" style={{ fontSize: 13, color: '#64748b' }}>
+                          {form.has_defects ? 'כן – תוצג בשלב הטבלה' : 'לא (מזוהה אוטומטית מהטבלה)'}
+                        </span>
+                      </label>
+                    </Field>
+                  )}
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="btn btn-outline" onClick={() => setStep(0)}>◀ חזור</button>
                 <button
                   className="btn btn-primary"
                   style={{ flex: 1 }}
-                  onClick={() => { if (validateDetails()) setStep(2); }}
+                  onClick={() => {
+                    if (docType === 'group8') {
+                      if (!eventForm.to.trim()) { setError('יש למלא את שדה "לכבוד"'); return; }
+                      setError('');
+                    } else {
+                      if (!validateDetails()) return;
+                    }
+                    setStep(2);
+                  }}
                 >
                   המשך ▶
                 </button>
@@ -767,12 +805,43 @@ export default function App() {
             <div>
               <StepBar step={1} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} onStepClick={setStep} />
 
-              {['group6', 'group8'].includes(docType) ? (
-                /* ── חוות דעת / אישור ארעיים: free-text content instead of table ── */
+              {docType === 'group8' ? (
+                /* ── אישור מבנים ארעיים: structures + notes + validity ── */
                 <div className="card">
-                  <div className="card-title">
-                    {docType === 'group8' ? '🏗️ תוכן האישור' : '📝 תוכן חוות הדעת'}
-                  </div>
+                  <div className="card-title">🏗️ מתקנים שנבדקו</div>
+                  <Field label="רשום מתקן אחד בכל שורה">
+                    <textarea
+                      className="form-textarea event-structures-textarea"
+                      value={eventForm.structures}
+                      onChange={e => setEventField('structures', e.target.value)}
+                      placeholder={'לדוגמה:\nבמה מוגבהת 10x6 מ\'\nגגון צללית 5x5 מ\'\nמאהל 3x3 מ\''}
+                      rows={6}
+                      dir="rtl"
+                    />
+                  </Field>
+                  <Field label="הערות נוספות">
+                    <input
+                      className="form-input"
+                      value={eventForm.notes}
+                      onChange={e => setEventField('notes', e.target.value)}
+                      placeholder="הערות נוספות (אופציונלי)..."
+                      dir="rtl"
+                    />
+                  </Field>
+                  <Field label="תוקף האישור">
+                    <input
+                      className="form-input"
+                      value={eventForm.validity}
+                      onChange={e => setEventField('validity', e.target.value)}
+                      placeholder="לדוגמה: 31.12.2025"
+                      dir="rtl"
+                    />
+                  </Field>
+                </div>
+              ) : docType === 'group6' ? (
+                /* ── חוות דעת: free-text content ── */
+                <div className="card">
+                  <div className="card-title">📝 תוכן חוות הדעת</div>
                   <Field label="פסקת פתיחה (אופציונלי)">
                     <textarea
                       className="form-textarea"
@@ -783,7 +852,7 @@ export default function App() {
                       dir="rtl"
                     />
                   </Field>
-                  <Field label={docType === 'group8' ? 'נתונים טכניים וממצאים (שורה = נקודה אחת)' : 'נתונים כלליים וממצאים (שורה = נקודה אחת)'}>
+                  <Field label="נתונים כלליים וממצאים (שורה = נקודה אחת)">
                     <RichTextarea
                       value={form.notes_custom}
                       onChange={v => setField('notes_custom', v)}
@@ -791,13 +860,11 @@ export default function App() {
                       rows={6}
                     />
                   </Field>
-                  <Field label={docType === 'group8' ? 'תנאי האישור ומסקנות (שורה = סעיף ממוספר)' : 'הערות ומסקנות (שורה = סעיף ממוספר)'}>
+                  <Field label="הערות ומסקנות (שורה = סעיף ממוספר)">
                     <RichTextarea
                       value={form.conclusion_custom}
                       onChange={v => setField('conclusion_custom', v)}
-                      placeholder={docType === 'group8'
-                        ? 'המבנה נמצא יציב ובטוח לשימוש...&#10;תוקף האישור לתקופה מ... עד...'
-                        : 'יש לבצע חיזוק...&#10;יש לפרק ולהסיר...&#10;לנעול את החדר...'}
+                      placeholder="יש לבצע חיזוק...&#10;יש לפרק ולהסיר...&#10;לנעול את החדר..."
                       rows={5}
                     />
                   </Field>
@@ -891,10 +958,10 @@ export default function App() {
               <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
                 <button
                   className="btn btn-success btn-lg generate-btn"
-                  onClick={handleGenerate}
+                  onClick={docType === 'group8' ? handleEventGenerate : handleGenerate}
                   disabled={loading}
                 >
-                  {loading ? '⏳ יוצר...' : '⬇️ צור מסמך ללא תמונות'}
+                  {loading ? '⏳ יוצר...' : docType === 'group8' ? '⬇️ צור אישור ללא תמונות' : '⬇️ צור מסמך ללא תמונות'}
                 </button>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button className="btn btn-outline" onClick={() => setStep(1)}>◀ חזור</button>
@@ -919,7 +986,7 @@ export default function App() {
               <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
                 <button
                   className="btn btn-success btn-lg generate-btn"
-                  onClick={handleGenerate}
+                  onClick={docType === 'group8' ? handleEventGenerate : handleGenerate}
                   disabled={loading}
                 >
                   {loading ? '⏳ יוצר...' : '⬇️ צור והורד מסמך'}
@@ -971,7 +1038,7 @@ export default function App() {
               <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
                 <button
                   className="btn btn-success btn-lg generate-btn"
-                  onClick={handleGenerate}
+                  onClick={docType === 'group8' ? handleEventGenerate : handleGenerate}
                   disabled={loading}
                 >
                   {loading ? '⏳ יוצר...' : '⬇️ צור והורד מסמך'}
@@ -1130,109 +1197,6 @@ export default function App() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          EVENT APPROVAL MODE
-      ══════════════════════════════════════════════════════════════════════ */}
-      {mode === 'event' && (
-        <div className="app-body">
-          <div className="section-header">
-            <button className="btn btn-outline btn-sm" style={{ marginLeft: 12 }} onClick={() => setMode('home')}>◀ חזור</button>
-            <span className="section-icon">🎪</span>
-            <span className="section-title">אישור מבנים ומתקנים ארעיים/קבועים</span>
-          </div>
-
-          <div className="card">
-            <div className="card-title">👤 פרטי הלקוח</div>
-
-            <Field label="לכבוד" required>
-              <input className="form-input" value={eventForm.to} onChange={e => setEventField('to', e.target.value)} placeholder="שם הגוף / הלקוח..." dir="rtl" />
-            </Field>
-            <Field label="תאריך המסמך">
-              <input type="date" className="form-input" value={eventForm.date} onChange={e => setEventField('date', e.target.value)} />
-            </Field>
-            <Field label="כתובת העסק">
-              <input className="form-input" value={eventForm.address} onChange={e => setEventField('address', e.target.value)} placeholder="כתובת מלאה..." dir="rtl" />
-            </Field>
-            <Field label="שם בעל העסק / המזמין">
-              <input className="form-input" value={eventForm.owner} onChange={e => setEventField('owner', e.target.value)} placeholder="שם מלא..." dir="rtl" />
-            </Field>
-            <Field label="מספר ת.זהות">
-              <input className="form-input" value={eventForm.id_num} onChange={e => setEventField('id_num', e.target.value)} placeholder="מספר ת.ז..." dir="rtl" />
-            </Field>
-            <Field label="טלפון סלולארי">
-              <input className="form-input" value={eventForm.phone} onChange={e => setEventField('phone', e.target.value)} placeholder="050-0000000" dir="rtl" />
-            </Field>
-          </div>
-
-          <div className="card">
-            <div className="card-title">🏗️ מתקנים שנבדקו</div>
-            <Field label="רשום מתקן אחד בכל שורה">
-              <textarea
-                className="form-textarea event-structures-textarea"
-                value={eventForm.structures}
-                onChange={e => setEventField('structures', e.target.value)}
-                placeholder={'לדוגמה:\nבמה מוגבהת 10x6 מ\'\nגגון צללית 5x5 מ\'\nמאהל 3x3 מ\''}
-                rows={6}
-                dir="rtl"
-              />
-            </Field>
-          </div>
-
-          <div className="card">
-            <div className="card-title">📝 הערות ותוקף</div>
-            <Field label="הערות נוספות">
-              <input className="form-input" value={eventForm.notes} onChange={e => setEventField('notes', e.target.value)} placeholder="הערות נוספות (אופציונלי)..." dir="rtl" />
-            </Field>
-            <Field label="תוקף האישור">
-              <input className="form-input" value={eventForm.validity} onChange={e => setEventField('validity', e.target.value)} placeholder="לדוגמה: 31.12.2025" dir="rtl" />
-            </Field>
-          </div>
-
-          <div className="card"
-            onPaste={handleEventPhotoPaste}
-            onDrop={e => { e.preventDefault(); addEventPhotos(e.dataTransfer.files); }}
-            onDragOver={e => e.preventDefault()}
-          >
-            <div className="card-title">📷 תמונות ({eventPhotos.length})</div>
-            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 10, direction: 'rtl' }}>
-              הדבק תמונות (Ctrl+V), גרור לכאן, צלם או בחר מהגלריה. יתווספו לסוף מסמך הוורד.
-            </p>
-            {eventPhotos.length > 0 && (
-              <div className="journal-photos" style={{ marginBottom: 12 }}>
-                {eventPhotos.map((ph, idx) => (
-                  <div key={idx} className="journal-photo">
-                    <img src={ph.data} alt={`תמונה ${idx + 1}`} />
-                    <button className="journal-photo-remove" onClick={() => removeEventPhoto(idx)}>✕</button>
-                    <input className="journal-photo-caption" value={ph.caption}
-                      onChange={e => updateEventCaption(idx, e.target.value)}
-                      placeholder="כיתוב..." dir="rtl" />
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn btn-outline btn-sm" onClick={() => evtFileRef.current?.click()}>📎 בחר קובץ</button>
-              <button className="btn btn-outline btn-sm" onClick={() => evtCameraRef.current?.click()}>📸 צלם</button>
-            </div>
-            <input ref={evtFileRef} type="file" accept="image/*" multiple hidden
-              onChange={e => { addEventPhotos(e.target.files); e.target.value = ''; }} />
-            <input ref={evtCameraRef} type="file" accept="image/*" capture="environment" hidden
-              onChange={e => { addEventPhotos(e.target.files); e.target.value = ''; }} />
-          </div>
-
-          {error && <div className="error-msg">{error}</div>}
-          {success && <div className="success-msg">{success}</div>}
-
-          <button
-            className="btn btn-success btn-lg generate-btn"
-            onClick={handleEventGenerate}
-            disabled={loading}
-          >
-            {loading ? '⏳ יוצר מסמך...' : '⬇️ צור אישור לאירוע'}
-          </button>
         </div>
       )}
 
