@@ -31,7 +31,7 @@ function mkRun(text, { size = 9, bold = false, underline = false } = {}) {
     font: FONT,
     size: size * 2,
     bold,
-    rtl: true,
+    rightToLeft: true,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
   });
 }
@@ -98,9 +98,11 @@ export async function generateEventApproval(data) {
     ],
   });
 
-  // ── לכבוד / תאריך on same visual line via borderless 2-cell table ──────────
+  // ── לכבוד / תאריך on same visual line via borderless 2-cell RTL table ──────
+  // visuallyRightToLeft ensures cell 0 (לכבוד) appears on the RIGHT side of the page
   const toDateTable = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
+    visuallyRightToLeft: true,
     borders: ALL_NO_BORDER,
     rows: [
       new TableRow({
@@ -286,11 +288,10 @@ export async function generateEventApproval(data) {
             bottom: mm(2.5),
             left:   mm(15),
             right:  mm(15),
-            header: mm(0),
+            header: mm(5),
             footer: mm(4.6),
           },
         },
-        bidi: true,
       },
       headers: { default: headerSection },
       footers: { default: footerSection },

@@ -327,7 +327,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `אישור_מבנים_ארעיים_${eventForm.to || 'מסמך'}.docx`;
+      a.download = `אישור יציבות מתקנים ארעיים - ${eventForm.to || 'מסמך'}.docx`;
       a.click();
       URL.revokeObjectURL(url);
       setSuccess('✅ המסמך נוצר בהצלחה!');

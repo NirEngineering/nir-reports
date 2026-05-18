@@ -308,7 +308,7 @@ export default function FieldJournal({ onBack }) {
     ]);
 
     const mk = (text, { size = 11, bold = false } = {}) =>
-      new TextRun({ text: String(text ?? ''), font: FONT, size: size * 2, bold, rtl: true });
+      new TextRun({ text: String(text ?? ''), font: FONT, size: size * 2, bold, rightToLeft: true });
 
     const mkP = (children, align = AlignmentType.RIGHT) =>
       new Paragraph({ children, alignment: align, spacing: SP, bidirectional: true });

@@ -244,7 +244,7 @@ export default function InfoCards({ onBack }) {
 
       const mkR = (text, opts = {}) => new TextRun({
         text: String(text ?? ''), font: FONT, size: (opts.size || 9) * 2,
-        bold: !!opts.bold, italics: !!opts.italic, rtl: true,
+        bold: !!opts.bold, italics: !!opts.italic, rightToLeft: true,
       });
       const mkP = (children, opts = {}) => new Paragraph({
         children,
@@ -419,7 +419,7 @@ export default function InfoCards({ onBack }) {
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 }, bidirectional: true,
-                children: [new TextRun({ text: activeCard.title, bold: true, size: 30, font: FONT, rtl: true })],
+                children: [new TextRun({ text: activeCard.title, bold: true, size: 30, font: FONT, rightToLeft: true })],
               }),
               new Paragraph({
                 alignment: AlignmentType.LEFT, spacing: SP, bidirectional: true,
@@ -429,7 +429,7 @@ export default function InfoCards({ onBack }) {
               ...lines.map((l, i) => new Paragraph({
                 alignment: AlignmentType.RIGHT, bidirectional: true,
                 spacing: i === 0 ? { ...SP, before: 360 } : SP,
-                children: [new TextRun({ text: l, font: FONT, size: 18, rtl: true })],
+                children: [new TextRun({ text: l, font: FONT, size: 18, rightToLeft: true })],
               })),
             ],
           }],

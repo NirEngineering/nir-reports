@@ -300,7 +300,7 @@ function mkRun(text, opts = {}) {
     bold   = false,
     color  = undefined,
     underline = false,
-    rtl    = true,
+    rightToLeft = true,
     italic = false,
   } = opts;
 
@@ -310,7 +310,7 @@ function mkRun(text, opts = {}) {
     size: size * 2,           // docx uses half-points
     bold,
     color,
-    rtl,
+    rightToLeft,
     italics: italic,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
   });
@@ -478,9 +478,9 @@ export async function generateDocument(data) {
     bidirectional: true,
     spacing: { after: 0 },
     children: [
-      new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rtl: true }),
+      new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rightToLeft: true }),
       new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 7 * 2 }),
-      new TextRun({ text: ' מתוך ', font: FONT, size: 7 * 2, rtl: true }),
+      new TextRun({ text: ' מתוך ', font: FONT, size: 7 * 2, rightToLeft: true }),
       new TextRun({ children: [PageNumber.TOTAL_PAGES], font: FONT, size: 7 * 2 }),
     ],
   });
