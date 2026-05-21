@@ -331,7 +331,7 @@ export default function AIWriter({ onBack }) {
       a.download = aiFilename;
       a.click();
       URL.revokeObjectURL(url);
-      saveToArchive({ type: 'ai', docType, filename: aiFilename, client: parsed.client, subject: parsed.subject, date: parsed.date });
+      saveToArchive({ type: 'ai', docType, filename: aiFilename, client: parsed.client, subject: parsed.subject, date: parsed.date }, data);
       setStep(2);
     } catch (e) {
       setError(`שגיאת ייצוא: ${e.message}`);

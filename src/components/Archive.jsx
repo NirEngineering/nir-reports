@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { loadArchive, deleteFromArchive } from '../lib/archiveUtils';
+import { loadArchive, loadDocData, deleteFromArchive } from '../lib/archiveUtils';
 import { DOC_TYPES_CONFIG } from '../constants';
+import { generateDocument } from '../lib/docGenerator';
+import { generateEventApproval } from '../lib/eventApproval';
 
 const TYPE_ICON = {
   report: '📄',
@@ -30,6 +32,7 @@ function formatDate(ts) {
 
 export default function Archive({ onBack }) {
   const [entries, setEntries] = useState(() => loadArchive());
+  const [regenerating, setRegenerating] = useState(null);
 
   const handleDelete = (id) => {
     deleteFromArchive(id);
@@ -40,6 +43,30 @@ export default function Archive({ onBack }) {
     if (!window.confirm('למחוק את כל הרשומות בארכיון?')) return;
     entries.forEach(e => deleteFromArchive(e.id));
     setEntries([]);
+  };
+
+  const handleRegenerate = async (entry) => {
+    const payload = loadDocData(entry.id);
+    if (!payload) return;
+    setRegenerating(entry.id);
+    try {
+      let blob;
+      if (entry.type === 'event') {
+        blob = await generateEventApproval(payload);
+      } else {
+        blob = await generateDocument(payload);
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = entry.filename || 'מסמך.docx';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(`שגיאה ביצירת המסמך: ${e.message}`);
+    } finally {
+      setRegenerating(null);
+    }
   };
 
   return (
@@ -69,12 +96,14 @@ export default function Archive({ onBack }) {
       ) : (
         <div className="journal-items">
           {entries.map(entry => {
-            const icon = TYPE_ICON[entry.type] || '📄';
+            const icon      = TYPE_ICON[entry.type] || '📄';
             const typeLabel = TYPE_LABEL[entry.type] || entry.type;
-            const docLabel = entry.docType
+            const docLabel  = entry.docType
               ? DOC_TYPES_CONFIG[entry.docType]?.name?.replace('\n', ' ')
               : '';
-            const nameLabel = entry.client || entry.title || '';
+            const nameLabel   = entry.client || entry.title || '';
+            const canRegen    = entry.hasData && ['report','event','ai'].includes(entry.type);
+            const isRegening  = regenerating === entry.id;
 
             return (
               <div key={entry.id} className="journal-item" style={{ alignItems: 'flex-start' }}>
@@ -89,9 +118,30 @@ export default function Archive({ onBack }) {
                     {[typeLabel, docLabel].filter(Boolean).join(' · ')}
                     {entry.filename ? ` · ${entry.filename}` : ''}
                   </div>
+                  {entry.type === 'journal' && (
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                      פתח "יומן שטח" כדי לייצא מחדש
+                    </div>
+                  )}
+                  {entry.type === 'card' && (
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                      פתח "כרטיסיות מידע" כדי לייצא מחדש
+                    </div>
+                  )}
                 </div>
 
                 <div className="journal-item-actions">
+                  {canRegen && (
+                    <button
+                      className="btn btn-sm btn-outline"
+                      style={{ fontSize: 12, padding: '4px 8px' }}
+                      onClick={() => handleRegenerate(entry)}
+                      disabled={isRegening}
+                      title="צור והורד מחדש (ללא תמונות)"
+                    >
+                      {isRegening ? '⏳' : '⬇️ צור מחדש'}
+                    </button>
+                  )}
                   <button
                     className="btn-icon del"
                     onClick={() => handleDelete(entry.id)}

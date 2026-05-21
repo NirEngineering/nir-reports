@@ -41,7 +41,7 @@ const ALL_FINDINGS = (() => {
 })();
 
 // ── Asset paths (must include Vite base URL for GitHub Pages) ─────────────────
-const LOGO_PNG = `${import.meta.env.BASE_URL}logo.png`;
+const LOGO_PNG = `${import.meta.env.BASE_URL}logo.jpg`;
 const LOGO_SVG = `${import.meta.env.BASE_URL}logo.svg`;
 
 // ── IndexedDB helpers for Web Share Target ────────────────────────────────────
@@ -337,7 +337,7 @@ export default function App() {
         filename: eventFilename,
         client: eventForm.to,
         date: eventForm.date,
-      });
+      }, { ...eventForm, date: isoToDisplay(eventForm.date), photos: mergedPhotos });
       setSuccess('✅ המסמך נוצר בהצלחה!');
     } catch (e) {
       setError(`שגיאה: ${e.message}`);
@@ -402,7 +402,7 @@ export default function App() {
         client: form.client,
         subject: form.subject,
         date: form.date,
-      });
+      }, payload);
       setSuccess('✅ המסמך נוצר בהצלחה!');
       localStorage.removeItem(DRAFT_KEY);
     } catch (e) {
