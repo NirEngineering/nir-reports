@@ -4,12 +4,12 @@ import PhotoUpload from './components/PhotoUpload';
 import SearchDropdown from './components/SearchDropdown';
 import FieldJournal from './components/FieldJournal';
 import InfoCards from './components/InfoCards';
-import SmartPaste from './components/SmartPaste';
 import AIWriter from './components/AIWriter';
+import Archive from './components/Archive';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
 import { generateDocument } from './lib/docGenerator';
-import { generateEventApproval } from './lib/eventApproval';
 import { importDocx, exportDocx } from './lib/docImporter';
+import { saveToArchive } from './lib/archiveUtils';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
 import clientsData from './data/clients.json';
@@ -40,7 +40,7 @@ const ALL_FINDINGS = (() => {
 })();
 
 // ── Asset paths (must include Vite base URL for GitHub Pages) ─────────────────
-const LOGO_PNG = `${import.meta.env.BASE_URL}logo.png`;
+const LOGO_JPG = `${import.meta.env.BASE_URL}logo.jpg`;
 const LOGO_SVG = `${import.meta.env.BASE_URL}logo.svg`;
 
 // ── IndexedDB helpers for Web Share Target ────────────────────────────────────
@@ -118,18 +118,6 @@ const defaultForm = () => ({
   has_defects: false,
   conclusion_custom: '',
   notes_custom: '',
-});
-
-const defaultEventForm = () => ({
-  to: '',
-  date: new Date().toISOString().split('T')[0],
-  address: '',
-  owner: '',
-  id_num: '',
-  phone: '',
-  structures: '',
-  notes: '',
-  validity: '',
 });
 
 // ── StepBar ───────────────────────────────────────────────────────────────────
@@ -216,7 +204,7 @@ function RichTextarea({ value, onChange, placeholder, rows = 4 }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'event' | 'smartpaste' | 'info'
+  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'info' | 'ai' | 'archive'
   const [step, setStep] = useState(0);         // for 'new': 0=type,1=details,2=table,3=photos,4=generate
   const [docType, setDocType] = useState('');
   const [form, setForm] = useState(defaultForm());
@@ -236,14 +224,8 @@ export default function App() {
   const [editEdits, setEditEdits] = useState({});
   const [editLoading, setEditLoading] = useState(false);
 
-  // Event approval state
-  const [eventForm, setEventForm] = useState(defaultEventForm());
-  const setEventField = (key, val) => setEventForm(f => ({ ...f, [key]: val }));
-  const [eventPhotos, setEventPhotos] = useState([]);
   const [editFile, setEditFile] = useState(null);
-  const fileRef      = useRef(null);
-  const evtFileRef   = useRef(null);
-  const evtCameraRef = useRef(null);
+  const fileRef = useRef(null);
 
   // ── Web Share Target: load images shared from WhatsApp/other apps ─────────
   useEffect(() => {
@@ -314,62 +296,6 @@ export default function App() {
     if (mode === 'new' && docType) saveDraft();
   }, [mode, step, docType, form, tableRows, defectsRows]);
 
-  // ── Event approval generate ───────────────────────────────────────────────
-  const addEventPhotos = (files) => {
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = e => setEventPhotos(prev => [...prev, { data: e.target.result, caption: '' }]);
-      reader.readAsDataURL(file);
-    });
-  };
-  const removeEventPhoto = (idx) => setEventPhotos(prev => prev.filter((_, i) => i !== idx));
-  const updateEventCaption = (idx, v) => setEventPhotos(prev => prev.map((p, i) => i === idx ? { ...p, caption: v } : p));
-  const handleEventPhotoPaste = (e) => {
-    const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
-    if (!imgs.length) return;
-    e.preventDefault();
-    imgs.forEach(it => { const f = it.getAsFile(); if (f) addEventPhotos([f]); });
-  };
-
-  // Global document-level paste handler for event approval mode
-  useEffect(() => {
-    if (mode !== 'event') return;
-    const handler = (e) => {
-      const tag = e.target?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea') return;
-      const imgs = Array.from(e.clipboardData?.items || []).filter(it => it.type.startsWith('image/'));
-      if (!imgs.length) return;
-      e.preventDefault();
-      imgs.forEach(it => { const f = it.getAsFile(); if (f) addEventPhotos([f]); });
-    };
-    document.addEventListener('paste', handler);
-    return () => document.removeEventListener('paste', handler);
-  }, [mode]);
-
-  const handleEventGenerate = async () => {
-    if (!eventForm.to.trim()) { setError('יש למלא את שדה "לכבוד"'); return; }
-    setLoading(true); setError(''); setSuccess('');
-    try {
-      const blob = await generateEventApproval({
-        ...eventForm,
-        date: isoToDisplay(eventForm.date),
-        photos: eventPhotos,
-      });
-      setLastBlob(blob);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `אישור_אירוע_${eventForm.to || 'מסמך'}.docx`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setSuccess('המסמך נוצר בהצלחה!');
-    } catch (e) {
-      setError(`שגיאה: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // ── Auto-detect defects from main table rows ──────────────────────────────
   // Recalculate whenever tableRows changes
   const autoHasDefects = tableRows.some(row =>
@@ -419,6 +345,12 @@ export default function App() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setSuccess('✅ המסמך נוצר בהצלחה!');
+      saveToArchive({
+        type: 'report',
+        filename: `${form.subject || 'דוח'} - ${form.client}.docx`,
+        client: form.client,
+        docType,
+      }, payload);
       localStorage.removeItem(DRAFT_KEY);
     } catch (e) {
       setError(`שגיאה: ${e.message}`);
@@ -488,7 +420,6 @@ export default function App() {
   const goHome = () => {
     setMode('home'); setStep(0); setError(''); setSuccess('');
     setDocType(''); setEditImport(null); setEditFile(null); setEditEdits({});
-    setEventPhotos([]);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -504,7 +435,7 @@ export default function App() {
           )}
           <div className="header-title">
             <img
-              src={LOGO_PNG}
+              src={LOGO_JPG}
               alt="ניר הנדסה"
               className="header-logo-img"
               onError={e => { e.target.onerror = null; e.target.src = LOGO_SVG; }}
@@ -571,7 +502,7 @@ export default function App() {
       {mode === 'home' && (
         <div className="home-screen">
           <div className="home-logo">
-            <img src={LOGO_PNG} alt="ניר הנדסה" onError={e => { e.target.onerror = null; e.target.src = LOGO_SVG; }} />
+            <img src={LOGO_JPG} alt="ניר הנדסה" onError={e => { e.target.onerror = null; e.target.src = LOGO_SVG; }} />
             <span className="home-logo-name">ניר הנדסה</span>
           </div>
 
@@ -588,22 +519,10 @@ export default function App() {
               <div className="home-card-sub">טען קובץ Word ועדכן את התוכן שלו</div>
             </div>
 
-            <div className="home-card" onClick={() => { setEventForm(defaultEventForm()); setEventPhotos([]); setMode('event'); setError(''); setSuccess(''); }}>
-              <div className="home-card-icon">🎪</div>
-              <div className="home-card-title">אישור לאירוע</div>
-              <div className="home-card-sub">אישור מבנים ומתקנים ארעיים/קבועים</div>
-            </div>
-
             <div className="home-card" onClick={() => setMode('field')}>
               <div className="home-card-icon">📋</div>
               <div className="home-card-title">יומן שטח</div>
               <div className="home-card-sub">רשום הערות בשטח – נשמר אוטומטית</div>
-            </div>
-
-            <div className="home-card" onClick={() => { setMode('smartpaste'); setError(''); setSuccess(''); }}>
-              <div className="home-card-icon">⚡</div>
-              <div className="home-card-title">הדבק וייצא</div>
-              <div className="home-card-sub">הדבק טקסט ותמונות – יוצר מסמך מסודר אוטומטית</div>
             </div>
 
             <div className="home-card" onClick={() => setMode('info')}>
@@ -616,6 +535,12 @@ export default function App() {
               <div className="home-card-icon">🤖</div>
               <div className="home-card-title">כתיבת דוח AI</div>
               <div className="home-card-sub">הדבק הערות שטח ותמונות — Claude כותב את הדוח המלא</div>
+            </div>
+
+            <div className="home-card" onClick={() => setMode('archive')}>
+              <div className="home-card-icon">🗄️</div>
+              <div className="home-card-title">ארכיון מסמכים</div>
+              <div className="home-card-sub">כל המסמכים שנוצרו — צפה וצור מחדש</div>
             </div>
           </div>
         </div>
@@ -730,7 +655,7 @@ export default function App() {
                   />
                 </Field>
 
-                {!['group6', 'group7', 'group8'].includes(docType) && (
+                {!['group6', 'group7'].includes(docType) && (
                   <Field label='טבלת ליקויים נפרדת'>
                     <label className="toggle-row">
                       <span className="toggle">
@@ -767,12 +692,10 @@ export default function App() {
             <div>
               <StepBar step={1} labels={['פרטים', 'טבלה', 'תמונות', 'יצור']} onStepClick={setStep} />
 
-              {['group6', 'group8'].includes(docType) ? (
-                /* ── חוות דעת / אישור ארעיים: free-text content instead of table ── */
+              {docType === 'group6' ? (
+                /* ── חוות דעת הנדסית: free-text content instead of table ── */
                 <div className="card">
-                  <div className="card-title">
-                    {docType === 'group8' ? '🏗️ תוכן האישור' : '📝 תוכן חוות הדעת'}
-                  </div>
+                  <div className="card-title">📝 תוכן חוות הדעת</div>
                   <Field label="פסקת פתיחה (אופציונלי)">
                     <textarea
                       className="form-textarea"
@@ -783,7 +706,7 @@ export default function App() {
                       dir="rtl"
                     />
                   </Field>
-                  <Field label={docType === 'group8' ? 'נתונים טכניים וממצאים (שורה = נקודה אחת)' : 'נתונים כלליים וממצאים (שורה = נקודה אחת)'}>
+                  <Field label="נתונים כלליים וממצאים (שורה = נקודה אחת)">
                     <RichTextarea
                       value={form.notes_custom}
                       onChange={v => setField('notes_custom', v)}
@@ -791,13 +714,11 @@ export default function App() {
                       rows={6}
                     />
                   </Field>
-                  <Field label={docType === 'group8' ? 'תנאי האישור ומסקנות (שורה = סעיף ממוספר)' : 'הערות ומסקנות (שורה = סעיף ממוספר)'}>
+                  <Field label="הערות ומסקנות (שורה = סעיף ממוספר)">
                     <RichTextarea
                       value={form.conclusion_custom}
                       onChange={v => setField('conclusion_custom', v)}
-                      placeholder={docType === 'group8'
-                        ? 'המבנה נמצא יציב ובטוח לשימוש...&#10;תוקף האישור לתקופה מ... עד...'
-                        : 'יש לבצע חיזוק...&#10;יש לפרק ולהסיר...&#10;לנעול את החדר...'}
+                      placeholder="יש לבצע חיזוק...&#10;יש לפרק ולהסיר...&#10;לנעול את החדר..."
                       rows={5}
                     />
                   </Field>
@@ -1134,120 +1055,10 @@ export default function App() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          EVENT APPROVAL MODE
-      ══════════════════════════════════════════════════════════════════════ */}
-      {mode === 'event' && (
-        <div className="app-body">
-          <div className="section-header">
-            <button className="btn btn-outline btn-sm" style={{ marginLeft: 12 }} onClick={() => setMode('home')}>◀ חזור</button>
-            <span className="section-icon">🎪</span>
-            <span className="section-title">אישור מבנים ומתקנים ארעיים/קבועים</span>
-          </div>
-
-          <div className="card">
-            <div className="card-title">👤 פרטי הלקוח</div>
-
-            <Field label="לכבוד" required>
-              <input className="form-input" value={eventForm.to} onChange={e => setEventField('to', e.target.value)} placeholder="שם הגוף / הלקוח..." dir="rtl" />
-            </Field>
-            <Field label="תאריך המסמך">
-              <input type="date" className="form-input" value={eventForm.date} onChange={e => setEventField('date', e.target.value)} />
-            </Field>
-            <Field label="כתובת העסק">
-              <input className="form-input" value={eventForm.address} onChange={e => setEventField('address', e.target.value)} placeholder="כתובת מלאה..." dir="rtl" />
-            </Field>
-            <Field label="שם בעל העסק / המזמין">
-              <input className="form-input" value={eventForm.owner} onChange={e => setEventField('owner', e.target.value)} placeholder="שם מלא..." dir="rtl" />
-            </Field>
-            <Field label="מספר ת.זהות">
-              <input className="form-input" value={eventForm.id_num} onChange={e => setEventField('id_num', e.target.value)} placeholder="מספר ת.ז..." dir="rtl" />
-            </Field>
-            <Field label="טלפון סלולארי">
-              <input className="form-input" value={eventForm.phone} onChange={e => setEventField('phone', e.target.value)} placeholder="050-0000000" dir="rtl" />
-            </Field>
-          </div>
-
-          <div className="card">
-            <div className="card-title">🏗️ מתקנים שנבדקו</div>
-            <Field label="רשום מתקן אחד בכל שורה">
-              <textarea
-                className="form-textarea event-structures-textarea"
-                value={eventForm.structures}
-                onChange={e => setEventField('structures', e.target.value)}
-                placeholder={'לדוגמה:\nבמה מוגבהת 10x6 מ\'\nגגון צללית 5x5 מ\'\nמאהל 3x3 מ\''}
-                rows={6}
-                dir="rtl"
-              />
-            </Field>
-          </div>
-
-          <div className="card">
-            <div className="card-title">📝 הערות ותוקף</div>
-            <Field label="הערות נוספות">
-              <input className="form-input" value={eventForm.notes} onChange={e => setEventField('notes', e.target.value)} placeholder="הערות נוספות (אופציונלי)..." dir="rtl" />
-            </Field>
-            <Field label="תוקף האישור">
-              <input className="form-input" value={eventForm.validity} onChange={e => setEventField('validity', e.target.value)} placeholder="לדוגמה: 31.12.2025" dir="rtl" />
-            </Field>
-          </div>
-
-          <div className="card"
-            onPaste={handleEventPhotoPaste}
-            onDrop={e => { e.preventDefault(); addEventPhotos(e.dataTransfer.files); }}
-            onDragOver={e => e.preventDefault()}
-          >
-            <div className="card-title">📷 תמונות ({eventPhotos.length})</div>
-            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 10, direction: 'rtl' }}>
-              הדבק תמונות (Ctrl+V), גרור לכאן, צלם או בחר מהגלריה. יתווספו לסוף מסמך הוורד.
-            </p>
-            {eventPhotos.length > 0 && (
-              <div className="journal-photos" style={{ marginBottom: 12 }}>
-                {eventPhotos.map((ph, idx) => (
-                  <div key={idx} className="journal-photo">
-                    <img src={ph.data} alt={`תמונה ${idx + 1}`} />
-                    <button className="journal-photo-remove" onClick={() => removeEventPhoto(idx)}>✕</button>
-                    <input className="journal-photo-caption" value={ph.caption}
-                      onChange={e => updateEventCaption(idx, e.target.value)}
-                      placeholder="כיתוב..." dir="rtl" />
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn btn-outline btn-sm" onClick={() => evtFileRef.current?.click()}>📎 בחר קובץ</button>
-              <button className="btn btn-outline btn-sm" onClick={() => evtCameraRef.current?.click()}>📸 צלם</button>
-            </div>
-            <input ref={evtFileRef} type="file" accept="image/*" multiple hidden
-              onChange={e => { addEventPhotos(e.target.files); e.target.value = ''; }} />
-            <input ref={evtCameraRef} type="file" accept="image/*" capture="environment" hidden
-              onChange={e => { addEventPhotos(e.target.files); e.target.value = ''; }} />
-          </div>
-
-          {error && <div className="error-msg">{error}</div>}
-          {success && <div className="success-msg">{success}</div>}
-
-          <button
-            className="btn btn-success btn-lg generate-btn"
-            onClick={handleEventGenerate}
-            disabled={loading}
-          >
-            {loading ? '⏳ יוצר מסמך...' : '⬇️ צור אישור לאירוע'}
-          </button>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
           FIELD JOURNAL MODE
       ══════════════════════════════════════════════════════════════════════ */}
       {mode === 'field' && (
         <FieldJournal onBack={goHome} />
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          SMART PASTE MODE
-      ══════════════════════════════════════════════════════════════════════ */}
-      {mode === 'smartpaste' && (
-        <SmartPaste onBack={goHome} />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -1259,6 +1070,10 @@ export default function App() {
 
       {mode === 'ai' && (
         <AIWriter onBack={goHome} />
+      )}
+
+      {mode === 'archive' && (
+        <Archive onBack={goHome} />
       )}
     </div>
   );
