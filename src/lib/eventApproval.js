@@ -35,8 +35,7 @@ function mkRun(text, { size = 9, bold = false, underline = false } = {}) {
   });
 }
 
-// For <w:bidi/> paragraphs: LEFT = physical right, RIGHT = physical left
-function mkPara(children = [], { alignment = AlignmentType.LEFT, spacing } = {}) {
+function mkPara(children = [], { alignment = AlignmentType.RIGHT, spacing } = {}) {
   return new Paragraph({ children, alignment, spacing, bidirectional: true });
 }
 
@@ -116,7 +115,7 @@ export async function generateEventApproval(data) {
             width: { size: 35, type: WidthType.PERCENTAGE },
             borders: ALL_NO_BORDER,
             children: [new Paragraph({
-              alignment: AlignmentType.RIGHT,  // physical left for <w:bidi/> paragraphs
+              alignment: AlignmentType.LEFT,
               bidirectional: true,
               spacing: SP,
               children: [mkRun(`תאריך: ${data.date || ''}`, { size: 8 })],
@@ -275,7 +274,7 @@ export async function generateEventApproval(data) {
       default: { document: { run: { font: { name: FONT } } } },
       paragraphStyles: [{
         id: 'Normal', name: 'Normal', quickFormat: true,
-        paragraph: { bidirectional: true, alignment: AlignmentType.LEFT },
+        paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
         run: { font: { name: FONT } },
       }],
     },

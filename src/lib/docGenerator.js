@@ -312,15 +312,11 @@ function mkRun(text, opts = {}) {
 
 /**
  * Create a RTL paragraph. bidirectional:true sets paragraph direction to RTL.
- * IMPORTANT: For <w:bidi/> paragraphs, Word swaps physical alignment:
- *   AlignmentType.LEFT  = physical RIGHT (leading edge in RTL)
- *   AlignmentType.RIGHT = physical LEFT  (trailing edge in RTL)
- *   AlignmentType.CENTER = physical CENTER (unchanged)
- * Default is LEFT so Hebrew body text anchors to the physical right margin.
+ * Default alignment RIGHT anchors Hebrew body text to the physical right margin.
  */
 function mkPara(children = [], opts = {}) {
   const {
-    alignment = AlignmentType.LEFT,
+    alignment = AlignmentType.RIGHT,
     spacing   = undefined,
     pageBreak = false,
   } = opts;
@@ -503,7 +499,7 @@ export async function generateDocument(data) {
   // ── 2. Build header (page num + logo) and footer (logo only) ─────────────
 
   const pageNumPara = new Paragraph({
-    alignment: AlignmentType.LEFT,   // LEFT = physical right for <w:bidi/> paragraphs
+    alignment: AlignmentType.RIGHT,
     bidirectional: true,
     spacing: { after: 0 },
     children: [
@@ -542,10 +538,10 @@ export async function generateDocument(data) {
   const SP_BODY    = { line: 360, lineRule: 'auto', after: 0 };
   const SP_SECTION = { line: 360, lineRule: 'auto', before: 360, after: 0 };
 
-  // ── 4. Date paragraph — RIGHT in OOXML = physical left for <w:bidi/> paragraphs
+  // ── 4. Date paragraph — left side of page
   const dateStr  = formatDate(data.date);
   const datePara = new Paragraph({
-    alignment: AlignmentType.RIGHT,
+    alignment: AlignmentType.LEFT,
     bidirectional: true,
     spacing: { after: 0 },
     children: [mkRun(dateStr, { size: 8 })],
@@ -1066,7 +1062,7 @@ export async function generateDocument(data) {
           quickFormat: true,
           paragraph: {
             bidirectional: true,
-            alignment: AlignmentType.LEFT,
+            alignment: AlignmentType.RIGHT,
           },
           run: { font: { name: FONT } },
         },

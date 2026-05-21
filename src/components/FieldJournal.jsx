@@ -59,9 +59,6 @@ function stripHtml(html) {
 }
 
 // Parse HTML into blocks with alignment, preserving Ctrl+R / Ctrl+L formatting.
-// For <w:bidi/> paragraphs Word reverses physical alignment:
-//   AlignmentType.LEFT = physical right, AlignmentType.RIGHT = physical left.
-// So we swap: editor "right" → LEFT (physical right), editor "left" → RIGHT (physical left).
 function parseHtmlBlocks(html) {
   if (!html) return [];
   const container = document.createElement('div');
@@ -71,15 +68,15 @@ function parseHtmlBlocks(html) {
 
   function getAlign(el) {
     const ta = (el.style?.textAlign || '').toLowerCase();
-    if (ta === 'left') return AlignmentType.RIGHT;    // physical left
+    if (ta === 'left') return AlignmentType.LEFT;
     if (ta === 'center') return AlignmentType.CENTER;
-    return AlignmentType.LEFT;                         // physical right (default)
+    return AlignmentType.RIGHT;                        // default: right
   }
 
   function walk(node) {
     if (node.nodeType === Node.TEXT_NODE) {
       const t = node.textContent.trim();
-      if (t) results.push({ text: t, align: AlignmentType.LEFT }); // default physical right
+      if (t) results.push({ text: t, align: AlignmentType.RIGHT }); // default right
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       if (BLOCK.has(node.tagName)) {
         const t = node.textContent.trim();
@@ -347,8 +344,7 @@ export default function FieldJournal({ onBack }) {
     const mk = (text, { size = 11, bold = false } = {}) =>
       new TextRun({ text: String(text ?? ''), font: FONT, size: size * 2, bold });
 
-    // For <w:bidi/> paragraphs: LEFT = physical right, RIGHT = physical left
-    const mkP = (children, align = AlignmentType.LEFT) =>
+    const mkP = (children, align = AlignmentType.RIGHT) =>
       new Paragraph({ children, alignment: align, spacing: SP, bidirectional: true });
 
     // Header / footer images
@@ -389,7 +385,7 @@ export default function FieldJournal({ onBack }) {
       styles: {
         paragraphStyles: [{
           id: 'Normal', name: 'Normal', quickFormat: true,
-          paragraph: { bidirectional: true, alignment: AlignmentType.LEFT },
+          paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
           run: { font: { name: FONT } },
         }],
       },
@@ -411,9 +407,9 @@ export default function FieldJournal({ onBack }) {
             bidirectional: true,
             children: [mk(activeJournal.title, { size: 15, bold: true })],
           }),
-          // Date — RIGHT = physical left for <w:bidi/> paragraphs
+          // Date — left side of page
           new Paragraph({
-            alignment: AlignmentType.RIGHT,
+            alignment: AlignmentType.LEFT,
             spacing: SP,
             bidirectional: true,
             children: [mk(activeJournal.date, { size: 8 })],
