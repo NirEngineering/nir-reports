@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { saveToArchive } from '../lib/archiveUtils';
 import {
   Document, Packer, Paragraph, TextRun, ImageRun,
   Header, Footer, AlignmentType, convertMillimetersToTwip as mm,
@@ -392,8 +393,15 @@ export default function InfoCards({ onBack }) {
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `${activeCard.title || 'כרטיסייה'}.docx`; a.click();
+      const cardFilename = `${activeCard.title || 'כרטיסייה'}.docx`;
+      a.href = url; a.download = cardFilename; a.click();
       URL.revokeObjectURL(url);
+      saveToArchive({
+        type: 'card',
+        filename: cardFilename,
+        title: activeCard.title,
+        date: activeCard.date,
+      });
     } finally {
       setExporting(false);
     }

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS } from '../constants';
 import { generateDocument } from '../lib/docGenerator';
+import { saveToArchive } from '../lib/archiveUtils';
 
 const API_KEY_STORAGE = 'nir_anthropic_key';
 const MODEL = 'claude-sonnet-4-6';
@@ -297,9 +298,18 @@ export default function AIWriter({ onBack }) {
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url;
-      a.download = `${parsed.client || 'דוח'} — ${parsed.subject || DOC_TYPES_CONFIG[docType].name.replace('\n',' ')}.docx`;
+      const aiFilename = `${parsed.client || 'דוח'} — ${parsed.subject || DOC_TYPES_CONFIG[docType].name.replace('\n',' ')}.docx`;
+      a.download = aiFilename;
       a.click();
       URL.revokeObjectURL(url);
+      saveToArchive({
+        type: 'ai',
+        docType,
+        filename: aiFilename,
+        client: parsed.client,
+        subject: parsed.subject,
+        date: parsed.date,
+      });
       setStep(2);
     } catch (e) {
       setError(`שגיאת ייצוא: ${e.message}`);

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { saveToArchive } from '../lib/archiveUtils';
 import {
   Document, Packer, Paragraph, TextRun, ImageRun,
   Header, Footer, AlignmentType, convertMillimetersToTwip as mm,
@@ -437,9 +438,16 @@ export default function FieldJournal({ onBack }) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `${activeJournal.title || 'יומן שטח'}.docx`;
+    const journalFilename = `${activeJournal.title || 'יומן שטח'}.docx`;
+    a.download = journalFilename;
     a.click();
     URL.revokeObjectURL(url);
+    saveToArchive({
+      type: 'journal',
+      filename: journalFilename,
+      title: activeJournal.title,
+      date: activeJournal.date,
+    });
   };
 
   // ═══════════════════════════════════════════════════════════════════════════

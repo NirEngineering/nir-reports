@@ -5,6 +5,8 @@ import SearchDropdown from './components/SearchDropdown';
 import FieldJournal from './components/FieldJournal';
 import InfoCards from './components/InfoCards';
 import AIWriter from './components/AIWriter';
+import Archive from './components/Archive';
+import { saveToArchive } from './lib/archiveUtils';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
 import { generateDocument } from './lib/docGenerator';
 import { generateEventApproval } from './lib/eventApproval';
@@ -215,7 +217,7 @@ function RichTextarea({ value, onChange, placeholder, rows = 4 }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'info' | 'ai'
+  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'info' | 'ai' | 'archive'
   const [step, setStep] = useState(0);         // for 'new': 0=type,1=details,2=table,3=photos,4=generate
   const [docType, setDocType] = useState('');
   const [form, setForm] = useState(defaultForm());
@@ -326,9 +328,16 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `אישור יציבות מתקנים ארעיים - ${eventForm.to || 'מסמך'}.docx`;
+      const eventFilename = `אישור יציבות מתקנים ארעיים - ${eventForm.to || 'מסמך'}.docx`;
+      a.download = eventFilename;
       a.click();
       URL.revokeObjectURL(url);
+      saveToArchive({
+        type: 'event',
+        filename: eventFilename,
+        client: eventForm.to,
+        date: eventForm.date,
+      });
       setSuccess('✅ המסמך נוצר בהצלחה!');
     } catch (e) {
       setError(`שגיאה: ${e.message}`);
@@ -381,10 +390,19 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${form.subject || 'דוח'} - ${form.client}.docx`;
+      const reportFilename = `${form.subject || 'דוח'} - ${form.client}.docx`;
+      a.download = reportFilename;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      saveToArchive({
+        type: 'report',
+        docType,
+        filename: reportFilename,
+        client: form.client,
+        subject: form.subject,
+        date: form.date,
+      });
       setSuccess('✅ המסמך נוצר בהצלחה!');
       localStorage.removeItem(DRAFT_KEY);
     } catch (e) {
@@ -571,6 +589,12 @@ export default function App() {
               <div className="home-card-icon">🤖</div>
               <div className="home-card-title">כתיבת דוח AI</div>
               <div className="home-card-sub">הדבק הערות שטח ותמונות — Claude כותב את הדוח המלא</div>
+            </div>
+
+            <div className="home-card" onClick={() => setMode('archive')}>
+              <div className="home-card-icon">🗄️</div>
+              <div className="home-card-title">ארכיון</div>
+              <div className="home-card-sub">היסטוריית כל המסמכים שנוצרו</div>
             </div>
           </div>
         </div>
@@ -1209,6 +1233,10 @@ export default function App() {
 
       {mode === 'ai' && (
         <AIWriter onBack={goHome} />
+      )}
+
+      {mode === 'archive' && (
+        <Archive onBack={goHome} />
       )}
     </div>
   );
