@@ -1,66 +1,44 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS } from '../constants';
 import { generateDocument } from '../lib/docGenerator';
-import { saveToArchive } from '../lib/archiveUtils';
 
 const API_KEY_STORAGE = 'nir_anthropic_key';
 const MODEL = 'claude-sonnet-4-6';
 
 // ── System prompt ─────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `אתה מנתח דוחות הנדסיים מומחה לחברת ניר הנדסה, חברה לייעוץ הנדסי בישראל.
+const SYSTEM_PROMPT = `אתה עוזר מקצועי לחברת ניר הנדסה, חברה לייעוץ הנדסי בישראל.
+תפקידך לנתח הערות שטח ותמונות מביקורים הנדסיים ולהחזיר JSON מובנה בלבד.
 
-תפקידך: לקרוא בעיון את כל הטקסט והתמונות שמסופקות, ולסווג את המידע לפי הקטגוריות הנכונות.
-
-━━━ כללי סיווג ━━━
-• נתונים כלליים (data_section) — עובדות, נתוני רקע על האתר/המבנה: גיל, חומרים, מידות, שימוש, תיאור כללי, מי ביקש את הבדיקה
-• ממצאים (findings) — ליקוי/תקלה/חריגה שנצפתה בבדיקה — ממצא אחד לכל ליקוי, לא לאחד
-• מסקנות (conclusions) — הכרעות מקצועיות סופיות: האם המבנה תקין? מה נדרש לביצוע?
-• הערות (notes) — הנחיות, מגבלות, תנאים, תוקף האישור, אחריות
-
-━━━ JSON נדרש ━━━
-החזר JSON תקני בלבד (ללא markdown, ללא \`\`\`json, רק JSON נקי):
+החזר JSON תקני בלבד (ללא markdown, ללא \`\`\`json, רק JSON נקי) עם המבנה הבא:
 {
-  "client": "שם הלקוח/המוסד",
+  "client": "שם הלקוח או המוסד",
   "organization": "שם הארגון (אם קיים)",
   "location": "שם המיקום/הנכס",
   "address": "כתובת מלאה",
   "date": "YYYY-MM-DD",
-  "inspection_date": "YYYY-MM-DD",
-  "subject": "נושא הדוח בקצרה (עד 8 מילים)",
-  "intro": "פסקת פתיחה — תאריך, מיקום, מטרת הביקור, מי ביצע",
-  "data_section": [
-    "נתון כללי 1 על האתר/המבנה",
-    "נתון כללי 2 — מידות, חומרים, גיל, שימוש"
-  ],
+  "subject": "נושא הדוח בקצרה",
+  "intro_extra": "משפט פתיחה נוסף על הביקור (אופציונלי)",
   "findings": [
     {
-      "element": "שם האלמנט הספציפי שנבדק",
-      "location_detail": "מיקום מדויק בשטח (קומה, חדר, כיוון אוריינטציה)",
-      "description": "תיאור מפורט של הממצא — מה נצפה, מה הבעיה",
-      "recommendation": "המלצה לטיפול — מה יש לעשות ומתי",
+      "element": "שם האלמנט או הרכיב שנבדק",
+      "location_detail": "מיקום ספציפי בשטח",
+      "description": "תיאור מפורט של הממצא או הליקוי",
+      "recommendation": "המלצה לתיקון",
       "priority": "1",
       "status": "לא תקין"
     }
   ],
-  "conclusions": [
-    "מסקנה מקצועית 1",
-    "מסקנה מקצועית 2"
-  ],
-  "notes": [
-    "הערה/הנחיה כללית 1",
-    "הערה 2"
-  ]
+  "conclusion": "פסקת סיכום מקצועית",
+  "notes": "הערות נוספות (אופציונלי)"
 }
 
-━━━ כללים קפדניים ━━━
-- priority: "1"=דחוף (טיפול מיידי), "2"=בינוני (עד 3 חודשים), "3"=נמוך (עד 6 חודשים)
+הנחיות:
+- כל הטקסט בעברית מקצועית
+- priority: "1"=דחוף, "2"=בינוני, "3"=נמוך
 - status: "תקין" / "לא תקין" / "תקין - דורש מעקב"
-- ממצא אחד לכל ליקוי — אל תאחד ממצאים שונים לשורה אחת
-- נתח תמונות שצורפו ותוסיף ממצאים ויזואליים שנראים בהן
-- כל הטקסט בעברית הנדסית מקצועית
-- שדות ריקים = מחרוזת ריקה, רשימות ריקות = []
-- data_section: לפחות 2 נתונים כלליים
-- conclusions: 1-3 מסקנות תמציתיות וברורות`;
+- נתח גם תמונות שצורפו והוסף ממצאים שנראים בהן
+- אם פרט לא קיים בהקלט — השאר מחרוזת ריקה
+- findings יכול להיות מערך ריק אם אין ממצאים`;
 
 // ── Map Claude findings → tableRows per doc type ──────────────────────────────
 function toTableRows(findings, docType) {
@@ -165,7 +143,6 @@ export default function AIWriter({ onBack }) {
   const [error, setError]           = useState('');
   const [step, setStep]             = useState(0); // 0=input 1=review 2=done
   const [isExporting, setIsExporting] = useState(false);
-  const [sampleContext, setSampleContext] = useState(''); // loaded sample text for Claude
 
   const fileRef   = useRef(null);
   const cameraRef = useRef(null);
@@ -182,33 +159,6 @@ export default function AIWriter({ onBack }) {
     setShowKeySetup(false);
     setError('');
   };
-
-  // ── Load sample reports when docType changes ──────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
-    async function loadSamples() {
-      try {
-        const base = import.meta.env.BASE_URL || '/';
-        const res = await fetch(`${base}samples/index.json`);
-        if (!res.ok) return;
-        const idx = await res.json();
-        const files = (idx[docType] || idx['*'] || []);
-        if (!files.length) { setSampleContext(''); return; }
-        const texts = await Promise.all(
-          files.map(async (path) => {
-            try {
-              const r = await fetch(`${base}${path}`);
-              return r.ok ? await r.text() : '';
-            } catch { return ''; }
-          })
-        );
-        if (!cancelled) setSampleContext(texts.filter(Boolean).join('\n\n---\n\n'));
-      } catch { /* samples folder not found — no context */ }
-    }
-    setSampleContext('');
-    loadSamples();
-    return () => { cancelled = true; };
-  }, [docType]);
 
   // ── Photo handling ────────────────────────────────────────────────────────
   const addPhotos = (files) => {
@@ -245,11 +195,7 @@ export default function AIWriter({ onBack }) {
         }).filter(Boolean),
         {
           type: 'text',
-          text: [
-            `סוג הדוח המבוקש: ${DOC_TYPES_CONFIG[docType].name.replace('\n', ' ')}`,
-            sampleContext ? `\n\nלהלן דוגמאות לדוחות מאותו סוג — למד מסגנון הכתיבה, המבנה וניסוח הממצאים:\n\n${sampleContext}\n\n--- סוף הדוגמאות ---` : '',
-            `\n\n${rawText || 'נתח את התמונות שצורפו וכתוב דוח מלא.'}`,
-          ].join(''),
+          text: `סוג הדוח המבוקש: ${DOC_TYPES_CONFIG[docType].name.replace('\n', ' ')}\n\n${rawText || 'נתח את התמונות שצורפו וכתוב דוח מלא.'}`,
         },
       ];
 
@@ -297,41 +243,30 @@ export default function AIWriter({ onBack }) {
       const defectsRows = toDefectsRows(parsed.findings || [], docType);
       const hasDefects  = (parsed.findings || []).some(f => f.status !== 'תקין');
 
-      // Build intro_extra: AI intro + data_section items
-      const introParts = [parsed.intro || '', ...(parsed.data_section || [])].filter(Boolean);
-      const introExtra = introParts.join('\n');
-
-      // conclusions array → newline string; notes array → array for doc generator
-      const conclusionCustom = (parsed.conclusions || []).join('\n');
-      const notesCustom      = parsed.notes || [];
-
       const data = {
-        doc_type:          docType,
         client:            parsed.client || '',
         organization:      parsed.organization || '',
         location:          parsed.location || '',
         address:           parsed.address || '',
         date:              parsed.date || new Date().toISOString().split('T')[0],
-        inspection_date:   parsed.inspection_date || parsed.date || new Date().toISOString().split('T')[0],
+        inspection_date:   parsed.date || new Date().toISOString().split('T')[0],
         subject:           parsed.subject || DOC_TYPES_CONFIG[docType].subject_default,
-        intro_extra:       introExtra,
+        intro_extra:       parsed.intro_extra || '',
         has_defects:       hasDefects,
-        conclusion_custom: conclusionCustom,
-        notes_custom:      notesCustom,
-        table_rows:        tableRows,
-        defects_rows:      defectsRows,
+        conclusion_custom: parsed.conclusion || '',
+        notes_custom:      parsed.notes || '',
+        tableRows,
+        defectsRows,
         photos:            (parsed.photos || []).map(p => ({ data: p.data, caption: p.caption || '' })),
       };
 
-      const blob = await generateDocument(data);
+      const blob = await generateDocument(data, docType);
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url;
-      const aiFilename = `${parsed.client || 'דוח'} — ${parsed.subject || DOC_TYPES_CONFIG[docType].name.replace('\n',' ')}.docx`;
-      a.download = aiFilename;
+      a.download = `${parsed.client || 'דוח'} — ${parsed.subject || DOC_TYPES_CONFIG[docType].name.replace('\n',' ')}.docx`;
       a.click();
       URL.revokeObjectURL(url);
-      saveToArchive({ type: 'ai', docType, filename: aiFilename, client: parsed.client, subject: parsed.subject, date: parsed.date }, data);
       setStep(2);
     } catch (e) {
       setError(`שגיאת ייצוא: ${e.message}`);
@@ -339,19 +274,6 @@ export default function AIWriter({ onBack }) {
       setIsExporting(false);
     }
   };
-
-  // ── Helpers for review UI ─────────────────────────────────────────────────
-  const updateFinding = (i, patch) =>
-    setParsed(p => { const fs = [...p.findings]; fs[i] = { ...fs[i], ...patch }; return { ...p, findings: fs }; });
-
-  const updateList = (key, i, val) =>
-    setParsed(p => { const arr = [...(p[key] || [])]; arr[i] = val; return { ...p, [key]: arr }; });
-
-  const removeListItem = (key, i) =>
-    setParsed(p => ({ ...p, [key]: (p[key] || []).filter((_, j) => j !== i) }));
-
-  const addListItem = (key, val = '') =>
-    setParsed(p => ({ ...p, [key]: [...(p[key] || []), val] }));
 
   const reset = () => { setRawText(''); setPhotos([]); setParsed(null); setStep(0); setError(''); };
 
@@ -370,13 +292,20 @@ export default function AIWriter({ onBack }) {
             קבל מפתח חינמי ב-<strong>console.anthropic.com</strong> ← API Keys ← Create Key.
           </p>
           <input
-            className="form-input" type="password" placeholder="sk-ant-..."
-            value={keyInput} onChange={e => setKeyInput(e.target.value)}
+            className="form-input"
+            type="password"
+            placeholder="sk-ant-..."
+            value={keyInput}
+            onChange={e => setKeyInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && saveKey()}
-            dir="ltr" style={{ fontFamily: 'monospace', letterSpacing: 1 }} autoFocus
+            dir="ltr"
+            style={{ fontFamily: 'monospace', letterSpacing: 1 }}
+            autoFocus
           />
           {error && <div className="alert alert-error" style={{ marginTop: 8 }}>{error}</div>}
-          <button className="btn btn-primary btn-lg" style={{ marginTop: 12, width: '100%' }} onClick={saveKey}>שמור ▶</button>
+          <button className="btn btn-primary btn-lg" style={{ marginTop: 12, width: '100%' }} onClick={saveKey}>
+            שמור ▶
+          </button>
         </div>
       </div>
     );
@@ -399,30 +328,6 @@ export default function AIWriter({ onBack }) {
 
   // ── Render: Review ────────────────────────────────────────────────────────
   if (step === 1 && parsed) {
-    const PRIORITY_LABELS = { '1': '1 — דחוף', '2': '2 — בינוני', '3': '3 — נמוך' };
-    const STATUS_OPTIONS  = ['תקין', 'לא תקין', 'תקין - דורש מעקב'];
-
-    const EditableList = ({ title, icon, itemKey, placeholder, rows = 1 }) => (
-      <div className="card">
-        <div className="card-title">{icon} {title} ({(parsed[itemKey] || []).length})</div>
-        {(parsed[itemKey] || []).map((item, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, direction: 'rtl' }}>
-            {rows > 1
-              ? <textarea className="form-textarea" rows={rows} style={{ flex: 1, marginBottom: 0 }}
-                  value={item} onChange={e => updateList(itemKey, i, e.target.value)} dir="rtl" />
-              : <input className="form-input" style={{ flex: 1 }}
-                  value={item} onChange={e => updateList(itemKey, i, e.target.value)} dir="rtl" />
-            }
-            <button className="btn-icon del" style={{ flexShrink: 0 }}
-              onClick={() => removeListItem(itemKey, i)}>🗑</button>
-          </div>
-        ))}
-        <button className="btn btn-outline btn-sm" onClick={() => addListItem(itemKey, '')}>
-          + הוסף {placeholder}
-        </button>
-      </div>
-    );
-
     return (
       <div className="app-body">
         <div className="field-journal-header">
@@ -430,107 +335,75 @@ export default function AIWriter({ onBack }) {
           <span className="field-journal-title">✏️ עריכה לפני ייצוא</span>
           <button className="btn btn-outline btn-sm" style={{ fontSize: 11 }}
             onClick={() => { localStorage.removeItem(API_KEY_STORAGE); setApiKey(''); setShowKeySetup(true); }}>
-            🔑
+            🔑 מפתח
           </button>
         </div>
 
-        {/* ── נתונים מזהים ── */}
         <div className="card">
-          <div className="card-title">📋 נתונים מזהים</div>
-          {[['לקוח/מוסד','client'],['ארגון','organization'],['מיקום','location'],['כתובת','address'],['נושא הדוח','subject']].map(([lbl, key]) => (
+          <div className="card-title">📋 נתונים שזוהו</div>
+          {[
+            ['לקוח/מוסד', 'client'],
+            ['ארגון', 'organization'],
+            ['מיקום', 'location'],
+            ['כתובת', 'address'],
+            ['נושא', 'subject'],
+          ].map(([label, key]) => (
             <div className="form-group" key={key}>
-              <label className="form-label">{lbl}</label>
+              <label className="form-label">{label}</label>
               <input className="form-input" value={parsed[key] || ''}
                 onChange={e => setParsed(p => ({ ...p, [key]: e.target.value }))} dir="rtl" />
             </div>
           ))}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">תאריך דוח</label>
-              <input type="date" className="form-input" value={parsed.date || ''}
-                onChange={e => setParsed(p => ({ ...p, date: e.target.value }))} />
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">תאריך ביקור</label>
-              <input type="date" className="form-input" value={parsed.inspection_date || parsed.date || ''}
-                onChange={e => setParsed(p => ({ ...p, inspection_date: e.target.value }))} />
-            </div>
+          <div className="form-group">
+            <label className="form-label">תאריך</label>
+            <input type="date" className="form-input" value={parsed.date || ''}
+              onChange={e => setParsed(p => ({ ...p, date: e.target.value }))} />
           </div>
         </div>
 
-        {/* ── פסקת פתיחה ── */}
-        {parsed.intro !== undefined && (
+        {(parsed.findings || []).length > 0 && (
           <div className="card">
-            <div className="card-title">📝 פסקת פתיחה</div>
-            <textarea className="form-textarea" rows={3} dir="rtl"
-              value={parsed.intro || ''}
-              onChange={e => setParsed(p => ({ ...p, intro: e.target.value }))} />
+            <div className="card-title">⚠️ ממצאים ({parsed.findings.length})</div>
+            {parsed.findings.map((f, i) => (
+              <div key={i} style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: 12, marginBottom: 12 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', direction: 'rtl' }}>
+                  <span style={{ fontWeight: 700, color: '#64748b', width: 22, flexShrink: 0 }}>{i + 1}.</span>
+                  <div style={{ flex: 1 }}>
+                    <input className="form-input" style={{ marginBottom: 6 }}
+                      value={f.element || ''} placeholder="אלמנט"
+                      onChange={e => setParsed(p => { const fs = [...p.findings]; fs[i] = { ...fs[i], element: e.target.value }; return { ...p, findings: fs }; })} dir="rtl" />
+                    <input className="form-input" style={{ marginBottom: 6 }}
+                      value={f.description || ''} placeholder="ממצא"
+                      onChange={e => setParsed(p => { const fs = [...p.findings]; fs[i] = { ...fs[i], description: e.target.value }; return { ...p, findings: fs }; })} dir="rtl" />
+                    <input className="form-input"
+                      value={f.recommendation || ''} placeholder="המלצה"
+                      onChange={e => setParsed(p => { const fs = [...p.findings]; fs[i] = { ...fs[i], recommendation: e.target.value }; return { ...p, findings: fs }; })} dir="rtl" />
+                  </div>
+                  <button className="btn-icon del" style={{ marginTop: 4 }}
+                    onClick={() => setParsed(p => ({ ...p, findings: p.findings.filter((_, j) => j !== i) }))}>🗑</button>
+                </div>
+              </div>
+            ))}
+            <button className="btn btn-outline btn-sm" style={{ marginTop: 4 }}
+              onClick={() => setParsed(p => ({ ...p, findings: [...p.findings, { element: '', description: '', recommendation: '', status: 'לא תקין', priority: '1' }] }))}>
+              + הוסף ממצא
+            </button>
           </div>
         )}
 
-        {/* ── נתונים כלליים ── */}
-        <EditableList title="נתונים כלליים" icon="📊" itemKey="data_section" placeholder="נתון" />
-
-        {/* ── ממצאים ── */}
         <div className="card">
-          <div className="card-title">⚠️ ממצאים ({(parsed.findings || []).length})</div>
-          {(parsed.findings || []).map((f, i) => (
-            <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, direction: 'rtl' }}>
-                <span style={{ fontWeight: 700, color: '#64748b' }}>ממצא {i + 1}</span>
-                <button className="btn-icon del" onClick={() => setParsed(p => ({ ...p, findings: p.findings.filter((_, j) => j !== i) }))}>🗑</button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                <div>
-                  <label className="form-label">אלמנט</label>
-                  <input className="form-input" value={f.element || ''} dir="rtl"
-                    onChange={e => updateFinding(i, { element: e.target.value })} />
-                </div>
-                <div>
-                  <label className="form-label">מיקום</label>
-                  <input className="form-input" value={f.location_detail || ''} dir="rtl"
-                    onChange={e => updateFinding(i, { location_detail: e.target.value })} />
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">תיאור הממצא</label>
-                <textarea className="form-textarea" rows={2} dir="rtl" value={f.description || ''}
-                  onChange={e => updateFinding(i, { description: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">המלצה לטיפול</label>
-                <input className="form-input" value={f.recommendation || ''} dir="rtl"
-                  onChange={e => updateFinding(i, { recommendation: e.target.value })} />
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <label className="form-label">סטטוס</label>
-                  <select className="form-select" value={f.status || 'לא תקין'}
-                    onChange={e => updateFinding(i, { status: e.target.value })}>
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label className="form-label">קדימות</label>
-                  <select className="form-select" value={f.priority || '1'}
-                    onChange={e => updateFinding(i, { priority: e.target.value })}>
-                    {Object.entries(PRIORITY_LABELS).map(([v, lbl]) => <option key={v} value={v}>{lbl}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
-          ))}
-          <button className="btn btn-outline btn-sm"
-            onClick={() => addListItem('findings', { element: '', location_detail: '', description: '', recommendation: '', status: 'לא תקין', priority: '2' })}>
-            + הוסף ממצא
-          </button>
+          <div className="card-title">📝 סיכום</div>
+          <div className="form-group">
+            <label className="form-label">מסקנות</label>
+            <textarea className="form-textarea" rows={3} value={parsed.conclusion || ''}
+              onChange={e => setParsed(p => ({ ...p, conclusion: e.target.value }))} dir="rtl" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">הערות</label>
+            <textarea className="form-textarea" rows={2} value={parsed.notes || ''}
+              onChange={e => setParsed(p => ({ ...p, notes: e.target.value }))} dir="rtl" />
+          </div>
         </div>
-
-        {/* ── מסקנות ── */}
-        <EditableList title="מסקנות הבדיקה" icon="✅" itemKey="conclusions" placeholder="מסקנה" rows={2} />
-
-        {/* ── הערות ── */}
-        <EditableList title="הערות כלליות" icon="📌" itemKey="notes" placeholder="הערה" />
 
         {error && <div className="alert alert-error">{error}</div>}
 
@@ -556,14 +429,7 @@ export default function AIWriter({ onBack }) {
 
       {/* Doc type */}
       <div className="card">
-        <div className="card-title">
-          📄 סוג הדוח
-          {sampleContext && (
-            <span style={{ fontSize: 11, fontWeight: 400, color: '#059669', marginRight: 8 }}>
-              ✓ נטענו דוחות לדוגמה
-            </span>
-          )}
-        </div>
+        <div className="card-title">📄 סוג הדוח</div>
         <div className="doc-type-grid">
           {Object.entries(DOC_TYPES_CONFIG).map(([key, cfg]) => (
             <div key={key} className={`doc-type-card${docType === key ? ' selected' : ''}`}

@@ -17,13 +17,17 @@ import {
 
 const FONT = 'Arial';
 
-const HEADER_W = 359, HEADER_H = 142;
-const FOOTER_W = 568, FOOTER_H = 39;
+// Pixels at 96 DPI — used for ImageRun.transformation
+const cmPx = (v) => Math.round(v / 2.54 * 96);
 
+// Exact pixel sizes derived from sample Word document (914400 EMU = 1 inch = 96px)
+const HEADER_W = 359, HEADER_H = 142;   // 95.12mm × 37.57mm
+const FOOTER_W = 568, FOOTER_H = 39;    // 150.50mm × 10.28mm
+const STAMP_W  = cmPx(2.349);   // 23.49 mm
+const STAMP_H  = cmPx(1.313);   // 13.13 mm
+
+// Line spacing constants
 const SP = { line: 360, lineRule: 'auto', after: 0 };
-
-const NO_BORDER = { style: 'none', size: 0, color: 'FFFFFF' };
-const ALL_NO_BORDER = { top: NO_BORDER, bottom: NO_BORDER, left: NO_BORDER, right: NO_BORDER, insideH: NO_BORDER, insideV: NO_BORDER };
 
 function mkRun(text, { size = 9, bold = false, underline = false } = {}) {
   return new TextRun({
@@ -31,16 +35,13 @@ function mkRun(text, { size = 9, bold = false, underline = false } = {}) {
     font: FONT,
     size: size * 2,
     bold,
+    rtl: true,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
   });
 }
 
 function mkPara(children = [], { alignment = AlignmentType.RIGHT, spacing } = {}) {
   return new Paragraph({ children, alignment, spacing, bidirectional: true });
-}
-
-function emptyPara() {
-  return mkPara([mkRun('')], { spacing: SP });
 }
 
 function b64ToUint8(b64) {
@@ -65,17 +66,18 @@ async function fetchBuf(paths) {
 export async function generateEventApproval(data) {
   const base = import.meta.env.BASE_URL || '/';
 
-  const [headerBuf, footerBuf] = await Promise.all([
+  const [headerBuf, footerBuf, stampBuf] = await Promise.all([
     fetchBuf([`${base}header-logo.jpg`, '/nir-reports/header-logo.jpg', '/header-logo.jpg']),
     fetchBuf([`${base}footer-logo.png`, '/nir-reports/footer-logo.png', '/footer-logo.png']),
+    fetchBuf([`${base}stamp.png`,       '/nir-reports/stamp.png',       '/stamp.png']),
   ]);
 
   const structures = typeof data.structures === 'string'
     ? data.structures.split('\n').filter(s => s.trim())
     : [];
 
-  // Keep ~28 rows of space in the structures section
-  const padLines = Math.max(0, 28 - structures.length);
+  // Pad empty lines so the aspects/conditions section stays below mid-page
+  const padLines = Math.max(0, 10 - structures.length);
 
   // ── Header ────────────────────────────────────────────────────────────────
   const headerSection = new Header({
@@ -97,93 +99,82 @@ export async function generateEventApproval(data) {
     ],
   });
 
-  // ── לכבוד / תאריך on same visual line via borderless 2-cell RTL table ──────
-  // visuallyRightToLeft ensures cell 0 (לכבוד) appears on the RIGHT side of the page
-  const toDateTable = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    visuallyRightToLeft: true,
-    borders: ALL_NO_BORDER,
-    rows: [
-      new TableRow({
-        children: [
-          new TableCell({
-            width: { size: 65, type: WidthType.PERCENTAGE },
-            borders: ALL_NO_BORDER,
-            children: [mkPara([mkRun(`לכבוד: ${data.to || ''}`, { size: 8 })], { spacing: SP })],
-          }),
-          new TableCell({
-            width: { size: 35, type: WidthType.PERCENTAGE },
-            borders: ALL_NO_BORDER,
-            children: [new Paragraph({
-              alignment: AlignmentType.LEFT,
-              bidirectional: true,
-              spacing: SP,
-              children: [mkRun(`תאריך: ${data.date || ''}`, { size: 8 })],
-            })],
-          }),
-        ],
-      }),
-    ],
-  });
+  // ── Stamp paragraph ───────────────────────────────────────────────────────
+  const stampPara = stampBuf.length > 100
+    ? new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        spacing: SP,
+        children: [new ImageRun({ data: stampBuf, transformation: { width: STAMP_W, height: STAMP_H } })],
+      })
+    : mkPara([mkRun('')], { spacing: SP });
 
-  // ── Body ──────────────────────────────────────────────────────────────────
+  // ── Body paragraphs ───────────────────────────────────────────────────────
   const body = [
 
-    toDateTable,
-    emptyPara(),
+    // לכבוד — right-aligned; תאריך — left-aligned (separate paragraphs)
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      bidirectional: true,
+      spacing: SP,
+      children: [mkRun(`לכבוד: ${data.to || ''}`, { size: 8 })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      bidirectional: true,
+      spacing: SP,
+      children: [mkRun(`תאריך: ${data.date || ''}`, { size: 8 })],
+    }),
 
-    // הנדון – 11pt BOLD UNDERLINED CENTER
+    mkPara([mkRun('')], { spacing: SP }),
+
+    // הנדון — centered, bold/underline
     new Paragraph({
       alignment: AlignmentType.CENTER,
       bidirectional: true,
-      spacing: SP,
+      spacing: { before: 480, after: 0 },
       children: [
-        mkRun('הנדון : אישור מבנים ומתקנים ארעיים/קבועים', { size: 11, bold: true, underline: true }),
+        mkRun('הנדון  :  ', { size: 15, bold: true }),
+        mkRun('אישור מבנים ומתקנים ארעיים/קבועים', { size: 15, bold: true, underline: true }),
       ],
     }),
 
-    emptyPara(),
+    mkPara([mkRun('')], { spacing: SP }),
 
-    // פרטי העסק ובעל העסק – 9pt UNDERLINED (not bold)
-    mkPara([mkRun('פרטי העסק ובעל העסק', { size: 9, underline: true })], { spacing: SP }),
-
-    emptyPara(),
-    emptyPara(),
+    // פרטי העסק ובעל העסק (section header)
+    mkPara([mkRun('פרטי העסק ובעל העסק', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
 
     // כתובת + שם
     mkPara([
       mkRun(`כתובת העסק: ${data.address || ''}`, { size: 9 }),
-      mkRun('          ', { size: 9 }),
+      mkRun(' '.repeat(12), { size: 9 }),
       mkRun(`שם בעל העסק/המזמין: ${data.owner || ''}`, { size: 9 }),
     ], { spacing: SP }),
 
     // ת.זהות + טלפון
     mkPara([
       mkRun(`מספר ת.זהות: ${data.id_num || ''}`, { size: 9 }),
-      mkRun('          ', { size: 9 }),
+      mkRun(' '.repeat(12), { size: 9 }),
       mkRun(`טלפון סלולארי: ${data.phone || ''}`, { size: 9 }),
     ], { spacing: SP }),
 
-    emptyPara(),
+    mkPara([mkRun('')], { spacing: SP }),
 
-    // להלן המתקנים
+    // section label: structures
     mkPara([mkRun('להלן המתקנים הארעיים/הקבועים שנבדקו:', { size: 9 })], { spacing: SP }),
 
-    // Each structure – CENTER 14pt
-    ...structures.map(s =>
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        bidirectional: true,
-        spacing: SP,
-        children: [mkRun(s, { size: 14 })],
-      })
+    // Each structure on its own line
+    ...structures.map((s, i) =>
+      mkPara([mkRun(`${i + 1}. ${s}`, { size: 9 })], { spacing: SP })
     ),
 
-    // Padding empty rows
-    ...Array.from({ length: padLines }, () => emptyPara()),
+    // Padding empty lines to keep spacing consistent
+    ...Array.from({ length: padLines }, () => mkPara([mkRun('')], { spacing: SP })),
 
-    // המתקנים לעיל נבדקו – 9pt (NOT bold)
-    mkPara([mkRun('המתקנים לעיל נבדקו בהיבטים הבאים:', { size: 9 })], { spacing: SP }),
+    mkPara([mkRun('')], { spacing: SP }),
+    mkPara([mkRun('')], { spacing: SP }),
+
+    // Inspected aspects
+    mkPara([mkRun('המתקנים לעיל נבדקו בהיבטים הבאים:', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
 
     ...['תקינות ויציבות המבנה',
         'יציבות הקרקע/התשתית עליה מונח המבנה',
@@ -191,10 +182,10 @@ export async function generateEventApproval(data) {
         'העמסות',
     ].map(t => mkPara([mkRun(`◦  ${t}`, { size: 9 })], { spacing: SP })),
 
-    emptyPara(),
+    mkPara([mkRun('')], { spacing: SP }),
 
-    // הערות: – 9pt (NOT bold)
-    mkPara([mkRun('הערות:', { size: 9 })], { spacing: SP }),
+    // Legal conditions
+    mkPara([mkRun('הערות:', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
 
     ...['האישור תקף למבנים/מתקנים שצויינו במסמך זה בלבד.',
         "אין לבצע שינויים במבנים/מתקנים - כל שינוי מבני ו/או הפחתות/תוספות למבנים, ללא ידיעת הח''מ, תגרור לביטול אישור זה.",
@@ -202,24 +193,35 @@ export async function generateEventApproval(data) {
         'אישור זה מתייחס לזמן הפעילות בלבד ואינו כולל זמני פירוק והרכבה.',
     ].map(t => mkPara([mkRun(`•  ${t}`, { size: 9 })], { spacing: SP })),
 
-    emptyPara(),
-    emptyPara(),
+    mkPara([mkRun('')], { spacing: SP }),
+    mkPara([mkRun('')], { spacing: SP }),
 
-    // הערות נוספות – 9pt BOLD
+    // Additional notes
     mkPara([
-      mkRun('הערות נוספות: ', { size: 9, bold: true }),
+      mkRun('הערות נוספות:  ', { size: 9, bold: true }),
       mkRun(data.notes || '', { size: 9 }),
     ], { spacing: SP }),
 
-    emptyPara(),
-    emptyPara(),
-    emptyPara(),
+    mkPara([mkRun('')], { spacing: SP }),
+    mkPara([mkRun('')], { spacing: SP }),
 
-    // תוקף האישור – 10pt BOLD UNDERLINED
+    // Stamp
+    stampPara,
+
+    mkPara([mkRun('')], { spacing: SP }),
+
+    // Validity / signature line
     mkPara([
-      mkRun('תוקף האישור : ', { size: 10, bold: true, underline: true }),
-      mkRun(data.validity || '', { size: 10, bold: true }),
+      mkRun('תוקף האישור :   ', { size: 9, bold: true }),
+      mkRun(data.validity || '', { size: 9, bold: true }),
     ], { spacing: SP }),
+    // חותמת — left aligned
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      bidirectional: true,
+      spacing: { ...SP, before: 240 },
+      children: [mkRun('חותמת וחתימה: _______________', { size: 9, bold: true })],
+    }),
   ];
 
   // ── Photos section (2 per row) ────────────────────────────────────────────
@@ -230,7 +232,6 @@ export async function generateEventApproval(data) {
     const emptyCell = () => new TableCell({
       children: [new Paragraph({ children: [] })],
       width: { size: 50, type: WidthType.PERCENTAGE },
-      borders: ALL_NO_BORDER,
     });
     const imgCells = pair.map(ph => new TableCell({
       children: [new Paragraph({
@@ -239,31 +240,28 @@ export async function generateEventApproval(data) {
       })],
       width: { size: 50, type: WidthType.PERCENTAGE },
       margins: { top: 40, bottom: 40, left: 40, right: 40 },
-      borders: ALL_NO_BORDER,
     }));
     const capCells = pair.map(ph => new TableCell({
       children: [mkPara([mkRun(ph.caption || '', { size: 8 })], { alignment: AlignmentType.CENTER, spacing: SP })],
       width: { size: 50, type: WidthType.PERCENTAGE },
-      borders: ALL_NO_BORDER,
     }));
     if (pair.length < 2) { imgCells.push(emptyCell()); capCells.push(emptyCell()); }
     photoItems.push(
       new Table({
         alignment: AlignmentType.CENTER,
         width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: ALL_NO_BORDER,
         rows: [
           new TableRow({ children: imgCells }),
           new TableRow({ children: capCells }),
         ],
       }),
-      emptyPara()
+      mkPara([mkRun('')], { spacing: SP })
     );
   }
 
   if (photos.length > 0) {
     body.push(
-      emptyPara(),
+      mkPara([mkRun('')], { spacing: SP }),
       mkPara([mkRun('תמונות:', { size: 9, bold: true })], { spacing: { ...SP, before: 360 } }),
       ...photoItems
     );
@@ -283,14 +281,15 @@ export async function generateEventApproval(data) {
         page: {
           size: { width: mm(210), height: mm(297) },
           margin: {
-            top:    mm(40),
-            bottom: mm(2.5),
-            left:   mm(15),
-            right:  mm(15),
-            header: mm(5),
-            footer: mm(4.6),
+            top:    mm(31.70),
+            bottom: mm(12.51),
+            left:   mm(7.00),
+            right:  mm(7.00),
+            header: mm(3.00),
+            footer: mm(1.99),
           },
         },
+        bidi: true,
       },
       headers: { default: headerSection },
       footers: { default: footerSection },
