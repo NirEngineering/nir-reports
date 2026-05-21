@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS } from '../constants';
 import { generateDocument } from '../lib/docGenerator';
 
@@ -143,6 +143,7 @@ export default function AIWriter({ onBack }) {
   const [error, setError]           = useState('');
   const [step, setStep]             = useState(0); // 0=input 1=review 2=done
   const [isExporting, setIsExporting] = useState(false);
+  const [sampleContext, setSampleContext] = useState(''); // loaded sample text for Claude
 
   const fileRef   = useRef(null);
   const cameraRef = useRef(null);
@@ -159,6 +160,33 @@ export default function AIWriter({ onBack }) {
     setShowKeySetup(false);
     setError('');
   };
+
+  // ── Load sample reports when docType changes ──────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSamples() {
+      try {
+        const base = import.meta.env.BASE_URL || '/';
+        const res = await fetch(`${base}samples/index.json`);
+        if (!res.ok) return;
+        const idx = await res.json();
+        const files = (idx[docType] || idx['*'] || []);
+        if (!files.length) { setSampleContext(''); return; }
+        const texts = await Promise.all(
+          files.map(async (path) => {
+            try {
+              const r = await fetch(`${base}${path}`);
+              return r.ok ? await r.text() : '';
+            } catch { return ''; }
+          })
+        );
+        if (!cancelled) setSampleContext(texts.filter(Boolean).join('\n\n---\n\n'));
+      } catch { /* samples folder not found — no context */ }
+    }
+    setSampleContext('');
+    loadSamples();
+    return () => { cancelled = true; };
+  }, [docType]);
 
   // ── Photo handling ────────────────────────────────────────────────────────
   const addPhotos = (files) => {
@@ -195,7 +223,11 @@ export default function AIWriter({ onBack }) {
         }).filter(Boolean),
         {
           type: 'text',
-          text: `סוג הדוח המבוקש: ${DOC_TYPES_CONFIG[docType].name.replace('\n', ' ')}\n\n${rawText || 'נתח את התמונות שצורפו וכתוב דוח מלא.'}`,
+          text: [
+            `סוג הדוח המבוקש: ${DOC_TYPES_CONFIG[docType].name.replace('\n', ' ')}`,
+            sampleContext ? `\n\nלהלן דוגמאות לדוחות מאותו סוג — למד מסגנון הכתיבה, המבנה וניסוח הממצאים:\n\n${sampleContext}\n\n--- סוף הדוגמאות ---` : '',
+            `\n\n${rawText || 'נתח את התמונות שצורפו וכתוב דוח מלא.'}`,
+          ].join(''),
         },
       ];
 
@@ -244,6 +276,7 @@ export default function AIWriter({ onBack }) {
       const hasDefects  = (parsed.findings || []).some(f => f.status !== 'תקין');
 
       const data = {
+        doc_type:          docType,
         client:            parsed.client || '',
         organization:      parsed.organization || '',
         location:          parsed.location || '',
@@ -255,12 +288,12 @@ export default function AIWriter({ onBack }) {
         has_defects:       hasDefects,
         conclusion_custom: parsed.conclusion || '',
         notes_custom:      parsed.notes || '',
-        tableRows,
-        defectsRows,
+        table_rows:        tableRows,
+        defects_rows:      defectsRows,
         photos:            (parsed.photos || []).map(p => ({ data: p.data, caption: p.caption || '' })),
       };
 
-      const blob = await generateDocument(data, docType);
+      const blob = await generateDocument(data);
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url;
@@ -429,7 +462,14 @@ export default function AIWriter({ onBack }) {
 
       {/* Doc type */}
       <div className="card">
-        <div className="card-title">📄 סוג הדוח</div>
+        <div className="card-title">
+          📄 סוג הדוח
+          {sampleContext && (
+            <span style={{ fontSize: 11, fontWeight: 400, color: '#059669', marginRight: 8 }}>
+              ✓ נטענו דוחות לדוגמה
+            </span>
+          )}
+        </div>
         <div className="doc-type-grid">
           {Object.entries(DOC_TYPES_CONFIG).map(([key, cfg]) => (
             <div key={key} className={`doc-type-card${docType === key ? ' selected' : ''}`}

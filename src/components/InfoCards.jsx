@@ -42,6 +42,39 @@ function stripHtml(html) {
   return (div.innerText || div.textContent || '').trim();
 }
 
+// Parse HTML into blocks with alignment, preserving Ctrl+R / Ctrl+L formatting
+function parseHtmlBlocks(html) {
+  if (!html) return [];
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  const BLOCK = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE']);
+  const results = [];
+
+  function getAlign(el) {
+    const ta = (el.style?.textAlign || '').toLowerCase();
+    if (ta === 'left') return AlignmentType.LEFT;
+    if (ta === 'center') return AlignmentType.CENTER;
+    return AlignmentType.RIGHT;
+  }
+
+  function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const t = node.textContent.trim();
+      if (t) results.push({ text: t, align: AlignmentType.RIGHT });
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      if (BLOCK.has(node.tagName)) {
+        const t = node.textContent.trim();
+        if (t) results.push({ text: t, align: getAlign(node) });
+      } else {
+        for (const c of node.childNodes) walk(c);
+      }
+    }
+  }
+
+  for (const c of container.childNodes) walk(c);
+  return results;
+}
+
 function b64ToUint8(b64) {
   const raw = b64.replace(/^data:[^,]+,/, '');
   const bin = atob(raw);
@@ -244,7 +277,7 @@ export default function InfoCards({ onBack }) {
 
       const mkR = (text, opts = {}) => new TextRun({
         text: String(text ?? ''), font: FONT, size: (opts.size || 9) * 2,
-        bold: !!opts.bold, italics: !!opts.italic, rightToLeft: true,
+        bold: !!opts.bold, italics: !!opts.italic,
       });
       const mkP = (children, opts = {}) => new Paragraph({
         children,
@@ -266,10 +299,10 @@ export default function InfoCards({ onBack }) {
           : [new TextRun('')],
       })]});
 
-      const textContent = editorRef.current
-        ? stripHtml(editorRef.current.innerHTML)
-        : stripHtml(activeCard.content);
-      const lines = textContent.split('\n').filter(l => l.trim());
+      const rawHtml = editorRef.current
+        ? editorRef.current.innerHTML
+        : (activeCard.content || '');
+      const blocks = parseHtmlBlocks(rawHtml);
 
       // Photos 2-per-row in a table
       const photos = activeCard.photos || [];
@@ -322,9 +355,9 @@ export default function InfoCards({ onBack }) {
           children: [mkR(activeCard.date, { size: 8 })],
         }),
         mkP([mkR('')]),
-        ...lines.map((line, idx) => new Paragraph({
-          children: [mkR(line, { size: 9 })],
-          alignment: AlignmentType.RIGHT,
+        ...blocks.map((block, idx) => new Paragraph({
+          children: [mkR(block.text, { size: 9 })],
+          alignment: block.align,
           spacing: idx === 0 ? { ...SP, before: 360 } : SP,
           bidirectional: true,
         })),
@@ -382,7 +415,7 @@ export default function InfoCards({ onBack }) {
           fetchBuf([`${base}header-logo.jpg`, '/nir-reports/header-logo.jpg', '/header-logo.jpg']),
           fetchBuf([`${base}footer-logo.png`, '/nir-reports/footer-logo.png', '/footer-logo.png']),
         ]);
-        const lines = textContent.split('\n').filter(l => l.trim());
+        const shareBlocks = parseHtmlBlocks(editorRef.current ? editorRef.current.innerHTML : (activeCard.content || ''));
         const doc = new Document({
           styles: {
             default: { document: { run: { font: { name: FONT } } } },
@@ -419,17 +452,17 @@ export default function InfoCards({ onBack }) {
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 }, bidirectional: true,
-                children: [new TextRun({ text: activeCard.title, bold: true, size: 30, font: FONT, rightToLeft: true })],
+                children: [new TextRun({ text: activeCard.title, bold: true, size: 30, font: FONT })],
               }),
               new Paragraph({
                 alignment: AlignmentType.LEFT, spacing: SP, bidirectional: true,
                 children: [new TextRun({ text: activeCard.date, size: 16, font: FONT })],
               }),
               new Paragraph({ children: [] }),
-              ...lines.map((l, i) => new Paragraph({
-                alignment: AlignmentType.RIGHT, bidirectional: true,
+              ...shareBlocks.map((block, i) => new Paragraph({
+                alignment: block.align, bidirectional: true,
                 spacing: i === 0 ? { ...SP, before: 360 } : SP,
-                children: [new TextRun({ text: l, font: FONT, size: 18, rightToLeft: true })],
+                children: [new TextRun({ text: block.text, font: FONT, size: 18 })],
               })),
             ],
           }],

@@ -31,7 +31,6 @@ function mkRun(text, { size = 9, bold = false, underline = false } = {}) {
     font: FONT,
     size: size * 2,
     bold,
-    rightToLeft: true,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
   });
 }

@@ -57,6 +57,39 @@ function stripHtml(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// Parse HTML into blocks with alignment, preserving Ctrl+R / Ctrl+L formatting
+function parseHtmlBlocks(html) {
+  if (!html) return [];
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  const BLOCK = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE']);
+  const results = [];
+
+  function getAlign(el) {
+    const ta = (el.style?.textAlign || '').toLowerCase();
+    if (ta === 'left') return AlignmentType.LEFT;
+    if (ta === 'center') return AlignmentType.CENTER;
+    return AlignmentType.RIGHT;
+  }
+
+  function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const t = node.textContent.trim();
+      if (t) results.push({ text: t, align: AlignmentType.RIGHT });
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      if (BLOCK.has(node.tagName)) {
+        const t = node.textContent.trim();
+        if (t) results.push({ text: t, align: getAlign(node) });
+      } else {
+        for (const c of node.childNodes) walk(c);
+      }
+    }
+  }
+
+  for (const c of container.childNodes) walk(c);
+  return results;
+}
+
 function base64ToUint8Array(b64) {
   const raw = b64.replace(/^data:[^,]+,/, '');
   const bin = atob(raw);
@@ -308,7 +341,7 @@ export default function FieldJournal({ onBack }) {
     ]);
 
     const mk = (text, { size = 11, bold = false } = {}) =>
-      new TextRun({ text: String(text ?? ''), font: FONT, size: size * 2, bold, rightToLeft: true });
+      new TextRun({ text: String(text ?? ''), font: FONT, size: size * 2, bold });
 
     const mkP = (children, align = AlignmentType.RIGHT) =>
       new Paragraph({ children, alignment: align, spacing: SP, bidirectional: true });
@@ -331,9 +364,9 @@ export default function FieldJournal({ onBack }) {
       })],
     });
 
-    // Parse HTML content into lines
+    // Parse HTML content preserving per-paragraph alignment (Ctrl+R / Ctrl+L)
     const rawHtml = editorRef.current?.innerHTML || activeJournal.content || '';
-    const lines = stripHtml(rawHtml).split(/\n/).filter(l => l.trim());
+    const blocks = parseHtmlBlocks(rawHtml);
 
     // Photo paragraphs
     const photoParas = [];
@@ -382,10 +415,10 @@ export default function FieldJournal({ onBack }) {
           }),
           mkP([mk('')]),
 
-          // Body lines
-          ...lines.map((line, i) => new Paragraph({
-            children: [mk(line, { size: 9 })],
-            alignment: AlignmentType.RIGHT,
+          // Body lines — alignment preserved from editor (Ctrl+R / Ctrl+L)
+          ...blocks.map((block, i) => new Paragraph({
+            children: [mk(block.text, { size: 9 })],
+            alignment: block.align,
             spacing: i === 0 ? { ...SP, before: 360 } : SP,
             bidirectional: true,
           })),

@@ -290,27 +290,21 @@ function addDays(isoOrStr, days) {
   return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
 }
 
-/**
- * Create a TextRun with RTL, Arial font and specified options.
- * opts: { size, bold, color, underline, rtl, italic }
- */
 function mkRun(text, opts = {}) {
   const {
     size   = 8.5,
     bold   = false,
     color  = undefined,
     underline = false,
-    rightToLeft = true,
     italic = false,
   } = opts;
 
   return new TextRun({
     text,
     font: FONT,
-    size: size * 2,           // docx uses half-points
+    size: size * 2,
     bold,
     color,
-    rightToLeft,
     italics: italic,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
   });
@@ -478,9 +472,9 @@ export async function generateDocument(data) {
     bidirectional: true,
     spacing: { after: 0 },
     children: [
-      new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2, rightToLeft: true }),
+      new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2 }),
       new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 7 * 2 }),
-      new TextRun({ text: ' מתוך ', font: FONT, size: 7 * 2, rightToLeft: true }),
+      new TextRun({ text: ' מתוך ', font: FONT, size: 7 * 2 }),
       new TextRun({ children: [PageNumber.TOTAL_PAGES], font: FONT, size: 7 * 2 }),
     ],
   });
