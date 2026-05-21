@@ -42,7 +42,8 @@ function stripHtml(html) {
   return (div.innerText || div.textContent || '').trim();
 }
 
-// Parse HTML into blocks with alignment, preserving Ctrl+R / Ctrl+L formatting
+// Parse HTML into blocks with alignment, preserving Ctrl+R / Ctrl+L formatting.
+// For <w:bidi/> paragraphs: LEFT = physical right, RIGHT = physical left.
 function parseHtmlBlocks(html) {
   if (!html) return [];
   const container = document.createElement('div');
@@ -52,15 +53,15 @@ function parseHtmlBlocks(html) {
 
   function getAlign(el) {
     const ta = (el.style?.textAlign || '').toLowerCase();
-    if (ta === 'left') return AlignmentType.LEFT;
+    if (ta === 'left') return AlignmentType.RIGHT;    // physical left
     if (ta === 'center') return AlignmentType.CENTER;
-    return AlignmentType.RIGHT;
+    return AlignmentType.LEFT;                         // physical right (default)
   }
 
   function walk(node) {
     if (node.nodeType === Node.TEXT_NODE) {
       const t = node.textContent.trim();
-      if (t) results.push({ text: t, align: AlignmentType.RIGHT });
+      if (t) results.push({ text: t, align: AlignmentType.LEFT }); // default physical right
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       if (BLOCK.has(node.tagName)) {
         const t = node.textContent.trim();
@@ -279,9 +280,10 @@ export default function InfoCards({ onBack }) {
         text: String(text ?? ''), font: FONT, size: (opts.size || 9) * 2,
         bold: !!opts.bold, italics: !!opts.italic,
       });
+      // For <w:bidi/> paragraphs: LEFT = physical right, RIGHT = physical left
       const mkP = (children, opts = {}) => new Paragraph({
         children,
-        alignment: opts.align ?? AlignmentType.RIGHT,
+        alignment: opts.align ?? AlignmentType.LEFT,
         spacing: opts.spacing ?? SP,
         bidirectional: true,
       });
@@ -349,7 +351,7 @@ export default function InfoCards({ onBack }) {
           children: [mkR(activeCard.title, { size: 15, bold: true })],
         }),
         new Paragraph({
-          alignment: AlignmentType.LEFT,
+          alignment: AlignmentType.RIGHT,  // physical left for <w:bidi/>
           spacing: SP,
           bidirectional: true,
           children: [mkR(activeCard.date, { size: 8 })],
@@ -369,7 +371,7 @@ export default function InfoCards({ onBack }) {
           default: { document: { run: { font: { name: FONT } } } },
           paragraphStyles: [{
             id: 'Normal', name: 'Normal', quickFormat: true,
-            paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
+            paragraph: { bidirectional: true, alignment: AlignmentType.LEFT },
             run: { font: { name: FONT } },
           }],
         },
@@ -421,7 +423,7 @@ export default function InfoCards({ onBack }) {
             default: { document: { run: { font: { name: FONT } } } },
             paragraphStyles: [{
               id: 'Normal', name: 'Normal', quickFormat: true,
-              paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
+              paragraph: { bidirectional: true, alignment: AlignmentType.LEFT },
               run: { font: { name: FONT } },
             }],
           },
@@ -455,7 +457,7 @@ export default function InfoCards({ onBack }) {
                 children: [new TextRun({ text: activeCard.title, bold: true, size: 30, font: FONT })],
               }),
               new Paragraph({
-                alignment: AlignmentType.LEFT, spacing: SP, bidirectional: true,
+                alignment: AlignmentType.RIGHT, spacing: SP, bidirectional: true,  // physical left
                 children: [new TextRun({ text: activeCard.date, size: 16, font: FONT })],
               }),
               new Paragraph({ children: [] }),

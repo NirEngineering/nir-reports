@@ -216,7 +216,7 @@ const DOC_TYPES = {
     bodySize: 9,
     headingSize: 9,
     titleSuffix: true,
-    introBold: true,
+    introBold: false,
     introTemplate: (d) =>
       `בתאריך ${d.inspection_date} ערכתי ביקור ב${d.location}${d.address ? ', ' + d.address : ''} ובחנתי את יציבות ותקינות הנושא המפורט לעיל.`,
     findingsSectionHeading: 'נתונים כלליים וממצאים:',
@@ -311,13 +311,16 @@ function mkRun(text, opts = {}) {
 }
 
 /**
- * Create a RTL paragraph. bidirectional:true sets paragraph direction to RTL,
- * which is required for AlignmentType.RIGHT to anchor Hebrew text to the right margin.
- * Image paragraphs use plain new Paragraph() to avoid mirroring.
+ * Create a RTL paragraph. bidirectional:true sets paragraph direction to RTL.
+ * IMPORTANT: For <w:bidi/> paragraphs, Word swaps physical alignment:
+ *   AlignmentType.LEFT  = physical RIGHT (leading edge in RTL)
+ *   AlignmentType.RIGHT = physical LEFT  (trailing edge in RTL)
+ *   AlignmentType.CENTER = physical CENTER (unchanged)
+ * Default is LEFT so Hebrew body text anchors to the physical right margin.
  */
 function mkPara(children = [], opts = {}) {
   const {
-    alignment = AlignmentType.RIGHT,
+    alignment = AlignmentType.LEFT,
     spacing   = undefined,
     pageBreak = false,
   } = opts;
@@ -409,12 +412,44 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
   });
 }
 
-/** Build the standard 3-line signature block paragraphs */
+/** Signature block: text centered within a left-side column */
 function mkSignatureBlock(bodySize) {
+  const sig = [
+    new Paragraph({
+      children: [mkRun('ניר בן דוד', { size: 9, bold: true })],
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 240, after: 0 },
+      bidirectional: true,
+    }),
+    new Paragraph({
+      children: [mkRun('מהנדס מבנים B.sc', { size: 9 })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 0 },
+      bidirectional: true,
+    }),
+    new Paragraph({
+      children: [mkRun('מ.ר 28566561', { size: 9 })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 0 },
+      bidirectional: true,
+    }),
+  ];
   return [
-    mkPara([mkRun('ניר בן דוד', { size: 9, bold: true })], { alignment: AlignmentType.LEFT, spacing: { before: 240, after: 0 } }),
-    mkPara([mkRun('מהנדס מבנים B.sc', { size: 9 })], { alignment: AlignmentType.LEFT, spacing: { after: 0 } }),
-    mkPara([mkRun('מ.ר 28566561', { size: 9 })], { alignment: AlignmentType.LEFT, spacing: { after: 0 } }),
+    new Table({
+      layout: TableLayoutType.FIXED,
+      rows: [new TableRow({ children: [
+        new TableCell({
+          width: { size: cm(9), type: WidthType.DXA },
+          borders: NO_BORDER,
+          children: sig,
+        }),
+        new TableCell({
+          width: { size: cm(9), type: WidthType.DXA },
+          borders: NO_BORDER,
+          children: [new Paragraph({ children: [] })],
+        }),
+      ]})],
+    }),
   ];
 }
 
@@ -468,7 +503,7 @@ export async function generateDocument(data) {
   // ── 2. Build header (page num + logo) and footer (logo only) ─────────────
 
   const pageNumPara = new Paragraph({
-    alignment: AlignmentType.RIGHT,
+    alignment: AlignmentType.LEFT,   // LEFT = physical right for <w:bidi/> paragraphs
     bidirectional: true,
     spacing: { after: 0 },
     children: [
@@ -507,10 +542,10 @@ export async function generateDocument(data) {
   const SP_BODY    = { line: 360, lineRule: 'auto', after: 0 };
   const SP_SECTION = { line: 360, lineRule: 'auto', before: 360, after: 0 };
 
-  // ── 4. Date paragraph (LEFT aligned — matches original documents)
+  // ── 4. Date paragraph — RIGHT in OOXML = physical left for <w:bidi/> paragraphs
   const dateStr  = formatDate(data.date);
   const datePara = new Paragraph({
-    alignment: AlignmentType.LEFT,
+    alignment: AlignmentType.RIGHT,
     bidirectional: true,
     spacing: { after: 0 },
     children: [mkRun(dateStr, { size: 8 })],
@@ -1031,7 +1066,7 @@ export async function generateDocument(data) {
           quickFormat: true,
           paragraph: {
             bidirectional: true,
-            alignment: AlignmentType.RIGHT,
+            alignment: AlignmentType.LEFT,
           },
           run: { font: { name: FONT } },
         },
