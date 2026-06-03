@@ -249,6 +249,36 @@ export default function App() {
     })();
   }, []);
 
+  // ── ?file= URL parameter — open a remote .docx directly ──────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const fileUrl = params.get('file');
+    if (!fileUrl) return;
+
+    history.replaceState(null, '', location.pathname);
+    setMode('edit');
+
+    (async () => {
+      setEditLoading(true); setError('');
+      try {
+        const resp = await fetch(decodeURIComponent(fileUrl));
+        if (!resp.ok) throw new Error('שגיאת הורדה: ' + resp.status);
+        const blob = await resp.blob();
+        const file = new File([blob], 'document.docx', {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+        setEditFile(file);
+        const result = await importDocx(file);
+        setEditImport(result);
+        setEditEdits({ paragraphs: {} });
+      } catch (e) {
+        setError('לא ניתן לטעון את הקובץ: ' + e.message);
+      } finally {
+        setEditLoading(false);
+      }
+    })();
+  }, []);
+
   // ── Draft ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     try {
