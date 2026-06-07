@@ -2575,6 +2575,18 @@ html, body {
   padding: 0 8px;
 }
 .editor-title-input::placeholder { color: rgba(255,255,255,0.6); }
+.editor-title-label {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: right;
+  color: #fff;
+  min-width: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .editor-toolbar {
   display: flex;
