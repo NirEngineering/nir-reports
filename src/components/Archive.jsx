@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { loadArchive, loadDocData, deleteFromArchive } from '../lib/archiveUtils';
 import { DOC_TYPES_CONFIG } from '../constants';
 import { generateDocument } from '../lib/docGenerator';
@@ -30,9 +30,11 @@ function formatDate(ts) {
   );
 }
 
-export default function Archive({ onBack }) {
+export default function Archive({ onBack, onCopy }) {
   const [entries, setEntries] = useState(() => loadArchive());
   const [regenerating, setRegenerating] = useState(null);
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('newest');
 
   const handleDelete = (id) => {
     deleteFromArchive(id);
@@ -69,6 +71,36 @@ export default function Archive({ onBack }) {
     }
   };
 
+  const handleCopy = (entry) => {
+    if (!onCopy) return;
+    const payload = loadDocData(entry.id);
+    if (!payload) return;
+    onCopy(payload, entry.docType);
+  };
+
+  const filteredEntries = useMemo(() => {
+    let result = [...entries];
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter(e =>
+        (e.client || '').toLowerCase().includes(q) ||
+        (e.filename || '').toLowerCase().includes(q) ||
+        (e.type || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (sort === 'newest') {
+      result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    } else if (sort === 'oldest') {
+      result.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    } else if (sort === 'client') {
+      result.sort((a, b) => (a.client || '').localeCompare(b.client || '', 'he'));
+    }
+
+    return result;
+  }, [entries, search, sort]);
+
   return (
     <div className="app-body">
       <div className="field-journal-header">
@@ -85,17 +117,41 @@ export default function Archive({ onBack }) {
         )}
       </div>
 
-      {entries.length === 0 ? (
+      {entries.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <input
+            className="form-input"
+            style={{ flex: 1, minWidth: 160, fontSize: 14, padding: '8px 12px' }}
+            type="text"
+            placeholder="חיפוש לפי לקוח, קובץ, סוג..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            dir="rtl"
+          />
+          <select
+            className="form-select"
+            style={{ width: 140, fontSize: 14, padding: '8px 12px' }}
+            value={sort}
+            onChange={e => setSort(e.target.value)}
+          >
+            <option value="newest">חדש ראשון</option>
+            <option value="oldest">ישן ראשון</option>
+            <option value="client">לקוח א-ת</option>
+          </select>
+        </div>
+      )}
+
+      {filteredEntries.length === 0 ? (
         <div className="journal-empty">
           <div className="journal-empty-icon">🗄️</div>
-          <p>הארכיון ריק</p>
+          <p>{entries.length === 0 ? 'הארכיון ריק' : 'לא נמצאו תוצאות'}</p>
           <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 8 }}>
-            כל מסמך שתיצור יישמר כאן אוטומטית
+            {entries.length === 0 ? 'כל מסמך שתיצור יישמר כאן אוטומטית' : 'נסה לחפש במילים אחרות'}
           </p>
         </div>
       ) : (
         <div className="journal-items">
-          {entries.map(entry => {
+          {filteredEntries.map(entry => {
             const icon      = TYPE_ICON[entry.type] || '📄';
             const typeLabel = TYPE_LABEL[entry.type] || entry.type;
             const docLabel  = entry.docType
@@ -103,6 +159,7 @@ export default function Archive({ onBack }) {
               : '';
             const nameLabel   = entry.client || entry.title || '';
             const canRegen    = entry.hasData && ['report','event','ai'].includes(entry.type);
+            const canCopy     = entry.type === 'report' && entry.hasData;
             const isRegening  = regenerating === entry.id;
 
             return (
@@ -140,6 +197,16 @@ export default function Archive({ onBack }) {
                       title="צור והורד מחדש (ללא תמונות)"
                     >
                       {isRegening ? '⏳' : '⬇️ צור מחדש'}
+                    </button>
+                  )}
+                  {canCopy && onCopy && (
+                    <button
+                      className="btn btn-sm btn-outline"
+                      style={{ fontSize: 12, padding: '4px 8px' }}
+                      onClick={() => handleCopy(entry)}
+                      title="שכפל דוח לטופס חדש"
+                    >
+                      📋 שכפל
                     </button>
                   )}
                   <button
