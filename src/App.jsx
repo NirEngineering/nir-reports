@@ -12,6 +12,8 @@ import { generateDocument } from './lib/docGenerator';
 import { importDocx, exportDocx } from './lib/docImporter';
 import { saveToArchive } from './lib/archiveUtils';
 import { isConnected, handleCallback, downloadAndMerge, upload, getLastSync } from './lib/oneDriveSync';
+import { assignDocNumber, peekDocNumber } from './lib/docNumbering';
+import FreeEditor from './components/FreeEditor';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
 import clientsData from './data/clients.json';
@@ -120,6 +122,7 @@ const defaultForm = () => ({
   has_defects: false,
   conclusion_custom: '',
   notes_custom: '',
+  doc_number: '',
 });
 
 // ── StepBar ───────────────────────────────────────────────────────────────────
@@ -346,8 +349,11 @@ export default function App() {
       // has_defects: auto-detected OR manually forced on
       const hasDefects = autoHasDefects || form.has_defects;
 
+      const docNumber = assignDocNumber(form.date);
+
       const payload = {
         doc_type: docType,
+        doc_number: docNumber,
         ...form,
         has_defects: hasDefects,
         inspection_date: isoToDisplay(form.inspection_date),
@@ -364,16 +370,17 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${form.subject || 'דוח'} - ${form.client}.docx`;
+      a.download = `${docNumber} - ${form.subject || 'דוח'} - ${form.client}.docx`;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setSuccess('✅ המסמך נוצר בהצלחה!');
       saveToArchive({
         type: 'report',
-        filename: `${form.subject || 'דוח'} - ${form.client}.docx`,
+        filename: `${docNumber} - ${form.subject || 'דוח'} - ${form.client}.docx`,
         client: form.client,
         docType,
+        docNumber,
       }, payload);
       localStorage.removeItem(DRAFT_KEY);
       if (isConnected()) upload().catch(() => {});
@@ -573,6 +580,12 @@ export default function App() {
               <div className="home-card-title">ארכיון מסמכים</div>
               <div className="home-card-sub">כל המסמכים שנוצרו — צפה וצור מחדש</div>
             </div>
+
+            <div className="home-card" onClick={() => { setMode('free'); setError(''); setSuccess(''); }}>
+              <div className="home-card-icon">✏️</div>
+              <div className="home-card-title">עריכה חופשית</div>
+              <div className="home-card-sub">עריכת טקסט מלאה על דף עם לוגו — גופנים, טבלאות, יישור</div>
+            </div>
           </div>
         </div>
       )}
@@ -675,6 +688,10 @@ export default function App() {
                     value={form.date}
                     onChange={e => setField('date', e.target.value)}
                   />
+                </Field>
+
+                <Field label="מספר מסמך">
+                  <div className="doc-number-display">{peekDocNumber(form.date) || '—'}</div>
                 </Field>
 
                 <Field label="תאריך הביקור / הבדיקה">
@@ -1104,7 +1121,21 @@ export default function App() {
       )}
 
       {mode === 'archive' && (
-        <Archive onBack={goHome} />
+        <Archive
+          onBack={goHome}
+          onCopy={(payload, docType) => {
+            setDocType(docType || '');
+            setForm(f => ({ ...defaultForm(), ...payload }));
+            setTableRows(payload?.table_rows || []);
+            setDefectsRows(payload?.defects_rows || []);
+            setPhotos([]); setRowPhotos([]); setDefectsRowPhotos([]);
+            setMode('new'); setStep(1);
+          }}
+        />
+      )}
+
+      {mode === 'free' && (
+        <FreeEditor onBack={goHome} />
       )}
 
       {showSync && (
