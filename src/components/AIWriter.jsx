@@ -545,6 +545,56 @@ export default function AIWriter({ onBack }) {
           onChange={e => { addPhotos(e.target.files); e.target.value = ''; }} />
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden
           onChange={e => { addPhotos(e.target.files); e.target.value = ''; }} />
+
+        {/* Vision analysis button — only shown when photos and API key exist */}
+        {photos.length > 0 && apiKey && (
+          <div style={{ marginTop: 14 }}>
+            <button
+              className="btn btn-outline"
+              style={{ width: '100%', borderColor: '#7c3aed', color: '#7c3aed' }}
+              onClick={analyzePhotos}
+              disabled={visionLoading}
+            >
+              {visionLoading
+                ? '⏳ מנתח תמונות...'
+                : '🔍 ניתוח תמונות עם AI'}
+            </button>
+
+            {visionFindings.length > 0 && (
+              <div style={{ marginTop: 12, direction: 'rtl' }}>
+                <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>ממצאי ניתוח תמונות:</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {visionFindings.map((f, i) => (
+                    <div key={i} style={{
+                      background: '#f5f3ff', border: '1px solid #ddd6fe',
+                      borderRadius: 8, padding: '10px 12px', fontSize: 13,
+                    }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        תמונה {f.photo_index ?? i + 1}
+                        <span style={{
+                          marginRight: 8, fontSize: 11, padding: '2px 6px',
+                          borderRadius: 10, background: f.priority === '1' ? '#fee2e2' : f.priority === '2' ? '#fef9c3' : '#dcfce7',
+                          color: f.priority === '1' ? '#dc2626' : f.priority === '2' ? '#ca8a04' : '#16a34a',
+                        }}>
+                          קדימות {f.priority === '1' ? 'דחוף' : f.priority === '2' ? 'בינוני' : 'נמוך'}
+                        </span>
+                      </div>
+                      {f.description && <div style={{ marginBottom: 2 }}>{f.description}</div>}
+                      {f.finding && <div style={{ color: '#7c3aed' }}>⚠️ {f.finding}</div>}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="btn btn-outline btn-sm"
+                  style={{ marginTop: 10, borderColor: '#7c3aed', color: '#7c3aed' }}
+                  onClick={appendVisionFindingsToText}
+                >
+                  + הוסף לטקסט הראשי
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
