@@ -12,7 +12,7 @@ export function assignDocNumber(isoDate) {
   nums[isoDate] = next;
   localStorage.setItem(KEY, JSON.stringify(nums));
   const [y, m, d] = isoDate.split('-');
-  return `${d}.${m}.${y.slice(2)}-${next}`;
+  return `${d}.${m}.${y}-${next}`;
 }
 
 // Peek at what the next number would be without assigning
@@ -20,5 +20,5 @@ export function peekDocNumber(isoDate) {
   const nums = load();
   const next = (nums[isoDate] || 0) + 1;
   const [y, m, d] = isoDate.split('-');
-  return `${d}.${m}.${y.slice(2)}-${next}`;
+  return `${d}.${m}.${y}-${next}`;
 }

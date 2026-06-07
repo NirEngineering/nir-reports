@@ -144,6 +144,9 @@ export default function AIWriter({ onBack }) {
   const [step, setStep]             = useState(0); // 0=input 1=review 2=done
   const [isExporting, setIsExporting] = useState(false);
 
+  const [visionLoading, setVisionLoading]   = useState(false);
+  const [visionFindings, setVisionFindings] = useState([]);
+
   const fileRef   = useRef(null);
   const cameraRef = useRef(null);
 
@@ -232,6 +235,65 @@ export default function AIWriter({ onBack }) {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // ── Claude Vision analysis of photos ─────────────────────────────────────
+  const analyzePhotos = async () => {
+    if (!photos.length || !apiKey) return;
+    setVisionLoading(true);
+    setVisionFindings([]);
+    try {
+      const content = [
+        ...photos.slice(0, 10).map(ph => {
+          const match = ph.data.match(/^data:([^;]+);base64,(.+)$/);
+          if (!match) return null;
+          return { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } };
+        }).filter(Boolean),
+        {
+          type: 'text',
+          text: 'אתה מהנדס בודק. נתח את התמונות ותאר ממצאים הנדסיים: ליקויים, בעיות בטיחות, מצב הקונסטרוקציה. עבור כל תמונה תן: 1) תיאור קצר מה נראה 2) ממצאים/ליקויים אם יש 3) קדימות (1=דחוף, 2=בינוני, 3=נמוך). ענה בעברית בפורמט JSON: { findings: [{ photo_index, description, finding, priority }] }',
+        },
+      ];
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 2048,
+          messages: [{ role: 'user', content }],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `שגיאת API: ${res.status}`);
+      }
+
+      const data = await res.json();
+      const raw = data.content?.[0]?.text || '';
+      const clean = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      const result = JSON.parse(clean);
+      setVisionFindings(result.findings || []);
+    } catch (e) {
+      setError(`שגיאת ניתוח תמונות: ${e.message}`);
+    } finally {
+      setVisionLoading(false);
+    }
+  };
+
+  const appendVisionFindingsToText = () => {
+    if (!visionFindings.length) return;
+    const lines = visionFindings.map((f, i) =>
+      `תמונה ${f.photo_index ?? i + 1}: ${f.description}${f.finding ? ` — ${f.finding}` : ''} [קדימות: ${f.priority}]`
+    );
+    const block = '\n\nממצאי ניתוח תמונות:\n' + lines.join('\n');
+    setRawText(prev => prev + block);
   };
 
   // ── Export to Word ────────────────────────────────────────────────────────
@@ -483,6 +545,56 @@ export default function AIWriter({ onBack }) {
           onChange={e => { addPhotos(e.target.files); e.target.value = ''; }} />
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden
           onChange={e => { addPhotos(e.target.files); e.target.value = ''; }} />
+
+        {/* Vision analysis button — only shown when photos and API key exist */}
+        {photos.length > 0 && apiKey && (
+          <div style={{ marginTop: 14 }}>
+            <button
+              className="btn btn-outline"
+              style={{ width: '100%', borderColor: '#7c3aed', color: '#7c3aed' }}
+              onClick={analyzePhotos}
+              disabled={visionLoading}
+            >
+              {visionLoading
+                ? '⏳ מנתח תמונות...'
+                : '🔍 ניתוח תמונות עם AI'}
+            </button>
+
+            {visionFindings.length > 0 && (
+              <div style={{ marginTop: 12, direction: 'rtl' }}>
+                <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>ממצאי ניתוח תמונות:</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {visionFindings.map((f, i) => (
+                    <div key={i} style={{
+                      background: '#f5f3ff', border: '1px solid #ddd6fe',
+                      borderRadius: 8, padding: '10px 12px', fontSize: 13,
+                    }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        תמונה {f.photo_index ?? i + 1}
+                        <span style={{
+                          marginRight: 8, fontSize: 11, padding: '2px 6px',
+                          borderRadius: 10, background: f.priority === '1' ? '#fee2e2' : f.priority === '2' ? '#fef9c3' : '#dcfce7',
+                          color: f.priority === '1' ? '#dc2626' : f.priority === '2' ? '#ca8a04' : '#16a34a',
+                        }}>
+                          קדימות {f.priority === '1' ? 'דחוף' : f.priority === '2' ? 'בינוני' : 'נמוך'}
+                        </span>
+                      </div>
+                      {f.description && <div style={{ marginBottom: 2 }}>{f.description}</div>}
+                      {f.finding && <div style={{ color: '#7c3aed' }}>⚠️ {f.finding}</div>}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="btn btn-outline btn-sm"
+                  style={{ marginTop: 10, borderColor: '#7c3aed', color: '#7c3aed' }}
+                  onClick={appendVisionFindingsToText}
+                >
+                  + הוסף לטקסט הראשי
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}

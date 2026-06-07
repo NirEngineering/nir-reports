@@ -113,6 +113,9 @@ export default function FieldJournal({ onBack }) {
   const [fontSize, setFontSize] = useState(16);
   const [textDir, setTextDir]   = useState('rtl');
 
+  // Voice recording state
+  const [listening, setListening] = useState(false);
+
   // Drag state (for list)
   const [dragIdx, setDragIdx]       = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
@@ -297,6 +300,37 @@ export default function FieldJournal({ onBack }) {
     if (files.length === 0) return;
     e.preventDefault();
     handlePhotoAdd(files);
+  };
+
+  // ── Voice recording ───────────────────────────────────────────────────────
+  const startVoice = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return alert('הדפדפן שלך אינו תומך בהקלטת קול');
+    const recog = new SR();
+    recog.lang = 'he-IL';
+    recog.interimResults = false;
+    recog.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      // Append transcribed text to the contentEditable editor
+      if (editorRef.current) {
+        editorRef.current.focus();
+        const sel = window.getSelection();
+        // Move cursor to end if nothing selected inside editor
+        if (!sel || sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) {
+          const range = document.createRange();
+          range.selectNodeContents(editorRef.current);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        document.execCommand('insertText', false, (editorRef.current.textContent ? ' ' : '') + text);
+        saveContent();
+      }
+    };
+    recog.onerror = () => setListening(false);
+    recog.onend = () => setListening(false);
+    recog.start();
+    setListening(true);
   };
 
   // ── Toolbar actions ───────────────────────────────────────────────────────
@@ -713,6 +747,17 @@ export default function FieldJournal({ onBack }) {
           onClick={exportToWord}
           title="ייצא לקובץ Word"
         >⬇ Word</button>
+
+        <div className="journal-toolbar-sep" />
+
+        {/* Voice recording */}
+        <button
+          className={`journal-toolbar-btn${listening ? ' active' : ''}`}
+          onClick={startVoice}
+          title="הקלט קול"
+          style={listening ? { animation: 'pulse 1s infinite', color: '#ef4444' } : {}}
+          disabled={listening}
+        >{listening ? '🔴' : '🎙️'}</button>
       </div>
 
       {/* ── Content editable area ── */}
