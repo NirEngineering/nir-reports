@@ -2441,3 +2441,100 @@ html, body {
   margin-top: 14px;
   justify-content: flex-end;
 }
+
+/* ── Cloud Sync ────────────────────────────────────────────────────────────── */
+.sync-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  opacity: 0.55;
+  transition: opacity 0.15s, background 0.15s;
+  line-height: 1;
+}
+.sync-btn:hover { opacity: 1; background: rgba(255,255,255,0.15); }
+.sync-btn.connected { opacity: 0.9; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.modal-sheet {
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom, 12px);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+  font-size: 16px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--gray-100);
+  direction: rtl;
+}
+.modal-body { padding: 16px; direction: rtl; }
+
+.sync-hint {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.sync-steps {
+  background: #f8fafc;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.sync-steps-title { font-weight: 600; margin-bottom: 6px; }
+.sync-steps ol { margin: 0; padding-right: 20px; }
+.sync-steps code {
+  background: #e2e8f0;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11px;
+  word-break: break-all;
+}
+.sync-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #166534;
+}
+.sync-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: #d1d5db;
+}
+.sync-dot.connected { background: #22c55e; }
+.sync-last {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+.sync-msg {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #f1f5f9;
+  color: #334155;
+}
