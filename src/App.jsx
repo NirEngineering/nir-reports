@@ -6,10 +6,12 @@ import FieldJournal from './components/FieldJournal';
 import InfoCards from './components/InfoCards';
 import AIWriter from './components/AIWriter';
 import Archive from './components/Archive';
+import CloudSync from './components/CloudSync';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
 import { generateDocument } from './lib/docGenerator';
 import { importDocx, exportDocx } from './lib/docImporter';
 import { saveToArchive } from './lib/archiveUtils';
+import { isConnected, handleCallback, downloadAndMerge, upload, getLastSync } from './lib/oneDriveSync';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
 import clientsData from './data/clients.json';
@@ -227,6 +229,28 @@ export default function App() {
   const [editFile, setEditFile] = useState(null);
   const fileRef = useRef(null);
 
+  const [showSync, setShowSync] = useState(false);
+  const [syncConnected, setSyncConnected] = useState(isConnected());
+
+  // ── OneDrive OAuth callback ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!location.search.includes('code=')) return;
+    (async () => {
+      try {
+        const ok = await handleCallback();
+        if (ok) { setSyncConnected(true); setShowSync(true); }
+      } catch (e) {
+        setError('חיבור OneDrive נכשל: ' + e.message);
+      }
+    })();
+  }, []);
+
+  // ── OneDrive auto-download on startup ─────────────────────────────────────
+  useEffect(() => {
+    if (!isConnected()) return;
+    downloadAndMerge().catch(() => {});
+  }, []);
+
   // ── Web Share Target: load images shared from WhatsApp/other apps ─────────
   useEffect(() => {
     if (!location.search.includes('shared=1')) return;
@@ -352,6 +376,7 @@ export default function App() {
         docType,
       }, payload);
       localStorage.removeItem(DRAFT_KEY);
+      if (isConnected()) upload().catch(() => {});
     } catch (e) {
       setError(`שגיאה: ${e.message}`);
     } finally {
@@ -447,7 +472,13 @@ export default function App() {
               {DOC_TYPES_CONFIG[docType]?.icon} {DOC_TYPES_CONFIG[docType]?.name.split('\n')[0]}
             </span>
           )}
-          <span className="offline-badge">✅ אופליין</span>
+          <button
+            className={`sync-btn${syncConnected ? ' connected' : ''}`}
+            onClick={() => setShowSync(true)}
+            title={syncConnected ? 'OneDrive מחובר — לחץ לסנכרון' : 'חבר OneDrive'}
+          >
+            {syncConnected ? '☁️' : '☁️'}
+          </button>
         </div>
       </div>
 
@@ -1074,6 +1105,13 @@ export default function App() {
 
       {mode === 'archive' && (
         <Archive onBack={goHome} />
+      )}
+
+      {showSync && (
+        <CloudSync
+          onClose={() => { setShowSync(false); setSyncConnected(isConnected()); }}
+          onSynced={() => setSyncConnected(isConnected())}
+        />
       )}
     </div>
   );
