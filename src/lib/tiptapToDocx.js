@@ -2,7 +2,7 @@ import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, ImageRun, AlignmentType, UnderlineType, WidthType,
   ShadingType, convertMillimetersToTwip as mm, BorderStyle,
-  TableBorders, VerticalAlign,
+  TableBorders, VerticalAlign, PageNumber,
 } from 'docx';
 
 const FONT = 'Arial';
@@ -15,13 +15,13 @@ async function fetchBuf(paths) {
   return new Uint8Array(0);
 }
 
-// ── Text alignment ────────────────────────────────────────────────────────────
+// ── Text alignment (no section bidi – LEFT/RIGHT are physical) ────────────────
 function tiptapAlign(align) {
   switch (align) {
     case 'left':    return AlignmentType.LEFT;
     case 'center':  return AlignmentType.CENTER;
     case 'justify': return AlignmentType.BOTH;
-    default:        return AlignmentType.RIGHT;
+    default:        return AlignmentType.RIGHT; // 'right' and default (Hebrew RTL)
   }
 }
 
@@ -82,10 +82,6 @@ function convertHeading(node) {
   const align = tiptapAlign(node.attrs?.textAlign);
   const sizes = [36, 30, 26, 24, 22, 20];
   const size  = sizes[level - 1] || 20;
-  const runs  = convertInlineContent(node.content).map(r =>
-    r instanceof TextRun ? new TextRun({ ...r, size, bold: true }) : r
-  );
-  // Re-create with forced size since TextRun is immutable after construction
   const forcedRuns = (node.content || []).map(n => {
     if (n.type !== 'text') return null;
     const marks = n.marks || [];
@@ -128,12 +124,12 @@ function convertListItem(itemNode, listType, index = 1) {
 }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
-const NO_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+const NO_BORDER   = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const CELL_BORDER = { style: BorderStyle.SINGLE, size: 4, color: 'CCCCCC' };
 
-function convertTableCell(node, isHeader) {
-  const bgRaw = node.attrs?.backgroundColor || node.attrs?.background || '';
-  const bg    = bgRaw.startsWith('#') ? bgRaw.slice(1) : bgRaw || undefined;
+function convertTableCell(node) {
+  const bgRaw  = node.attrs?.backgroundColor || node.attrs?.background || '';
+  const bg     = bgRaw.startsWith('#') ? bgRaw.slice(1) : bgRaw || undefined;
   const colspan = node.attrs?.colspan || 1;
   const rowspan = node.attrs?.rowspan || 1;
   const children = convertNodes(node.content || []);
@@ -146,8 +142,8 @@ function convertTableCell(node, isHeader) {
     shading: bg ? { fill: bg, type: ShadingType.SOLID, color: bg } : undefined,
     margins: { top: mm(1.5), bottom: mm(1.5), left: mm(2), right: mm(2) },
     borders: {
-      top:    CELL_BORDER, bottom: CELL_BORDER,
-      left:   CELL_BORDER, right:  CELL_BORDER,
+      top: CELL_BORDER, bottom: CELL_BORDER,
+      left: CELL_BORDER, right:  CELL_BORDER,
     },
   });
 }
@@ -155,9 +151,7 @@ function convertTableCell(node, isHeader) {
 function convertTable(node) {
   const rows = (node.content || []).map(rowNode =>
     new TableRow({
-      children: (rowNode.content || []).map(cellNode =>
-        convertTableCell(cellNode, cellNode.type === 'tableHeader')
-      ),
+      children: (rowNode.content || []).map(cellNode => convertTableCell(cellNode)),
     })
   );
   const colCount = Math.max(...(node.content || []).map(r => (r.content || []).length), 1);
@@ -165,38 +159,69 @@ function convertTable(node) {
     width:  { size: 100, type: WidthType.PERCENTAGE },
     layout: 'fixed',
     rows,
-    columnWidths: Array(colCount).fill(Math.floor(9072 / colCount)), // ~157mm total / colCount
+    columnWidths: Array(colCount).fill(Math.floor(9072 / colCount)),
     borders: {
-      top:          CELL_BORDER, bottom: CELL_BORDER,
-      left:         CELL_BORDER, right:  CELL_BORDER,
-      insideH:      CELL_BORDER, insideV: CELL_BORDER,
+      top: CELL_BORDER, bottom: CELL_BORDER,
+      left: CELL_BORDER, right: CELL_BORDER,
+      insideH: CELL_BORDER, insideV: CELL_BORDER,
     },
+  });
+}
+
+// ── Image ─────────────────────────────────────────────────────────────────────
+function b64ToUint8Array(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function convertImage(node) {
+  const src = node.attrs?.src || '';
+  if (!src.startsWith('data:')) return null;
+  const [, b64] = src.split(',');
+  if (!b64) return null;
+  const data = b64ToUint8Array(b64);
+  const MAX_W = 620; // ≈ 163mm at 96 DPI (within content area)
+  const origW  = node.attrs?.width  || MAX_W;
+  const origH  = node.attrs?.height || Math.round(origW * 0.6);
+  const scale  = Math.min(1, MAX_W / origW);
+  return new ImageRun({
+    data,
+    transformation: { width: Math.round(origW * scale), height: Math.round(origH * scale) },
   });
 }
 
 // ── Node dispatcher ───────────────────────────────────────────────────────────
 function convertNodes(nodes = []) {
   const out = [];
-  let orderedIndex = 1;
   for (const node of nodes) {
     switch (node.type) {
-      case 'paragraph':       out.push(convertParagraph(node)); break;
-      case 'heading':         out.push(convertHeading(node)); break;
+      case 'paragraph':   out.push(convertParagraph(node)); break;
+      case 'heading':     out.push(convertHeading(node)); break;
       case 'bulletList':
-        orderedIndex = 1;
         out.push(...(node.content || []).flatMap(li => convertListItem(li, 'bullet')));
         break;
       case 'orderedList':
-        orderedIndex = 1;
         out.push(...(node.content || []).flatMap((li, i) => convertListItem(li, 'ordered', i + 1)));
         break;
-      case 'table':           out.push(convertTable(node)); break;
+      case 'table': out.push(convertTable(node)); break;
       case 'horizontalRule':
         out.push(new Paragraph({
           alignment: AlignmentType.CENTER, bidirectional: true,
           children: [new TextRun({ text: '─'.repeat(50), font: FONT, size: 16 })],
         }));
         break;
+      case 'image': {
+        const run = convertImage(node);
+        if (run) out.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          bidirectional: true,
+          spacing: { after: 80 },
+          children: [run],
+        }));
+        break;
+      }
       default: break;
     }
   }
@@ -211,16 +236,35 @@ export async function tiptapToDocx(jsonDoc, { title = 'מסמך' } = {}) {
     fetchBuf([`${base}footer-logo.png`, '/nir-reports/footer-logo.png', '/footer-logo.png']),
   ]);
 
+  // Header: page number (top-right, ~3mm from top) then logo centered (~5mm from top)
   const headerSection = new Header({
-    children: [new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new ImageRun({ data: headerBuf, transformation: { width: 376, height: 149 } })],
-    })],
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        spacing: { before: 0, after: 0 },
+        children: [
+          new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 18 }),
+          new TextRun({ text: '/', font: FONT, size: 18 }),
+          new TextRun({ children: [PageNumber.TOTAL_PAGES], font: FONT, size: 18 }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 0 },
+        children: headerBuf.length > 0
+          ? [new ImageRun({ data: headerBuf, transformation: { width: 376, height: 149 } })]
+          : [new TextRun({ text: '' })],
+      }),
+    ],
   });
+
   const footerSection = new Footer({
     children: [new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new ImageRun({ data: footerBuf, transformation: { width: 432, height: 30 } })],
+      spacing: { before: 0, after: 0 },
+      children: footerBuf.length > 0
+        ? [new ImageRun({ data: footerBuf, transformation: { width: 432, height: 30 } })]
+        : [new TextRun({ text: '' })],
     })],
   });
 
@@ -241,12 +285,16 @@ export async function tiptapToDocx(jsonDoc, { title = 'מסמך' } = {}) {
         page: {
           size:   { width: mm(210), height: mm(297) },
           margin: {
-            top:    mm(25.4), bottom: mm(25.4),
-            left:   mm(17.92), right:  mm(17.46),
-            header: mm(12.7),  footer: mm(12.7),
+            top:    mm(50),    // leaves room for page-num (~3mm) + logo (~39mm) + gap
+            bottom: mm(18),    // leaves room for footer logo (~8mm) + gap above 5mm margin
+            left:   mm(17.92),
+            right:  mm(17.46),
+            header: mm(2),     // header starts at 2mm → page number at ~2mm, logo top at ~5mm
+            footer: mm(5),     // footer bottom edge at 5mm from page bottom
           },
         },
-        bidi: true,
+        // No section-level bidi: paragraph-level bidirectional keeps RTL text direction
+        // while LEFT/RIGHT alignment values mean physical left/right (no inversion)
       },
       headers: { default: headerSection },
       footers: { default: footerSection },

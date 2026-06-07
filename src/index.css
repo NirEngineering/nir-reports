@@ -2575,6 +2575,18 @@ html, body {
   padding: 0 8px;
 }
 .editor-title-input::placeholder { color: rgba(255,255,255,0.6); }
+.editor-title-label {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: right;
+  color: #fff;
+  min-width: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .editor-toolbar {
   display: flex;
@@ -2656,9 +2668,41 @@ html, body {
   width: 100%;
   max-width: 640px;
   min-height: 60vh;
-  padding: 32px 32px 48px;
+  padding: 20px 32px 20px;
   border-radius: 4px;
 }
+
+/* Logo preview areas inside editor */
+.editor-logo-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.editor-logo-area--header { margin-bottom: 0; position: relative; }
+.editor-logo-area--footer { margin-top: 0; }
+.editor-logo-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+.editor-logo-img--footer { max-width: 90%; }
+.editor-page-num-preview {
+  align-self: flex-end;
+  font-size: 9pt;
+  color: #94a3b8;
+  font-family: Arial, sans-serif;
+  margin-bottom: 2px;
+  line-height: 1;
+}
+.editor-logo-divider {
+  width: 100%;
+  height: 1px;
+  background: #e2e8f0;
+  margin: 10px 0;
+}
+
 .editor-content-area {
   outline: none;
   min-height: 200px;
@@ -2667,6 +2711,16 @@ html, body {
   font-size: 10pt;
   line-height: 1.6;
   color: #1e293b;
+  /* Subtle page-break hint line every ~755px of content */
+  background-image: linear-gradient(
+    to bottom,
+    transparent 754px,
+    #e2e8f0 754px,
+    #e2e8f0 756px,
+    transparent 756px
+  );
+  background-size: 100% 756px;
+  background-repeat: repeat-y;
 }
 /* Table styles in editor */
 .editor-content-area table {
@@ -2696,6 +2750,8 @@ html, body {
 .editor-content-area h3 { font-size: 12pt; font-weight: 600; margin: 4px 0; }
 .editor-content-area ul { padding-right: 20px; }
 .editor-content-area ol { padding-right: 20px; }
+.editor-content-area img { max-width: 100%; height: auto; display: block; margin: 4px auto; border-radius: 2px; }
+.editor-content-area img.ProseMirror-selectednode { outline: 2px solid #3b82f6; }
 
 /* ── Dashboard ─────────────────────────────────────────────────────────── */
 .dash-stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }

@@ -9,13 +9,24 @@ import { Table } from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
+import Image from '@tiptap/extension-image';
 import { tiptapToDocx } from '../lib/tiptapToDocx';
 import { saveToArchive } from '../lib/archiveUtils';
 import { isConnected, upload } from '../lib/oneDriveSync';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 const FONT_FAMILIES = ['Arial', 'David', 'Times New Roman', 'Calibri', 'Tahoma', 'Courier New'];
 const FONT_SIZES    = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48];
+const BASE = import.meta.env.BASE_URL || '/';
+
+function readAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = e => resolve(e.target.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
 
 // ── Toolbar button ─────────────────────────────────────────────────────────────
 function TBtn({ active, onClick, title, children, disabled }) {
@@ -35,10 +46,46 @@ function TBtn({ active, onClick, title, children, disabled }) {
 function TDivider() { return <span className="editor-tdivider" />; }
 
 // ── Main component ─────────────────────────────────────────────────────────────
+// ── Name-before-export dialog ─────────────────────────────────────────────────
+function NameDialog({ defaultValue, onConfirm, onCancel }) {
+  const [val, setVal] = useState(defaultValue || '');
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal-sheet" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span>שם המסמך</span>
+          <button className="btn-icon" onClick={onCancel}>✕</button>
+        </div>
+        <div className="modal-body">
+          <input
+            className="form-input"
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            placeholder="הזן שם מסמך..."
+            dir="rtl"
+            autoFocus
+            onKeyDown={e => { if (e.key === 'Enter') onConfirm(val.trim() || 'מסמך חופשי'); }}
+          />
+          <button
+            className="btn btn-primary"
+            style={{ width: '100%', marginTop: 12 }}
+            onClick={() => onConfirm(val.trim() || 'מסמך חופשי')}
+          >
+            ⬇️ שמור והורד
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FreeEditor({ onBack }) {
-  const [title, setTitle]   = useState('');
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg]       = useState('');
+  const [title, setTitle]         = useState('');
+  const [saving, setSaving]       = useState(false);
+  const [msg, setMsg]             = useState('');
+  const [showNameDlg, setShowNameDlg] = useState(false);
+  const fileInputRef   = useRef(null);
+  const cameraInputRef = useRef(null);
 
   const editor = useEditor({
     extensions: [
@@ -53,27 +100,57 @@ export default function FreeEditor({ onBack }) {
       TableRow,
       TableHeader,
       TableCell,
+      Image.configure({ inline: false, allowBase64: true }),
     ],
     content: '<p dir="rtl"></p>',
     editorProps: {
       attributes: { dir: 'rtl', class: 'editor-content-area' },
+      handlePaste(view, event) {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) {
+              readAsDataURL(file).then(src => {
+                view.dispatch(view.state.tr.replaceSelectionWith(
+                  view.state.schema.nodes.image.create({ src })
+                ));
+              });
+              return true;
+            }
+          }
+        }
+        return false;
+      },
     },
   });
 
   if (!editor) return null;
 
-  // ── Export ─────────────────────────────────────────────────────────────────
-  const handleExport = async () => {
+  // ── Image insertion ────────────────────────────────────────────────────────
+  const insertImageFromFile = async (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const src = await readAsDataURL(file);
+    editor.chain().focus().setImage({ src }).run();
+  };
+
+  // ── Export (opens name dialog first) ─────────────────────────────────────
+  const handleExport = () => setShowNameDlg(true);
+
+  const doExport = async (name) => {
+    setShowNameDlg(false);
+    setTitle(name);
     setSaving(true); setMsg('');
     try {
       const json = editor.getJSON();
-      const blob = await tiptapToDocx(json, { title });
-      const fname = `${title || 'מסמך חופשי'}.docx`;
+      const blob = await tiptapToDocx(json, { title: name });
+      const fname = `${name}.docx`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = fname; a.click();
       URL.revokeObjectURL(url);
-      saveToArchive({ type: 'report', filename: fname, client: title, docType: 'free' }, null);
+      saveToArchive({ type: 'report', filename: fname, client: name, docType: 'free' }, null);
       if (isConnected()) upload().catch(() => {});
       setMsg('✅ המסמך הורד!');
     } catch (e) {
@@ -87,22 +164,36 @@ export default function FreeEditor({ onBack }) {
   const insertTable = () =>
     editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
 
-  // ── Current font size display ──────────────────────────────────────────────
-  const curFontSize = editor.getAttributes('textStyle').fontSize || 10;
+  // ── Current font size/family display ──────────────────────────────────────
+  // fontSize stored as "14pt" string; parse to number for select comparison
+  const curFontSize = parseInt(editor.getAttributes('textStyle').fontSize) || 10;
   const curFont     = editor.getAttributes('textStyle').fontFamily || 'Arial';
 
   return (
     <div className="free-editor-wrap">
+      {/* Hidden file inputs */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={e => { insertImageFromFile(e.target.files?.[0]); e.target.value = ''; }}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={e => { insertImageFromFile(e.target.files?.[0]); e.target.value = ''; }}
+      />
+
       {/* ── Header ── */}
       <div className="field-journal-header">
         <button className="btn btn-outline btn-sm" onClick={onBack}>◀ חזור</button>
-        <input
-          className="editor-title-input"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="שם המסמך..."
-          dir="rtl"
-        />
+        <span className="editor-title-label" dir="rtl">
+          {title || 'עורך חופשי'}
+        </span>
         <button
           className="btn btn-success btn-sm"
           onClick={handleExport}
@@ -153,7 +244,7 @@ export default function FreeEditor({ onBack }) {
         <select
           className="editor-select editor-select--sm"
           value={curFontSize}
-          onChange={e => editor.chain().focus().setFontSize(parseInt(e.target.value)).run()}
+          onChange={e => editor.chain().focus().setFontSize(`${e.target.value}pt`).run()}
         >
           {FONT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
@@ -204,14 +295,56 @@ export default function FreeEditor({ onBack }) {
             <TBtn onClick={() => editor.chain().focus().deleteTable().run()} title="מחק טבלה">🗑</TBtn>
           </>
         )}
+        <TDivider />
+
+        {/* Images */}
+        <TBtn onClick={() => fileInputRef.current?.click()} title="הוסף תמונה מהגלריה">🖼</TBtn>
+        <TBtn onClick={() => cameraInputRef.current?.click()} title="צלם תמונה">📷</TBtn>
       </div>
 
       {/* ── Editor canvas ── */}
       <div className="editor-page-wrapper">
         <div className="editor-page">
+
+          {/* Header logo preview */}
+          <div className="editor-logo-area editor-logo-area--header">
+            <div className="editor-page-num-preview">1/…</div>
+            <img
+              src={`${BASE}header-logo.jpg`}
+              alt="כותרת"
+              className="editor-logo-img"
+              onError={e => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
+
+          <div className="editor-logo-divider" />
+
+          {/* Content */}
           <EditorContent editor={editor} />
+
+          <div className="editor-logo-divider" />
+
+          {/* Footer logo preview */}
+          <div className="editor-logo-area editor-logo-area--footer">
+            <img
+              src={`${BASE}footer-logo.png`}
+              alt="כותרת תחתונה"
+              className="editor-logo-img editor-logo-img--footer"
+              onError={e => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
+
         </div>
       </div>
+
+      {/* ── Name dialog ── */}
+      {showNameDlg && (
+        <NameDialog
+          defaultValue={title}
+          onConfirm={doExport}
+          onCancel={() => setShowNameDlg(false)}
+        />
+      )}
     </div>
   );
 }
