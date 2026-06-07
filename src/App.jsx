@@ -6,6 +6,7 @@ import FieldJournal from './components/FieldJournal';
 import InfoCards from './components/InfoCards';
 import AIWriter from './components/AIWriter';
 import Archive from './components/Archive';
+import Dashboard from './components/Dashboard';
 import CloudSync from './components/CloudSync';
 import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS, KNOWN_ORGANIZATIONS, DRAFT_KEY } from './constants';
 import { generateDocument } from './lib/docGenerator';
@@ -581,6 +582,12 @@ export default function App() {
               <div className="home-card-sub">כל המסמכים שנוצרו — צפה וצור מחדש</div>
             </div>
 
+            <div className="home-card" onClick={() => setMode('dashboard')}>
+              <div className="home-card-icon">📊</div>
+              <div className="home-card-title">לוח בקרה</div>
+              <div className="home-card-sub">סטטיסטיקות ומעקב</div>
+            </div>
+
             <div className="home-card" onClick={() => { setMode('free'); setError(''); setSuccess(''); }}>
               <div className="home-card-icon">✏️</div>
               <div className="home-card-title">עריכה חופשית</div>
@@ -1136,6 +1143,10 @@ export default function App() {
 
       {mode === 'free' && (
         <FreeEditor onBack={goHome} />
+      )}
+
+      {mode === 'dashboard' && (
+        <Dashboard onBack={goHome} />
       )}
 
       {showSync && (
