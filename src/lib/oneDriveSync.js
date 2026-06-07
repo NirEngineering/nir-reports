@@ -1,3 +1,4 @@
+const DEFAULT_CLIENT_ID = '408784d0-cbff-4b33-a9ac-871879a6e86e';
 const OD_CLIENT_ID_KEY = 'nir_od_client_id';
 const OD_TOKENS_KEY    = 'nir_od_tokens';
 const OD_LAST_SYNC_KEY = 'nir_od_last_sync';
@@ -21,7 +22,7 @@ async function makePKCE() {
 const redirectUri = () =>
   window.location.origin + window.location.pathname.replace(/\/?$/, '/');
 
-export const getClientId  = ()  => localStorage.getItem(OD_CLIENT_ID_KEY) || '';
+export const getClientId  = ()  => localStorage.getItem(OD_CLIENT_ID_KEY) || DEFAULT_CLIENT_ID;
 export const saveClientId = (v) => localStorage.setItem(OD_CLIENT_ID_KEY, v.trim());
 export const getLastSync  = ()  => { const t = localStorage.getItem(OD_LAST_SYNC_KEY); return t ? Number(t) : null; };
 export const isConnected  = ()  => !!getTokens()?.refresh_token;
