@@ -9,13 +9,24 @@ import { Table } from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
+import Image from '@tiptap/extension-image';
 import { tiptapToDocx } from '../lib/tiptapToDocx';
 import { saveToArchive } from '../lib/archiveUtils';
 import { isConnected, upload } from '../lib/oneDriveSync';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 const FONT_FAMILIES = ['Arial', 'David', 'Times New Roman', 'Calibri', 'Tahoma', 'Courier New'];
 const FONT_SIZES    = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48];
+const BASE = import.meta.env.BASE_URL || '/';
+
+function readAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = e => resolve(e.target.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
 
 // ── Toolbar button ─────────────────────────────────────────────────────────────
 function TBtn({ active, onClick, title, children, disabled }) {
@@ -39,6 +50,8 @@ export default function FreeEditor({ onBack }) {
   const [title, setTitle]   = useState('');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg]       = useState('');
+  const fileInputRef   = useRef(null);
+  const cameraInputRef = useRef(null);
 
   const editor = useEditor({
     extensions: [
@@ -53,14 +66,40 @@ export default function FreeEditor({ onBack }) {
       TableRow,
       TableHeader,
       TableCell,
+      Image.configure({ inline: false, allowBase64: true }),
     ],
     content: '<p dir="rtl"></p>',
     editorProps: {
       attributes: { dir: 'rtl', class: 'editor-content-area' },
+      handlePaste(view, event) {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) {
+              readAsDataURL(file).then(src => {
+                view.dispatch(view.state.tr.replaceSelectionWith(
+                  view.state.schema.nodes.image.create({ src })
+                ));
+              });
+              return true;
+            }
+          }
+        }
+        return false;
+      },
     },
   });
 
   if (!editor) return null;
+
+  // ── Image insertion ────────────────────────────────────────────────────────
+  const insertImageFromFile = async (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const src = await readAsDataURL(file);
+    editor.chain().focus().setImage({ src }).run();
+  };
 
   // ── Export ─────────────────────────────────────────────────────────────────
   const handleExport = async () => {
@@ -87,12 +126,29 @@ export default function FreeEditor({ onBack }) {
   const insertTable = () =>
     editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
 
-  // ── Current font size display ──────────────────────────────────────────────
+  // ── Current font size/family display ──────────────────────────────────────
   const curFontSize = editor.getAttributes('textStyle').fontSize || 10;
   const curFont     = editor.getAttributes('textStyle').fontFamily || 'Arial';
 
   return (
     <div className="free-editor-wrap">
+      {/* Hidden file inputs */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={e => { insertImageFromFile(e.target.files?.[0]); e.target.value = ''; }}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={e => { insertImageFromFile(e.target.files?.[0]); e.target.value = ''; }}
+      />
+
       {/* ── Header ── */}
       <div className="field-journal-header">
         <button className="btn btn-outline btn-sm" onClick={onBack}>◀ חזור</button>
@@ -204,12 +260,45 @@ export default function FreeEditor({ onBack }) {
             <TBtn onClick={() => editor.chain().focus().deleteTable().run()} title="מחק טבלה">🗑</TBtn>
           </>
         )}
+        <TDivider />
+
+        {/* Images */}
+        <TBtn onClick={() => fileInputRef.current?.click()} title="הוסף תמונה מהגלריה">🖼</TBtn>
+        <TBtn onClick={() => cameraInputRef.current?.click()} title="צלם תמונה">📷</TBtn>
       </div>
 
       {/* ── Editor canvas ── */}
       <div className="editor-page-wrapper">
         <div className="editor-page">
+
+          {/* Header logo preview */}
+          <div className="editor-logo-area editor-logo-area--header">
+            <div className="editor-page-num-preview">1/…</div>
+            <img
+              src={`${BASE}header-logo.jpg`}
+              alt="כותרת"
+              className="editor-logo-img"
+              onError={e => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
+
+          <div className="editor-logo-divider" />
+
+          {/* Content */}
           <EditorContent editor={editor} />
+
+          <div className="editor-logo-divider" />
+
+          {/* Footer logo preview */}
+          <div className="editor-logo-area editor-logo-area--footer">
+            <img
+              src={`${BASE}footer-logo.png`}
+              alt="כותרת תחתונה"
+              className="editor-logo-img editor-logo-img--footer"
+              onError={e => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
+
         </div>
       </div>
     </div>
