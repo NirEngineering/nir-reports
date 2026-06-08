@@ -319,8 +319,10 @@ export default function FreeEditor({ onBack }) {
 
           <div className="editor-logo-divider" />
 
-          {/* Content */}
-          <EditorContent editor={editor} />
+          {/* Content — grows to push footer to page bottom */}
+          <div className="editor-content-wrapper">
+            <EditorContent editor={editor} />
+          </div>
 
           <div className="editor-logo-divider" />
 

@@ -2667,9 +2667,18 @@ html, body {
   box-shadow: 0 2px 12px rgba(0,0,0,0.12);
   width: 100%;
   max-width: 640px;
-  min-height: 60vh;
-  padding: 20px 32px 20px;
+  /* A4 aspect ratio min height so footer lands at bottom */
+  min-height: 905px;
+  padding: 16px 32px 16px;
   border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+}
+/* Content wrapper grows to push footer down */
+.editor-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Logo preview areas inside editor */
@@ -2680,14 +2689,25 @@ html, body {
   width: 100%;
 }
 .editor-logo-area--header { margin-bottom: 0; position: relative; }
-.editor-logo-area--footer { margin-top: 0; }
+.editor-logo-area--footer { margin-top: auto; }
+
+/*
+ * Logo display sizes are calculated to match Word proportions:
+ *   Word A4 content width  = 174.62mm ≈ 660 CSS-px @ 96 dpi
+ *   header-logo in Word    = 376 display-px → 376/660 = 57% of content
+ *   footer-logo in Word    = 432 display-px → 432/660 = 65% of content
+ */
 .editor-logo-img {
-  max-width: 100%;
+  width: 57%;
+  max-width: 376px;
   height: auto;
   display: block;
   margin: 0 auto;
 }
-.editor-logo-img--footer { max-width: 90%; }
+.editor-logo-img--footer {
+  width: 65%;
+  max-width: 432px;
+}
 .editor-page-num-preview {
   align-self: flex-end;
   font-size: 9pt;
