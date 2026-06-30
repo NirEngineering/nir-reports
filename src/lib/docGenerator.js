@@ -927,10 +927,7 @@ export async function generateDocument(data) {
       );
     });
 
-    const group2ExtraLines = cfg.layout === 'gap-survey'
-      ? ['עורך מבדקי בטיחות מוסדות חינוך מספר תעודה 70382']
-      : [];
-    bodyChildren.push(...mkSignatureBlock(cfg.bodySize, group2ExtraLines));
+    bodyChildren.push(...mkSignatureBlock(cfg.bodySize));
   }
 
   // ── 9. Defects table (if applicable) ─────────────────────────────────────
