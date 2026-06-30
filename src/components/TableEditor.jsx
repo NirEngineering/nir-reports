@@ -1,5 +1,44 @@
 import { useRef, useState, useEffect } from 'react';
 import { STATUS_OPTIONS, PRIORITY_OPTIONS, PRIORITY_OPTIONS_GAP } from '../constants';
+import { QUICK_LOCATIONS } from '../data/quick_options';
+
+// ── Chip picker for quick location / text selection ───────────────────────────
+function ChipPicker({ options, onSelect, label = '📍 מיקומים נפוצים' }) {
+  const [open, setOpen] = useState(false);
+  if (!options || options.length === 0) return null;
+  const visible = options.slice(0, open ? options.length : 6);
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, direction: 'rtl' }}>{label}:</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+        {visible.map((opt, i) => (
+          <button
+            key={i}
+            type="button"
+            style={{
+              padding: '3px 10px', fontSize: 12, borderRadius: 20,
+              background: '#eff6ff', border: '1px solid #93c5fd',
+              color: '#1e40af', cursor: 'pointer', direction: 'rtl',
+              fontFamily: 'inherit',
+            }}
+            onClick={() => onSelect(opt)}
+          >{opt}</button>
+        ))}
+        {options.length > 6 && (
+          <button
+            type="button"
+            style={{
+              padding: '3px 10px', fontSize: 11, borderRadius: 20,
+              background: '#f3f4f6', border: '1px solid #d1d5db',
+              color: '#6b7280', cursor: 'pointer', fontFamily: 'inherit',
+            }}
+            onClick={() => setOpen(o => !o)}
+          >{open ? '▲ פחות' : `+${options.length - 6} עוד`}</button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Image compression ────────────────────────────────────────────────────────
 async function compressImage(dataUrl) {
@@ -231,8 +270,9 @@ function CardPhotoSection({ photos, onChange }) {
 function RowCard({
   rowIdx, columns, row, onCellChange, photos, onPhotosChange,
   onDelete, onMoveUp, onMoveDown, onDuplicate, isFirst, isLast,
-  elementOptions, elementFindings, prevLocation,
+  elementOptions, elementFindings, prevLocation, docType,
 }) {
+  const locationChips = (QUICK_LOCATIONS[docType] || []);
   // Find element value to look up suggestions
   const elementColIdx = columns.findIndex(c => isElementCol(c));
   const elementVal = elementColIdx >= 0 ? (row[elementColIdx] || '') : '';
@@ -366,11 +406,18 @@ function RowCard({
       );
     }
 
-    // Location col → textarea + hint from previous row
+    // Location col → chips + textarea + hint from previous row
     if (isLocationCol(col)) {
       const showHint = !val.trim() && prevLocation;
       return (
         <div>
+          {locationChips.length > 0 && (
+            <ChipPicker
+              options={locationChips}
+              label="📍 מיקומים נפוצים"
+              onSelect={loc => onCellChange(colIdx, loc)}
+            />
+          )}
           <textarea
             className={`card-field-textarea${showHint ? ' card-field-inherited' : ''}`}
             value={val}
@@ -564,6 +611,7 @@ export default function TableEditor({
               elementOptions={elements}
               elementFindings={findings}
               prevLocation={prevLocation}
+              docType={docType}
             />
           );
         })}

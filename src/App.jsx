@@ -18,6 +18,7 @@ import FreeEditor from './components/FreeEditor';
 import elementsData from './data/elements_by_type.json';
 import findingsData from './data/findings_by_type.json';
 import clientsData from './data/clients.json';
+import { QUICK_NOTES, QUICK_CONCLUSIONS, INTRO_TEMPLATES } from './data/quick_options';
 import './index.css';
 
 // ── Pre-processed global lists (computed once at module load) ─────────────────
@@ -31,6 +32,14 @@ const ALL_CLIENTS = clientsData
 const ALL_ELEMENTS = [...new Set(
   Object.values(elementsData).flat().filter(e => !/^\d+$/.test(e.trim()))
 )].sort((a, b) => a.localeCompare(b, 'he'));
+
+/** Per-docType elements (type-specific list, falls back to ALL_ELEMENTS) */
+const ELEMENTS_BY_TYPE = Object.fromEntries(
+  Object.entries(elementsData).map(([type, arr]) => [
+    type,
+    arr.filter(e => !/^\d+$/.test(e.trim())),
+  ])
+);
 
 /** All findings merged across ALL doc types, keyed by element name */
 const ALL_FINDINGS = (() => {
@@ -204,6 +213,44 @@ function RichTextarea({ value, onChange, placeholder, rows = 4 }) {
         rows={rows}
         dir="rtl"
       />
+    </div>
+  );
+}
+
+// ── QuickChips — tap a chip to append / replace text ─────────────────────────
+function QuickChips({ options, onSelect, label, mode = 'append' }) {
+  const [open, setOpen] = useState(false);
+  if (!options || options.length === 0) return null;
+  const visible = options.slice(0, open ? options.length : 4);
+  return (
+    <div style={{ marginBottom: 8, direction: 'rtl' }}>
+      {label && <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{label}:</div>}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+        {visible.map((opt, i) => (
+          <button
+            key={i}
+            type="button"
+            style={{
+              padding: '4px 12px', fontSize: 12, borderRadius: 20,
+              background: '#f0fdf4', border: '1px solid #86efac',
+              color: '#166534', cursor: 'pointer', fontFamily: 'inherit',
+              textAlign: 'right', direction: 'rtl',
+            }}
+            onClick={() => onSelect(opt)}
+          >{opt.length > 50 ? opt.slice(0, 50) + '…' : opt}</button>
+        ))}
+        {options.length > 4 && (
+          <button
+            type="button"
+            style={{
+              padding: '4px 12px', fontSize: 11, borderRadius: 20,
+              background: '#f3f4f6', border: '1px solid #d1d5db',
+              color: '#6b7280', cursor: 'pointer', fontFamily: 'inherit',
+            }}
+            onClick={() => setOpen(o => !o)}
+          >{open ? '▲ פחות' : `+${options.length - 4} עוד`}</button>
+        )}
+      </div>
     </div>
   );
 }
@@ -782,6 +829,13 @@ export default function App() {
                 <div className="card">
                   <div className="card-title">📝 תוכן חוות הדעת</div>
                   <Field label="פסקת פתיחה (אופציונלי)">
+                    {INTRO_TEMPLATES[docType]?.length > 0 && (
+                      <QuickChips
+                        options={INTRO_TEMPLATES[docType]}
+                        label="💡 תבניות פתיחה"
+                        onSelect={t => setField('intro_extra', t)}
+                      />
+                    )}
                     <textarea
                       className="form-textarea"
                       value={form.intro_extra}
@@ -792,6 +846,16 @@ export default function App() {
                     />
                   </Field>
                   <Field label="נתונים כלליים וממצאים (שורה = נקודה אחת)">
+                    {QUICK_NOTES[docType]?.length > 0 && (
+                      <QuickChips
+                        options={QUICK_NOTES[docType]}
+                        label="💡 הערות נפוצות"
+                        onSelect={note => {
+                          const cur = form.notes_custom?.trim() || '';
+                          setField('notes_custom', cur ? `${cur}\n• ${note}` : `• ${note}`);
+                        }}
+                      />
+                    )}
                     <RichTextarea
                       value={form.notes_custom}
                       onChange={v => setField('notes_custom', v)}
@@ -800,6 +864,13 @@ export default function App() {
                     />
                   </Field>
                   <Field label="הערות ומסקנות (שורה = סעיף ממוספר)">
+                    {QUICK_CONCLUSIONS[docType]?.length > 0 && (
+                      <QuickChips
+                        options={QUICK_CONCLUSIONS[docType]}
+                        label="💡 מסקנות נפוצות"
+                        onSelect={conc => setField('conclusion_custom', conc)}
+                      />
+                    )}
                     <RichTextarea
                       value={form.conclusion_custom}
                       onChange={v => setField('conclusion_custom', v)}
@@ -840,8 +911,8 @@ export default function App() {
                       rowPhotos={rowPhotos}
                       onRowPhotosChange={setRowPhotos}
                       docType={docType}
-                      elements={ALL_ELEMENTS}
-                      findings={ALL_FINDINGS}
+                      elements={ELEMENTS_BY_TYPE[docType] || ALL_ELEMENTS}
+                      findings={findingsData[docType] || ALL_FINDINGS}
                     />
                   </div>
 
@@ -863,8 +934,8 @@ export default function App() {
                         rowPhotos={defectsRowPhotos}
                         onRowPhotosChange={setDefectsRowPhotos}
                         docType={docType}
-                        elements={ALL_ELEMENTS}
-                        findings={ALL_FINDINGS}
+                        elements={ELEMENTS_BY_TYPE[docType] || ALL_ELEMENTS}
+                        findings={findingsData[docType] || ALL_FINDINGS}
                       />
                     </div>
                   )}
@@ -873,6 +944,16 @@ export default function App() {
                   <div className="card">
                     <div className="card-title">📝 הערות ומסקנות</div>
                     <Field label="הערות והנחיות (אופציונלי)">
+                      {QUICK_NOTES[docType]?.length > 0 && (
+                        <QuickChips
+                          options={QUICK_NOTES[docType]}
+                          label="💡 הערות נפוצות"
+                          onSelect={note => {
+                            const cur = form.notes_custom?.trim() || '';
+                            setField('notes_custom', cur ? `${cur}\n• ${note}` : `• ${note}`);
+                          }}
+                        />
+                      )}
                       <RichTextarea
                         value={form.notes_custom}
                         onChange={v => setField('notes_custom', v)}
@@ -881,6 +962,13 @@ export default function App() {
                       />
                     </Field>
                     <Field label="מסקנות (אופציונלי)">
+                      {QUICK_CONCLUSIONS[docType]?.length > 0 && (
+                        <QuickChips
+                          options={QUICK_CONCLUSIONS[docType]}
+                          label="💡 מסקנות נפוצות"
+                          onSelect={conc => setField('conclusion_custom', conc)}
+                        />
+                      )}
                       <textarea
                         className="form-textarea"
                         value={form.conclusion_custom}
