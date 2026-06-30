@@ -42,12 +42,13 @@ const DOC_TYPES = {
     titleSuffix: false,  // subject does NOT include "– {location}"
     introBold: true,
     introTemplate: (d) =>
-      `בתאריך ${d.inspection_date} ערכתי סיור בדיקה ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות האלמנטים והמתקנים התלויים.`,
+      `בתאריך ${d.inspection_date} ערכתי סיור בדיקה ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות האלמנטים והמתקנים התלויים במתחם.`,
     tableColumns: ['מיקום', 'האלמנט/המתקן', 'נתונים וממצאים', 'הערות'],
     colWidths: [3.5, 4.5, 6.0, 3.0],
     defaultNotes: [
-      "על כל שינוי קונסטרוקטיבי ועיוותים באופן חיבור/תליות האלמנטים (סדקים, עיוותים, שקיעות, ניתוקים, קורוזיה וכד') – לדווח לח''מ מיד.",
+      "על כל שינוי קונסטרוקטיבי ועיוותים באופן חיבור/תליות האלמנטים (סדקים, עיוותים, שקיעות, ניתוקים, חלודה, אלמנטים רופפים, חוסרים/תוספות וכדומה) יש לדווח על כך לבדיקה חוזרת וטיפול מתאים עפ''י הממצאים.",
       'אין להעמיס עומסים על האלמנטים שנבדקו שאינם מיועדים לכך.',
+      'יש להקפיד על הגבלת עומסים במתקנים שהוגבלו בעומסים בהתאמה.',
       'הבדיקה הינה ויזואלית ונכונה ליום הבדיקה.',
     ],
     hasValidityLine: true,  // validity line appended after notes
@@ -409,7 +410,7 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
 }
 
 /** Signature block: text centered within a left-side column */
-function mkSignatureBlock(bodySize) {
+function mkSignatureBlock(bodySize, extraLines = []) {
   const sig = [
     new Paragraph({
       children: [mkRun('ניר בן דוד', { size: 9, bold: true })],
@@ -429,6 +430,12 @@ function mkSignatureBlock(bodySize) {
       spacing: { after: 0 },
       bidirectional: true,
     }),
+    ...extraLines.map(line => new Paragraph({
+      children: [mkRun(line, { size: 9 })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 0 },
+      bidirectional: true,
+    })),
   ];
   return [
     new Table({
@@ -920,7 +927,10 @@ export async function generateDocument(data) {
       );
     });
 
-    bodyChildren.push(...mkSignatureBlock(cfg.bodySize));
+    const group2ExtraLines = cfg.layout === 'gap-survey'
+      ? ['עורך מבדקי בטיחות מוסדות חינוך מספר תעודה 70382']
+      : [];
+    bodyChildren.push(...mkSignatureBlock(cfg.bodySize, group2ExtraLines));
   }
 
   // ── 9. Defects table (if applicable) ─────────────────────────────────────
