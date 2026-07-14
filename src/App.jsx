@@ -3,6 +3,7 @@ import TableEditor from './components/TableEditor';
 import PhotoUpload from './components/PhotoUpload';
 import SearchDropdown from './components/SearchDropdown';
 import FieldJournal from './components/FieldJournal';
+import ProjectVault from './components/ProjectVault';
 import InfoCards from './components/InfoCards';
 import AIWriter from './components/AIWriter';
 import Archive from './components/Archive';
@@ -210,7 +211,7 @@ function RichTextarea({ value, onChange, placeholder, rows = 4 }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'info' | 'ai' | 'archive'
+  const [mode, setMode] = useState('home');   // 'home' | 'new' | 'edit' | 'field' | 'projects' | 'info' | 'ai' | 'archive'
   const [step, setStep] = useState(0);         // for 'new': 0=type,1=details,2=table,3=photos,4=generate
   const [docType, setDocType] = useState('');
   const [form, setForm] = useState(defaultForm());
@@ -592,6 +593,12 @@ export default function App() {
               <div className="home-card-icon">📋</div>
               <div className="home-card-title">יומן שטח</div>
               <div className="home-card-sub">רשום הערות בשטח – נשמר אוטומטית</div>
+            </div>
+
+            <div className="home-card" onClick={() => setMode('projects')}>
+              <div className="home-card-icon">🗂️</div>
+              <div className="home-card-title">פרויקטים בשטח</div>
+              <div className="home-card-sub">תיקייה לכל פרויקט ב-OneDrive — תמונות, סרטונים והערות כמו צ'אט</div>
             </div>
 
             <div className="home-card" onClick={() => setMode('info')}>
@@ -1144,6 +1151,10 @@ export default function App() {
       ══════════════════════════════════════════════════════════════════════ */}
       {mode === 'field' && (
         <FieldJournal onBack={goHome} />
+      )}
+
+      {mode === 'projects' && (
+        <ProjectVault onBack={goHome} />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════

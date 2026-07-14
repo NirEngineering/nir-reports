@@ -105,7 +105,7 @@ async function refreshToken() {
   return updated.access_token;
 }
 
-async function getToken() {
+export async function getToken() {
   const t = getTokens();
   if (!t) throw new Error('Not connected');
   return Date.now() < t.expires_at - 60_000 ? t.access_token : refreshToken();
