@@ -39,8 +39,12 @@ export function disconnect() {
 // ── OAuth PKCE flow ───────────────────────────────────────────────────────────
 export async function startAuth(clientId) {
   const { verifier, challenge } = await makePKCE();
-  sessionStorage.setItem('od_v', verifier);
-  sessionStorage.setItem('od_cid', clientId);
+  // localStorage, not sessionStorage: on the round trip through Microsoft's
+  // login page (especially on mobile / installed-PWA contexts) the browser
+  // can come back in a browsing context that doesn't share sessionStorage
+  // with the one that started the flow, silently breaking the callback.
+  localStorage.setItem('nir_od_v', verifier);
+  localStorage.setItem('nir_od_cid', clientId);
   const p = new URLSearchParams({
     client_id: clientId, response_type: 'code',
     redirect_uri: redirectUri(), scope: SCOPE,
@@ -55,13 +59,15 @@ export async function handleCallback() {
   const code     = params.get('code');
   if (!code) return false;
 
-  const verifier = sessionStorage.getItem('od_v');
-  const clientId = sessionStorage.getItem('od_cid') || getClientId();
-  if (!verifier) return false;
-
-  sessionStorage.removeItem('od_v');
-  sessionStorage.removeItem('od_cid');
+  const verifier = localStorage.getItem('nir_od_v');
+  const clientId = localStorage.getItem('nir_od_cid') || getClientId();
   history.replaceState(null, '', location.pathname);
+  if (!verifier) {
+    throw new Error('פרטי האימות המקומיים אבדו — נסה להתחבר שוב מאותו דפדפן');
+  }
+
+  localStorage.removeItem('nir_od_v');
+  localStorage.removeItem('nir_od_cid');
 
   const resp = await fetch(`${AUTH}/token`, {
     method: 'POST',
