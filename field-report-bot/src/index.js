@@ -67,29 +67,44 @@ client.on('qr', (qr) => {
   qrcodeTerminal.generate(qr, { small: true });
 });
 
-// Resolved once at startup via getChats() (a bulk listing — a more reliable
-// code path than getChatById, which currently breaks against this WhatsApp
-// Web build; see the message_create handler below for why we avoid it there).
+// Resolved once at startup by reading the raw internal chat store directly
+// in the page context — NOT via client.getChats()/getChatById(), both of
+// which route through whatsapp-web.js's chat.serialize(), which is broken
+// against the current WhatsApp Web build (WhatsApp renamed an internal WID
+// property in a July 2026 update; see index.js history for details). This
+// touches only .id and a name field on the raw store models, never
+// serialize(), so it avoids that broken code path entirely.
 let targetChatId = null;
+
+async function resolveTargetChat() {
+  const rawChats = await client.pupPage.evaluate(() => {
+    const chats = window.require('WAWebCollections').Chat.getModelsArray();
+    return chats.map((c) => ({
+      id: c.id?._serialized || c.id?.$1 || (typeof c.id === 'string' ? c.id : null),
+      name: c.name || c.formattedTitle || c.contact?.name || c.contact?.pushname || '',
+    }));
+  });
+
+  const match = rawChats.find((c) => (c.name || '').trim() === TARGET_CHAT);
+  if (match?.id) {
+    targetChatId = match.id;
+    console.log(`✅ Field report bot connected. Watching chat: "${TARGET_CHAT}"`);
+  } else {
+    console.error(
+      `❌ No chat named exactly "${TARGET_CHAT}" was found. Available chat names:\n` +
+      rawChats.slice(0, 30).map((c) => `   - "${c.name}" (id: ${c.id})`).join('\n') +
+      '\nFix WHATSAPP_TARGET_CHAT in .env to match exactly, then restart.'
+    );
+  }
+}
 
 client.on('ready', async () => {
   isReady = true;
   latestQr = null;
   try {
-    const chats = await client.getChats();
-    const match = chats.find((c) => (c.name || '').trim() === TARGET_CHAT);
-    if (match) {
-      targetChatId = match.id._serialized;
-      console.log(`✅ Field report bot connected. Watching chat: "${TARGET_CHAT}"`);
-    } else {
-      console.error(
-        `❌ No chat named exactly "${TARGET_CHAT}" was found. Available chat names:\n` +
-        chats.slice(0, 30).map((c) => `   - "${c.name}"`).join('\n') +
-        '\nFix WHATSAPP_TARGET_CHAT in .env to match exactly, then restart.'
-      );
-    }
+    await resolveTargetChat();
   } catch (e) {
-    console.error('Failed to resolve target chat via getChats():', e);
+    console.error('Failed to resolve target chat:', e);
   }
 });
 
