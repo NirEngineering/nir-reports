@@ -78,6 +78,21 @@ client.on('disconnected', (reason) => {
   console.warn('⚠️ WhatsApp disconnected:', reason);
 });
 
+// Tracks message IDs the bot itself sent, so message_create (which fires for
+// our own outgoing messages too) doesn't loop back and treat our replies as
+// new field data.
+const ownMessageIds = new Set();
+
+async function reply(msg, ...args) {
+  const sent = await msg.reply(...args);
+  const id = sent?.id?.id;
+  if (id) {
+    ownMessageIds.add(id);
+    setTimeout(() => ownMessageIds.delete(id), 5 * 60 * 1000).unref?.();
+  }
+  return sent;
+}
+
 function parseCommand(body) {
   const trimmed = body.trim();
   if (!trimmed) return null;
@@ -96,17 +111,17 @@ async function handleGenerate(msg, typeHint) {
   if (typeHint) {
     forcedTypeId = matchTypeHint(typeHint);
     if (!forcedTypeId) {
-      await msg.reply(`❓ לא זיהיתי את הסוג "${typeHint}".\n\n${listTypesMessage()}`);
+      await reply(msg, `❓ לא זיהיתי את הסוג "${typeHint}".\n\n${listTypesMessage()}`);
       return;
     }
   }
 
   if (isEmpty()) {
-    await msg.reply('אין עדיין הערות או תמונות לניתוח — שלח טקסט ותמונות מהביקור, ואז שלח שוב "' + GENERATE_KEYWORD + '".');
+    await reply(msg, 'אין עדיין הערות או תמונות לניתוח — שלח טקסט ותמונות מהביקור, ואז שלח שוב "' + GENERATE_KEYWORD + '".');
     return;
   }
 
-  await msg.reply('⏳ מנתח את ההערות והתמונות ומייצר דוח... (עד כדקה)');
+  await reply(msg, '⏳ מנתח את ההערות והתמונות ומייצר דוח... (עד כדקה)');
 
   try {
     const session = getSession();
@@ -123,18 +138,25 @@ async function handleGenerate(msg, typeHint) {
       buffer.toString('base64'),
       filename
     );
-    await msg.reply(media, undefined, { caption: `✅ ${typeMeta.name}${payload.client ? ' — ' + payload.client : ''}` });
+    await reply(msg, media, undefined, { caption: `✅ ${typeMeta.name}${payload.client ? ' — ' + payload.client : ''}` });
 
     resetSession();
   } catch (e) {
     console.error('Report generation failed:', e);
-    await msg.reply(`❌ שגיאה ביצירת הדוח: ${e.message}\n\nההערות והתמונות נשמרו — נסה שוב "${GENERATE_KEYWORD}".`);
+    await reply(msg, `❌ שגיאה ביצירת הדוח: ${e.message}\n\nההערות והתמונות נשמרו — נסה שוב "${GENERATE_KEYWORD}".`);
   }
 }
 
-client.on('message', async (msg) => {
+// message_create (not message) — the watched chat is expected to be a group
+// with only the field engineer in it, so every real message they send has
+// fromMe: true. The plain 'message' event only fires for messages from OTHER
+// people and would never see them at all.
+client.on('message_create', async (msg) => {
   if (!isReady) return;
   try {
+    const id = msg.id?.id;
+    if (id && ownMessageIds.has(id)) { ownMessageIds.delete(id); return; }
+
     const chat = await msg.getChat();
     if ((chat.name || '').trim() !== TARGET_CHAT) return;
 
@@ -143,12 +165,12 @@ client.on('message', async (msg) => {
 
     if (command?.type === 'reset') {
       resetSession();
-      await msg.reply('🆕 האוסף אופס. שלח טקסט ותמונות מהביקור, ואז "' + GENERATE_KEYWORD + '" (אפשר גם "' + GENERATE_KEYWORD + ': סככות" וכו\').');
+      await reply(msg, '🆕 האוסף אופס. שלח טקסט ותמונות מהביקור, ואז "' + GENERATE_KEYWORD + '" (אפשר גם "' + GENERATE_KEYWORD + ': סככות" וכו\').');
       return;
     }
 
     if (command?.type === 'help') {
-      await msg.reply(listTypesMessage());
+      await reply(msg, listTypesMessage());
       return;
     }
 
