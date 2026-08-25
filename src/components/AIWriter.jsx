@@ -3,6 +3,8 @@ import { DOC_TYPES_CONFIG, TABLE_COLUMNS, DEFECTS_COLUMNS } from '../constants';
 import { generateDocument } from '../lib/docGenerator';
 
 const API_KEY_STORAGE = 'nir_anthropic_key';
+const BRIDGE_URL_STORAGE = 'nir_whatsapp_bridge_url';
+const DEFAULT_BRIDGE_URL = 'http://localhost:3210';
 const MODEL = 'claude-sonnet-4-6';
 
 // ── System prompt ─────────────────────────────────────────────────────────────
@@ -147,6 +149,12 @@ export default function AIWriter({ onBack }) {
   const [visionLoading, setVisionLoading]   = useState(false);
   const [visionFindings, setVisionFindings] = useState([]);
 
+  const [bridgeUrl, setBridgeUrl]     = useState(() => localStorage.getItem(BRIDGE_URL_STORAGE) || DEFAULT_BRIDGE_URL);
+  const [showBridgeSetup, setShowBridgeSetup] = useState(false);
+  const [waImporting, setWaImporting] = useState(false);
+  const [waError, setWaError]         = useState('');
+  const [waImported, setWaImported]   = useState(0);
+
   const fileRef   = useRef(null);
   const cameraRef = useRef(null);
 
@@ -177,6 +185,44 @@ export default function AIWriter({ onBack }) {
     if (!imgs.length) return;
     e.preventDefault();
     imgs.forEach(it => { const f = it.getAsFile(); if (f) addPhotos([f]); });
+  };
+
+  // ── Import from WhatsApp bridge ───────────────────────────────────────────
+  const saveBridgeUrl = (url) => {
+    const clean = url.trim().replace(/\/+$/, '') || DEFAULT_BRIDGE_URL;
+    localStorage.setItem(BRIDGE_URL_STORAGE, clean);
+    setBridgeUrl(clean);
+    setShowBridgeSetup(false);
+  };
+
+  const importFromWhatsApp = async () => {
+    setWaError('');
+    setWaImporting(true);
+    setWaImported(0);
+    try {
+      const res = await fetch(`${bridgeUrl}/inbox`);
+      if (!res.ok) throw new Error(`שגיאת שרת: ${res.status}`);
+      const data = await res.json();
+      const newText = (data.text || '').trim();
+      const newPhotos = (data.photos || []).map(p => ({ data: p.data, caption: p.caption || '' }));
+
+      if (!newText && !newPhotos.length) {
+        setWaError('אין הודעות חדשות בוואטסאפ לייבוא.');
+        return;
+      }
+
+      if (newText) setRawText(prev => (prev ? `${prev}\n\n${newText}` : newText));
+      if (newPhotos.length) setPhotos(prev => [...prev, ...newPhotos]);
+      setWaImported(newPhotos.length + (newText ? 1 : 0));
+
+      await fetch(`${bridgeUrl}/inbox/clear`, { method: 'POST' }).catch(() => {});
+    } catch (e) {
+      setWaError(
+        'לא ניתן להתחבר לגשר הוואטסאפ. ודא שהשירות (whatsapp-bridge) רץ במחשב, או עדכן את הכתובת שלו.'
+      );
+    } finally {
+      setWaImporting(false);
+    }
   };
 
   // ── Call Claude API ───────────────────────────────────────────────────────
@@ -502,6 +548,52 @@ export default function AIWriter({ onBack }) {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* WhatsApp import */}
+      <div className="card">
+        <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>📲 ייבוא מוואטסאפ</span>
+          <button
+            className="btn btn-outline btn-sm"
+            style={{ fontSize: 11 }}
+            onClick={() => setShowBridgeSetup(s => !s)}
+          >
+            ⚙️ הגדרות
+          </button>
+        </div>
+        <p style={{ fontSize: 13, color: '#64748b', direction: 'rtl', marginBottom: 10 }}>
+          כתוב הערות ושלח תמונות בצ'אט הוואטסאפ הייעודי, ואז לחץ כאן לטעינה אוטומטית —
+          בלי להעתיק־להדביק. דורש שהשירות המקומי whatsapp-bridge פעיל.
+        </p>
+
+        {showBridgeSetup && (
+          <div className="form-group">
+            <label className="form-label">כתובת שירות הגשר</label>
+            <input
+              className="form-input"
+              defaultValue={bridgeUrl}
+              onBlur={e => saveBridgeUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && saveBridgeUrl(e.target.value)}
+              dir="ltr"
+              placeholder={DEFAULT_BRIDGE_URL}
+            />
+          </div>
+        )}
+
+        <button
+          className="btn btn-outline"
+          style={{ width: '100%', borderColor: '#22c55e', color: '#16a34a' }}
+          onClick={importFromWhatsApp}
+          disabled={waImporting}
+        >
+          {waImporting ? '⏳ טוען מוואטסאפ...' : '📲 ייבוא מוואטסאפ'}
+        </button>
+
+        {waError && <div className="alert alert-error" style={{ marginTop: 10 }}>{waError}</div>}
+        {!waError && waImported > 0 && (
+          <div className="alert alert-success" style={{ marginTop: 10 }}>✅ יובא מוואטסאפ בהצלחה</div>
+        )}
       </div>
 
       {/* Text input */}
