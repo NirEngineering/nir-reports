@@ -279,7 +279,6 @@ export default function InfoCards({ onBack }) {
       const mkR = (text, opts = {}) => new TextRun({
         text: String(text ?? ''), font: FONT, size: (opts.size || 9) * 2,
         bold: !!opts.bold, italics: !!opts.italic,
-        rightToLeft: opts.rtl !== false,
       });
       const mkP = (children, opts = {}) => new Paragraph({
         children,
@@ -461,17 +460,17 @@ export default function InfoCards({ onBack }) {
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 }, bidirectional: true,
-                children: [new TextRun({ text: activeCard.title, bold: true, size: 30, font: FONT, rightToLeft: true })],
+                children: [new TextRun({ text: activeCard.title, bold: true, size: 30, font: FONT })],
               }),
               new Paragraph({
                 alignment: AlignmentType.LEFT, spacing: SP, bidirectional: true,
-                children: [new TextRun({ text: activeCard.date, size: 16, font: FONT, rightToLeft: true })],
+                children: [new TextRun({ text: activeCard.date, size: 16, font: FONT })],
               }),
               new Paragraph({ children: [] }),
               ...shareBlocks.map((block, i) => new Paragraph({
                 alignment: block.align, bidirectional: true,
                 spacing: i === 0 ? { ...SP, before: 360 } : SP,
-                children: [new TextRun({ text: block.text, font: FONT, size: 18, rightToLeft: true })],
+                children: [new TextRun({ text: block.text, font: FONT, size: 18 })],
               })),
             ],
           }],

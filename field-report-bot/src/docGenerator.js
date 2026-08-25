@@ -243,14 +243,10 @@ function addDays(isoOrStr, days) {
 }
 
 function mkRun(text, opts = {}) {
-  const { size = 8.5, bold = false, color = undefined, underline = false, italic = false, rtl = true } = opts;
+  const { size = 8.5, bold = false, color = undefined, underline = false, italic = false } = opts;
   return new TextRun({
     text, font: FONT, size: size * 2, bold, color, italics: italic,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
-    // Real ניר הנדסה Word documents mark every Hebrew run with <w:rtl/> (verified
-    // against current Drive documents) in addition to paragraph-level bidi —
-    // without it, some Word renderers can mis-order text within the line.
-    rightToLeft: rtl,
   });
 }
 

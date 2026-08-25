@@ -299,7 +299,6 @@ function mkRun(text, opts = {}) {
     color  = undefined,
     underline = false,
     italic = false,
-    rtl    = true,
   } = opts;
 
   return new TextRun({
@@ -310,10 +309,6 @@ function mkRun(text, opts = {}) {
     color,
     italics: italic,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
-    // Real ניר הנדסה Word documents mark every Hebrew run with <w:rtl/> (verified
-    // against current Drive documents) in addition to paragraph-level bidi —
-    // without it, some Word renderers can mis-order text within the line.
-    rightToLeft: rtl,
   });
 }
 
