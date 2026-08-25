@@ -38,7 +38,12 @@ let isReady = false;
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: '.wwebjs_auth' }),
-  puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+  puppeteer: {
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    // Set by the Docker image to use the system Chromium instead of downloading one.
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+  },
 });
 
 client.on('qr', (qr) => {

@@ -1,0 +1,15 @@
+services:
+  field-report-bot:
+    build: .
+    container_name: field-report-bot
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - wwebjs_auth:/app/.wwebjs_auth
+      - ./data:/app/data
+    # Chromium needs more than the Docker default 64MB /dev/shm to avoid crashing.
+    shm_size: "1gb"
+
+volumes:
+  wwebjs_auth:
