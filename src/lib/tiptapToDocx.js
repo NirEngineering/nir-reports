@@ -48,7 +48,7 @@ function convertTextNode(node) {
     strike,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
     color,
-    rtl:       true,
+    rightToLeft: true,
   });
 }
 
@@ -88,7 +88,7 @@ function convertHeading(node) {
     const ts = marks.find(m => m.type === 'textStyle')?.attrs || {};
     return new TextRun({
       text: n.text || '', font: ts.fontFamily || FONT,
-      size, bold: true, rtl: true,
+      size, bold: true, rightToLeft: true,
       italics: marks.some(m => m.type === 'italic'),
       underline: marks.some(m => m.type === 'underline') ? { type: UnderlineType.SINGLE } : undefined,
     });
@@ -109,7 +109,7 @@ function convertListItem(itemNode, listType, index = 1) {
       const align = tiptapAlign(child.attrs?.textAlign);
       const prefix = listType === 'bullet' ? '•  ' : `${index}.  `;
       const runs = [
-        new TextRun({ text: prefix, font: FONT, size: DEFAULT_SIZE, rtl: true }),
+        new TextRun({ text: prefix, font: FONT, size: DEFAULT_SIZE, rightToLeft: true }),
         ...convertInlineContent(child.content),
       ];
       paras.push(new Paragraph({

@@ -24,8 +24,10 @@ import {
 const FONT = 'Arial';
 
 // Exact pixel sizes derived from sample Word document (914400 EMU = 1 inch = 96px)
-const HEADER_W = 359, HEADER_H = 142;   // 95.12mm × 37.57mm
-const FOOTER_W = 568, FOOTER_H = 39;    // 150.50mm × 10.28mm
+// Verified against the header/footer <wp:extent> in two independent, current
+// (2026) real Drive documents — identical in both, so treated as the standard.
+const HEADER_W = 337, HEADER_H = 133;   // 89.06mm × 35.18mm
+const FOOTER_W = 569, FOOTER_H = 39;    // 150.50mm × 10.28mm
 
 // ── Doc-type configuration ────────────────────────────────────────────────────
 // Per-type font sizes and content extracted from 48 original Hebrew Word documents
@@ -44,7 +46,7 @@ const DOC_TYPES = {
     introTemplate: (d) =>
       `בתאריך ${d.inspection_date} ערכתי סיור בדיקה ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות האלמנטים והמתקנים התלויים.`,
     tableColumns: ['מיקום', 'האלמנט/המתקן', 'נתונים וממצאים', 'הערות'],
-    colWidths: [3.5, 4.5, 6.0, 3.0],
+    colWidths: [3.2, 4.1, 5.4, 2.7],
     defaultNotes: [
       "על כל שינוי קונסטרוקטיבי ועיוותים באופן חיבור/תליות האלמנטים (סדקים, עיוותים, שקיעות, ניתוקים, קורוזיה וכד') – לדווח לח''מ מיד.",
       'אין להעמיס עומסים על האלמנטים שנבדקו שאינם מיועדים לכך.',
@@ -75,7 +77,7 @@ const DOC_TYPES = {
       { text: 'הממצאים ייאותרו מתוך השוואת המצב הקיים עם סטנדרטים נדרשים המפורטים ברשימות מנחות לעריכת מבדק בטיחות.', bold: false },
     ],
     tableColumns: ['', 'תחום הבדיקה', 'סעיף ברשימת המבדק', 'הדרישה', 'הממצא, מהותו ומיקומו', 'קדימות הליקוי'],
-    colWidths: [1.0, 3.0, 2.5, 3.5, 5.5, 2.5],
+    colWidths: [0.9, 2.6, 2.1, 3.0, 4.7, 2.1],
     defaultNotes: [
       'מקרא קדימות לטיפול בליקויים:',
       "ליקויים בקדימות 0 – מתייחסת למפגע חמור במיוחד, המחייב להערכת עורך המבדק סגירה מידית של המקום/האתר במוסד החינוך ולאסור שימוש בו עד קבלת הודעה ממנהל הבטיחות ברשות או מנהל המוסד ויועץ בטיחות מטעם הבעלות.",
@@ -92,7 +94,7 @@ const DOC_TYPES = {
     ],
     // Approvals checklist table (fixed template, appended after main table)
     approvalsTableHeaders: ["מס'", 'תחום הבדיקה', 'תדירות', 'הגוף המקצועי הבודק והמאשר', 'הוצג/לא הוצג'],
-    approvalsColWidths: [1.0, 3.5, 2.5, 5.0, 3.0],
+    approvalsColWidths: [1.0, 3.6, 2.6, 5.1, 3.1],
     hasDefectsTable: false,
   },
 
@@ -118,7 +120,7 @@ const DOC_TYPES = {
       },
     ],
     tableColumns: ['מיקום/חדר', 'סוג התקרה', 'תקין/לא תקין', 'קדימות ליקויים', 'הערות'],
-    colWidths: [3.5, 3.5, 3.0, 3.0, 4.0],
+    colWidths: [3.2, 3.2, 2.7, 2.7, 3.6],
     defaultNotes: [
       "ממצאי סקר זה הם כפי שהועברו לח''מ ע''י בעלי התפקידים באתר ומציגים מצב קיים ביום הסיור בלבד, מזמין העבודה אחראי לביצוע תיקון הליקויים שנמצאו בפרק זמן שהוגדר, לא תשמע טענה כנגד הח''מ בגין ליקויים שהצביע עליהם במסגרת סקר זה ושאינם תוקנו בתוך מסגרת הזמן שנקבעה.",
       "מצורפת טבלת ליקויים בהמשך המסמך הכוללת את מיקום הליקוי, פירוט הממצא, דרישות/הנחיות לטיפול ותמונות הליקוי.",
@@ -137,7 +139,7 @@ const DOC_TYPES = {
     conclusionDefects: 'נמצאו ליקויים בתקרות התותב. יש לטפל בליקויים בהתאם לטבלת הליקויים המצורפת. שאר התקרות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
     hasDefectsTable: true,
     defectsColumns: ['מיקום', 'ממצאים וליקויים', 'הדרישה', 'תמונות', 'קדימות ליקוי'],
-    defectsColWidths: [3.5, 5.5, 4.0, 2.0, 2.0],
+    defectsColWidths: [3.2, 5.0, 3.6, 1.8, 1.8],
   },
 
   // group4: סקר תקופתי — 'simple' layout, first-person "ביקרתי", has location in title
@@ -154,7 +156,7 @@ const DOC_TYPES = {
     introTemplate: (d) =>
       `בתאריך ${d.inspection_date} ביקרתי ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות האלמנטים והמבנים.`,
     tableColumns: ['האלמנט/המבנה הנבדק', 'נתונים ופירוט', 'הערות', 'תקין/לא תקין', 'קדימות ליקוי'],
-    colWidths: [4.5, 5.5, 3.0, 2.0, 2.0],
+    colWidths: [4.1, 5.0, 2.7, 1.8, 1.8],
     defaultNotes: [
       "על כל שינוי קונסטרוקטיבי ועיוותים באופן חיבור/תליות האלמנטים (סדקים, עיוותים, שקיעות, ניתוקים, קורוזיה וכד') – לדווח לח''מ מיד.",
       'אין להעמיס עומסים על האלמנטים שנבדקו שאינם מיועדים לכך.',
@@ -188,7 +190,7 @@ const DOC_TYPES = {
       },
     ],
     tableColumns: ["מס'", 'מיקום', 'סוג הסככה', "מידות (מ') ונתונים", 'תקין/לא תקין', 'קדימות ליקויים', 'תמונה'],
-    colWidths: [1.5, 2.5, 3.0, 4.0, 2.5, 2.5, 1.5],
+    colWidths: [1.4, 2.2, 2.6, 3.6, 2.2, 2.2, 1.2],
     defaultNotes: [
       'מקרא קדימות לטיפול בליקויים:',
       "קדימות 1 – ''ליקוי חמור'' בהגדרתו - ליקוי/מפגע המחייב הסרתו/תיקונו וטיפולו המיידי, לאישור ובדיקה חוזרת.",
@@ -206,7 +208,7 @@ const DOC_TYPES = {
     conclusionDefects: 'נמצאו ליקויים בסככות. יש לטפל בליקויים בהתאם לטבלת הליקויים המצורפת. שאר הסככות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
     hasDefectsTable: true,
     defectsColumns: ['מספר סככה', 'מיקום', 'ממצאי ליקויים ודרישות', 'תמונות הליקוי', 'קדימות'],
-    defectsColWidths: [2.0, 3.0, 6.0, 4.0, 2.0],
+    defectsColWidths: [1.8, 2.7, 5.5, 3.6, 1.8],
   },
   // group6: חוות דעת הנדסיות — 'opinion' layout, free-text findings + numbered conclusions
   group6: {
@@ -297,6 +299,7 @@ function mkRun(text, opts = {}) {
     color  = undefined,
     underline = false,
     italic = false,
+    rtl    = true,
   } = opts;
 
   return new TextRun({
@@ -307,6 +310,10 @@ function mkRun(text, opts = {}) {
     color,
     italics: italic,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
+    // Real ניר הנדסה Word documents mark every Hebrew run with <w:rtl/> (verified
+    // against current Drive documents) in addition to paragraph-level bidi —
+    // without it, some Word renderers can mis-order text within the line.
+    rightToLeft: rtl,
   });
 }
 
@@ -435,12 +442,12 @@ function mkSignatureBlock(bodySize) {
       layout: TableLayoutType.FIXED,
       rows: [new TableRow({ children: [
         new TableCell({
-          width: { size: cm(9), type: WidthType.DXA },
+          width: { size: cm(7.7), type: WidthType.DXA },
           borders: NO_BORDER,
           children: sig,
         }),
         new TableCell({
-          width: { size: cm(9), type: WidthType.DXA },
+          width: { size: cm(7.7), type: WidthType.DXA },
           borders: NO_BORDER,
           children: [new Paragraph({ children: [] })],
         }),
@@ -969,12 +976,13 @@ export async function generateDocument(data) {
 
         // Compute display dimensions in cm
         let dispW, dispH;
+        // Cap at 7.2cm so the image fits inside the 7.7cm-wide photo cell with margin
         if (isPortrait) {
-          dispH = 8; // cm absolute height
-          dispW = natW > 0 ? (natW / natH) * dispH : 6;
+          dispH = 7.2; // cm absolute height
+          dispW = natW > 0 ? (natW / natH) * dispH : 5.4;
         } else {
-          dispW = 8; // cm absolute width
-          dispH = natH > 0 ? (natH / natW) * dispW : 5;
+          dispW = 7.2; // cm absolute width
+          dispH = natH > 0 ? (natH / natW) * dispW : 4.5;
         }
 
         const caption = photo.caption
@@ -1014,7 +1022,7 @@ export async function generateDocument(data) {
         );
 
         return new TableCell({
-          width: { size: cm(8.5), type: WidthType.DXA },
+          width: { size: cm(7.7), type: WidthType.DXA },
           verticalAlign: VerticalAlign.TOP,
           borders: NO_BORDER,
           children: [capPara, imgPara],
@@ -1023,7 +1031,7 @@ export async function generateDocument(data) {
 
       const emptyCell = () =>
         new TableCell({
-          width: { size: cm(8.5), type: WidthType.DXA },
+          width: { size: cm(7.7), type: WidthType.DXA },
           borders: NO_BORDER,
           children: [mkPara([mkRun('')])],
         });
@@ -1073,13 +1081,16 @@ export async function generateDocument(data) {
         properties: {
           page: {
             size: { width: mm(210), height: mm(297) },
+            // Exact twip (DXA) values read straight from <w:pgMar> in two independent,
+            // current real Drive documents (verified identical in both) — NOT derived
+            // via mm() to avoid rounding drift from the real standard.
             margin: {
-              top:    mm(31.70),
-              bottom: mm(12.51),
-              left:   mm(7.00),
-              right:  mm(7.00),
-              header: mm(3.00),
-              footer: mm(1.99),
+              top:    2268,
+              bottom: 568,
+              left:   1260,
+              right:  1800,
+              header: 142,
+              footer: 0,
             },
           },
           bidi: true,  // RTL section — all paragraphs inherit right-to-left direction

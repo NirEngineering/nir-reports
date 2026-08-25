@@ -9,8 +9,8 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 const CARDS_KEY = 'nir_v2_info_cards';
 const FONT = 'Arial';
-const HEADER_W = 359, HEADER_H = 142;
-const FOOTER_W = 568, FOOTER_H = 39;
+const HEADER_W = 337, HEADER_H = 133; // verified against real Drive documents
+const FOOTER_W = 569, FOOTER_H = 39; // verified against real Drive documents
 const SP = { line: 360, lineRule: 'auto', after: 0 };
 const FONTS = ['Arial', 'Times New Roman', 'David', 'FrankRuehl', 'Courier New'];
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32];
@@ -279,6 +279,7 @@ export default function InfoCards({ onBack }) {
       const mkR = (text, opts = {}) => new TextRun({
         text: String(text ?? ''), font: FONT, size: (opts.size || 9) * 2,
         bold: !!opts.bold, italics: !!opts.italic,
+        rightToLeft: opts.rtl !== false,
       });
       const mkP = (children, opts = {}) => new Paragraph({
         children,
@@ -378,7 +379,7 @@ export default function InfoCards({ onBack }) {
           properties: {
             page: {
               size: { width: mm(210), height: mm(297) },
-              margin: { top: mm(31.70), bottom: mm(12.51), left: mm(7.00), right: mm(7.00), header: mm(3.00), footer: mm(1.99) },
+              margin: { top: 2268, bottom: 568, left: 1260, right: 1800, header: 142, footer: 0 } // verified twips from real docs
             },
             bidi: true,
           },
@@ -437,7 +438,7 @@ export default function InfoCards({ onBack }) {
             properties: {
               page: {
                 size: { width: mm(210), height: mm(297) },
-                margin: { top: mm(31.70), bottom: mm(12.51), left: mm(7.00), right: mm(7.00), header: mm(3.00), footer: mm(1.99) },
+                margin: { top: 2268, bottom: 568, left: 1260, right: 1800, header: 142, footer: 0 } // verified twips from real docs
               },
               bidi: true,
             },
@@ -460,17 +461,17 @@ export default function InfoCards({ onBack }) {
             children: [
               new Paragraph({
                 alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 }, bidirectional: true,
-                children: [new TextRun({ text: activeCard.title, bold: true, size: 30, font: FONT })],
+                children: [new TextRun({ text: activeCard.title, bold: true, size: 30, font: FONT, rightToLeft: true })],
               }),
               new Paragraph({
                 alignment: AlignmentType.LEFT, spacing: SP, bidirectional: true,
-                children: [new TextRun({ text: activeCard.date, size: 16, font: FONT })],
+                children: [new TextRun({ text: activeCard.date, size: 16, font: FONT, rightToLeft: true })],
               }),
               new Paragraph({ children: [] }),
               ...shareBlocks.map((block, i) => new Paragraph({
                 alignment: block.align, bidirectional: true,
                 spacing: i === 0 ? { ...SP, before: 360 } : SP,
-                children: [new TextRun({ text: block.text, font: FONT, size: 18 })],
+                children: [new TextRun({ text: block.text, font: FONT, size: 18, rightToLeft: true })],
               })),
             ],
           }],
