@@ -36,6 +36,21 @@ if (!TARGET_CHAT) {
 let latestQr = null;
 let isReady = false;
 
+// Chromium leaves a SingletonLock (and friends) in the profile dir and only
+// removes it on a clean exit. If the container was killed (crash, `docker
+// compose down` timeout) instead of shutting down gracefully, the lock
+// survives in the persistent volume and blocks the next start with
+// "profile appears to be in use by another process". Since only one instance
+// of this container ever runs against this profile, any lock found here at
+// startup is necessarily stale — safe to remove before launching.
+function clearStaleChromiumLock() {
+  const sessionDir = path.join('.wwebjs_auth', 'session');
+  for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+    try { fs.rmSync(path.join(sessionDir, name), { force: true }); } catch (_) { /* ignore */ }
+  }
+}
+clearStaleChromiumLock();
+
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: '.wwebjs_auth' }),
   puppeteer: {
@@ -157,6 +172,20 @@ client.on('message', async (msg) => {
 });
 
 client.initialize();
+
+// Close Chromium cleanly on stop/restart so it removes its own lock file —
+// the primary defense against the stale-lock problem clearStaleChromiumLock()
+// works around above (belt and suspenders).
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Received ${signal}, shutting down...`);
+  try { await client.destroy(); } catch (_) { /* already gone */ }
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 // ── Small status HTTP server (QR code viewing / health check only) ─────────
 const app = express();
