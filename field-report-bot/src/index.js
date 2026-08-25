@@ -11,6 +11,7 @@ import { DOC_TYPES, matchTypeHint, listTypesMessage } from './docTypes.js';
 import { getSession, addText, addPhoto, resetSession, isEmpty } from './session.js';
 import { classifyAndBuild } from './classify.js';
 import { generateDocument } from './docGenerator.js';
+import { isWizardActive, startWizard, cancelWizard, answerWizard } from './wizard.js';
 
 const { Client, LocalAuth, MessageMedia } = pkg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,8 @@ const PORT = process.env.PORT || 3211;
 const TARGET_CHAT = (process.env.WHATSAPP_TARGET_CHAT || '').trim();
 const GENERATE_KEYWORD = (process.env.GENERATE_KEYWORD || 'צור דוח').trim();
 const RESET_KEYWORD = (process.env.RESET_KEYWORD || 'דוח חדש').trim();
+const WIZARD_KEYWORD = (process.env.WIZARD_KEYWORD || 'שאלון').trim();
+const CANCEL_WIZARD_KEYWORDS = new Set(['בטל שאלון', 'בטל']);
 const HELP_KEYWORDS = new Set(['עזרה', 'סוגי מסמכים', 'help']);
 
 if (!TARGET_CHAT) {
@@ -133,10 +136,16 @@ function parseCommand(body) {
   if (!trimmed) return null;
   if (trimmed === RESET_KEYWORD) return { type: 'reset' };
   if (HELP_KEYWORDS.has(trimmed)) return { type: 'help' };
+  if (CANCEL_WIZARD_KEYWORDS.has(trimmed)) return { type: 'cancel_wizard' };
   if (trimmed === GENERATE_KEYWORD) return { type: 'generate', typeHint: null };
   if (trimmed.startsWith(GENERATE_KEYWORD)) {
     const rest = trimmed.slice(GENERATE_KEYWORD.length).trim().replace(/^:\s*/, '');
     return { type: 'generate', typeHint: rest || null };
+  }
+  if (trimmed === WIZARD_KEYWORD) return { type: 'wizard', typeHint: null };
+  if (trimmed.startsWith(WIZARD_KEYWORD)) {
+    const rest = trimmed.slice(WIZARD_KEYWORD.length).trim().replace(/^:\s*/, '');
+    return { type: 'wizard', typeHint: rest || null };
   }
   return null;
 }
@@ -200,14 +209,49 @@ client.on('message_create', async (msg) => {
     const body = (msg.body || '').trim();
     const command = parseCommand(body);
 
+    if (command?.type === 'cancel_wizard') {
+      if (isWizardActive()) {
+        cancelWizard();
+        await reply(msg, '❌ השאלון בוטל. מה שכבר נענה נשאר שמור, אפשר להמשיך בכתיבה חופשית.');
+      }
+      return;
+    }
+
+    // While a wizard is in progress, every message is an answer to the
+    // current question — free text always works too, not just numbers.
+    if (isWizardActive() && !msg.hasMedia) {
+      const { prompt, done } = answerWizard(body);
+      if (prompt) await reply(msg, prompt);
+      return;
+    }
+
     if (command?.type === 'reset') {
       resetSession();
-      await reply(msg, '🆕 האוסף אופס. שלח טקסט ותמונות מהביקור, ואז "' + GENERATE_KEYWORD + '" (אפשר גם "' + GENERATE_KEYWORD + ': סככות" וכו\').');
+      cancelWizard();
+      await reply(msg, '🆕 האוסף אופס. שלח טקסט ותמונות מהביקור, ואז "' + GENERATE_KEYWORD + '" (אפשר גם "' + GENERATE_KEYWORD + ': סככות" וכו\'), או "' + WIZARD_KEYWORD + ': סככות" לשאלון מודרך.');
       return;
     }
 
     if (command?.type === 'help') {
-      await reply(msg, listTypesMessage());
+      await reply(msg, listTypesMessage() + `\n\nטיפ: אפשר גם לענות על שאלות מודרכות במקום לכתוב חופשי — שלח "${WIZARD_KEYWORD}: <סוג>".`);
+      return;
+    }
+
+    if (command?.type === 'wizard') {
+      if (!command.typeHint) {
+        await reply(msg, `כדי להתחיל שאלון מודרך, ציין סוג — למשל "${WIZARD_KEYWORD}: סככות".\n\n${listTypesMessage()}`);
+        return;
+      }
+      const result = startWizard(command.typeHint);
+      if (result.notSupported) {
+        await reply(msg, `שאלון מודרך זמין רק לסוגי מסמכים מבוססי-טבלה (אלמנטים תלויים, סקר פערי בטיחות, תקרות תותב, סקר תקופתי, סככות). לסוג הזה אפשר לכתוב חופשי ולשלוח "${GENERATE_KEYWORD}".`);
+        return;
+      }
+      if (!result.ok) {
+        await reply(msg, `❓ לא זיהיתי את הסוג "${command.typeHint}".\n\n${listTypesMessage()}`);
+        return;
+      }
+      await reply(msg, result.prompt);
       return;
     }
 
