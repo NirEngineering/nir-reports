@@ -67,10 +67,30 @@ client.on('qr', (qr) => {
   qrcodeTerminal.generate(qr, { small: true });
 });
 
-client.on('ready', () => {
+// Resolved once at startup via getChats() (a bulk listing — a more reliable
+// code path than getChatById, which currently breaks against this WhatsApp
+// Web build; see the message_create handler below for why we avoid it there).
+let targetChatId = null;
+
+client.on('ready', async () => {
   isReady = true;
   latestQr = null;
-  console.log(`✅ Field report bot connected. Watching chat: "${TARGET_CHAT}"`);
+  try {
+    const chats = await client.getChats();
+    const match = chats.find((c) => (c.name || '').trim() === TARGET_CHAT);
+    if (match) {
+      targetChatId = match.id._serialized;
+      console.log(`✅ Field report bot connected. Watching chat: "${TARGET_CHAT}"`);
+    } else {
+      console.error(
+        `❌ No chat named exactly "${TARGET_CHAT}" was found. Available chat names:\n` +
+        chats.slice(0, 30).map((c) => `   - "${c.name}"`).join('\n') +
+        '\nFix WHATSAPP_TARGET_CHAT in .env to match exactly, then restart.'
+      );
+    }
+  } catch (e) {
+    console.error('Failed to resolve target chat via getChats():', e);
+  }
 });
 
 client.on('disconnected', (reason) => {
@@ -157,8 +177,10 @@ client.on('message_create', async (msg) => {
     const id = msg.id?.id;
     if (id && ownMessageIds.has(id)) { ownMessageIds.delete(id); return; }
 
-    const chat = await msg.getChat();
-    if ((chat.name || '').trim() !== TARGET_CHAT) return;
+    // msg.id.remote is the chat JID the message belongs to, already present
+    // on the message payload — comparing it avoids calling msg.getChat() /
+    // getChatById(), which currently throws against this WhatsApp Web build.
+    if (!targetChatId || msg.id?.remote !== targetChatId) return;
 
     const body = (msg.body || '').trim();
     const command = parseCommand(body);
