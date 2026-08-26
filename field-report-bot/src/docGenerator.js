@@ -45,7 +45,7 @@ const DOC_TYPES = {
   group1: {
     name: 'אלמנטים תלויים',
     layout: 'simple',
-    titleSize: 15, bodySize: 9, headingSize: 9, tableHdrSize: 10, tableDataSize: 9,
+    titleSize: 16, bodySize: 10, headingSize: 10, tableHdrSize: 10, tableDataSize: 9,
     titleSuffix: false,
     introBold: true,
     introTemplate: (d) =>
@@ -65,7 +65,7 @@ const DOC_TYPES = {
   group2: {
     name: 'סקר פערי בטיחות',
     layout: 'gap-survey',
-    titleSize: 15, bodySize: 9, headingSize: 9, tableHdrSize: 9, tableDataSize: 9,
+    titleSize: 16, bodySize: 10, headingSize: 10, tableHdrSize: 9, tableDataSize: 9,
     titleSuffix: true,
     introBold: false,
     introTemplate: (d) => [
@@ -98,7 +98,7 @@ const DOC_TYPES = {
   group3: {
     name: 'תקרות תותב',
     layout: 'survey',
-    titleSize: 15, bodySize: 8.5, headingSize: 9, tableHdrSize: 8.5, tableDataSize: 8.5,
+    titleSize: 16, bodySize: 8.5, headingSize: 9, tableHdrSize: 8.5, tableDataSize: 8.5,
     titleSuffix: true,
     introBold: false,
     introTemplate: (d) => [
@@ -171,7 +171,7 @@ const DOC_TYPES = {
   group4: {
     name: 'סקר תקופתי',
     layout: 'simple',
-    titleSize: 15, bodySize: 9, headingSize: 9, tableHdrSize: 8, tableDataSize: 8,
+    titleSize: 16, bodySize: 10, headingSize: 10, tableHdrSize: 8, tableDataSize: 8,
     titleSuffix: true,
     introBold: true,
     introTemplate: (d) =>
@@ -191,7 +191,7 @@ const DOC_TYPES = {
   group5: {
     name: 'סככות',
     layout: 'survey',
-    titleSize: 15, bodySize: 8.5, headingSize: 9, tableHdrSize: 9, tableDataSize: 8.5,
+    titleSize: 16, bodySize: 8.5, headingSize: 9, tableHdrSize: 9, tableDataSize: 8.5,
     titleSuffix: true,
     introBold: false,
     introTemplate: (d) => [
@@ -222,7 +222,7 @@ const DOC_TYPES = {
   group6: {
     name: 'חוות דעת הנדסיות',
     layout: 'opinion',
-    titleSize: 15, bodySize: 9, headingSize: 9,
+    titleSize: 16, bodySize: 10, headingSize: 10,
     titleSuffix: true,
     introBold: false,
     introTemplate: (d) =>
@@ -236,14 +236,14 @@ const DOC_TYPES = {
   group7: {
     name: 'מסמך כללי',
     layout: 'freeform',
-    titleSize: 15, bodySize: 9, headingSize: 9,
+    titleSize: 16, bodySize: 10, headingSize: 10,
     titleSuffix: false,
     hasDefectsTable: false,
   },
   group8: {
     name: 'אישור מבנים ארעיים',
     layout: 'opinion',
-    titleSize: 15, bodySize: 9, headingSize: 9,
+    titleSize: 16, bodySize: 10, headingSize: 10,
     titleSuffix: true,
     introBold: true,
     introTemplate: (d) =>
@@ -343,10 +343,13 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
     return new TableRow({ children: cells });
   });
 
+  const totalWidth = colWidths.reduce((sum, w) => sum + w, 0);
   return new Table({
     visuallyRightToLeft: true,
     layout: TableLayoutType.FIXED,
     alignment: AlignmentType.CENTER,
+    width: { size: totalWidth, type: WidthType.DXA },
+    columnWidths: colWidths,
     rows: [headerRow, ...dataRows],
   });
 }
@@ -360,6 +363,8 @@ function mkSignatureBlock() {
   return [
     new Table({
       layout: TableLayoutType.FIXED,
+      width: { size: cm(7.7) * 2, type: WidthType.DXA },
+      columnWidths: [cm(7.7), cm(7.7)],
       rows: [new TableRow({ children: [
         new TableCell({ width: { size: cm(7.7), type: WidthType.DXA }, borders: NO_BORDER, children: sig }),
         new TableCell({ width: { size: cm(7.7), type: WidthType.DXA }, borders: NO_BORDER, children: [new Paragraph({ children: [] })] }),
@@ -593,7 +598,8 @@ export async function generateDocument(data) {
       photoTableRows.push(new TableRow({ children: [makePhotoCell(left), right ? makePhotoCell(right) : emptyCell()] }));
     }
 
-    const photoTable = new Table({ visuallyRightToLeft: true, layout: TableLayoutType.FIXED, rows: photoTableRows });
+    const photoColWidths = [cm(7.7), cm(7.7)];
+    const photoTable = new Table({ visuallyRightToLeft: true, layout: TableLayoutType.FIXED, width: { size: photoColWidths[0] + photoColWidths[1], type: WidthType.DXA }, columnWidths: photoColWidths, rows: photoTableRows });
     bodyChildren.push(photosTitlePara, photoTable);
   }
 
@@ -622,10 +628,11 @@ export async function generateDocument(data) {
       properties: {
         page: {
           size: { width: mm(210), height: mm(297) },
-          // Exact twip (DXA) values read straight from <w:pgMar> in two independent,
-          // current real Drive documents (verified identical in both) — NOT derived
-          // via mm() to avoid rounding drift from the real standard.
-          margin: { top: 2268, bottom: 568, left: 1260, right: 1800, header: 142, footer: 0 },
+          // Exact twip (DXA) values read straight from <w:pgMar> of a genuine
+          // field report from Drive (13.8.2026, מרכז דניאל לחתירה) — symmetric
+          // left/right (2.5cm each), unlike the earlier asymmetric values which
+          // came from a self-generated sample and drifted from the real standard.
+          margin: { top: 2552, bottom: 567, left: 1418, right: 1418, header: 142, footer: 472 },
         },
         bidi: true,
       },
