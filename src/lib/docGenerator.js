@@ -542,7 +542,7 @@ export async function generateDocument(data) {
   // ── 2. Build header (page num + logo) and footer (logo only) ─────────────
 
   const pageNumPara = new Paragraph({
-    alignment: AlignmentType.RIGHT,
+    alignment: AlignmentType.LEFT,
     bidirectional: true,
     spacing: { after: 0 },
     children: [
@@ -584,7 +584,7 @@ export async function generateDocument(data) {
   // ── 4. Date paragraph — left side of page
   const dateStr  = formatDate(data.date);
   const datePara = new Paragraph({
-    alignment: AlignmentType.LEFT,
+    alignment: AlignmentType.RIGHT,
     bidirectional: true,
     spacing: { after: 0 },
     children: [mkRun(dateStr, { size: 8 })],

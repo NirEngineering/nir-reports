@@ -404,7 +404,7 @@ export async function generateDocument(data) {
   const footerLogoBuffer = loadAsset('footer-logo.png');
 
   const pageNumPara = new Paragraph({
-    alignment: AlignmentType.RIGHT,
+    alignment: AlignmentType.LEFT,
     bidirectional: true,
     spacing: { after: 0 },
     children: [
@@ -429,7 +429,7 @@ export async function generateDocument(data) {
   const SP_SECTION = { line: 360, lineRule: 'auto', before: 360, after: 0 };
 
   const dateStr = formatDate(data.date);
-  const datePara = new Paragraph({ alignment: AlignmentType.LEFT, bidirectional: true, spacing: { after: 0 }, children: [mkRun(dateStr, { size: 8 })] });
+  const datePara = new Paragraph({ alignment: AlignmentType.RIGHT, bidirectional: true, spacing: { after: 0 }, children: [mkRun(dateStr, { size: 8 })] });
 
   const toLabel = mkPara([mkRun('לכבוד', { size: 8 })], { spacing: { after: 0 } });
   const clientPara = mkPara([mkRun(data.client ?? '', { size: 8 })], { spacing: { after: 0 } });
