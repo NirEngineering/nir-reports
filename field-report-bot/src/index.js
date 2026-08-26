@@ -11,7 +11,7 @@ import { DOC_TYPES, matchTypeHint, listTypesMessage } from './docTypes.js';
 import { getSession, addText, addPhoto, resetSession, isEmpty } from './session.js';
 import { classifyAndBuild } from './classify.js';
 import { generateDocument } from './docGenerator.js';
-import { isWizardActive, startWizard, cancelWizard, answerWizard } from './wizard.js';
+import { isWizardActive, startWizard, cancelWizard, answerWizard, getLastKnownDocType, clearLastKnownDocType } from './wizard.js';
 
 const { Client, LocalAuth, MessageMedia } = pkg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -158,6 +158,11 @@ async function handleGenerate(msg, typeHint) {
       await reply(msg, `❓ לא זיהיתי את הסוג "${typeHint}".\n\n${listTypesMessage()}`);
       return;
     }
+  } else {
+    // No type given in the command itself — if a wizard run already settled
+    // on a type (even one that finished a while ago, until reset/generate),
+    // use it directly instead of asking Claude to re-guess it from the notes.
+    forcedTypeId = getLastKnownDocType();
   }
 
   if (isEmpty()) {
@@ -185,6 +190,7 @@ async function handleGenerate(msg, typeHint) {
     await reply(msg, media, undefined, { caption: `✅ ${typeMeta.name}${payload.client ? ' — ' + payload.client : ''}` });
 
     resetSession();
+    clearLastKnownDocType();
   } catch (e) {
     console.error('Report generation failed:', e);
     await reply(msg, `❌ שגיאה ביצירת הדוח: ${e.message}\n\nההערות והתמונות נשמרו — נסה שוב "${GENERATE_KEYWORD}".`);
@@ -228,25 +234,21 @@ client.on('message_create', async (msg) => {
     if (command?.type === 'reset') {
       resetSession();
       cancelWizard();
-      await reply(msg, '🆕 האוסף אופס. שלח טקסט ותמונות מהביקור, ואז "' + GENERATE_KEYWORD + '" (אפשר גם "' + GENERATE_KEYWORD + ': סככות" וכו\'), או "' + WIZARD_KEYWORD + ': סככות" לשאלון מודרך.');
+      clearLastKnownDocType();
+      await reply(msg, '🆕 האוסף אופס. שלח טקסט ותמונות מהביקור, ואז "' + GENERATE_KEYWORD + '", או "' + WIZARD_KEYWORD + '" לשאלון מודרך.');
       return;
     }
 
     if (command?.type === 'help') {
-      await reply(msg, listTypesMessage() + `\n\nטיפ: אפשר גם לענות על שאלות מודרכות במקום לכתוב חופשי — שלח "${WIZARD_KEYWORD}: <סוג>".`);
+      await reply(msg, listTypesMessage() + `\n\nטיפ: אפשר גם לענות על שאלות מודרכות במקום לכתוב חופשי — שלח "${WIZARD_KEYWORD}" (הבוט ישאל גם איזה סוג מסמך).`);
       return;
     }
 
     if (command?.type === 'wizard') {
-      if (!command.typeHint) {
-        await reply(msg, `כדי להתחיל שאלון מודרך, ציין סוג — למשל "${WIZARD_KEYWORD}: סככות".\n\n${listTypesMessage()}`);
-        return;
-      }
+      // No type in the command — the wizard itself asks which document type
+      // first, then tailors every question that follows to that type (no
+      // defect-priority questions for a חוות דעת הנדסית, etc.).
       const result = startWizard(command.typeHint);
-      if (result.notSupported) {
-        await reply(msg, `שאלון מודרך זמין רק לסוגי מסמכים מבוססי-טבלה (אלמנטים תלויים, סקר פערי בטיחות, תקרות תותב, סקר תקופתי, סככות). לסוג הזה אפשר לכתוב חופשי ולשלוח "${GENERATE_KEYWORD}".`);
-        return;
-      }
       if (!result.ok) {
         await reply(msg, `❓ לא זיהיתי את הסוג "${command.typeHint}".\n\n${listTypesMessage()}`);
         return;
