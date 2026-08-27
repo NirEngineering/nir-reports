@@ -44,7 +44,8 @@ ${typeInstruction}
       "recommendation": "המלצה לתיקון",
       "priority": "1",
       "status": "לא תקין",
-      "dimensions": "מידות (רלוונטי רק לסככות)"
+      "dimensions": "מידות (רלוונטי רק לסככות)",
+      "photo_index": 1
     }
   ],
   "conclusion": "פסקת סיכום מקצועית (לדוחות טבלה) — או מסקנות ממוספרות מופרדות בשורות (לחוות דעת/אישור/מסמך כללי)",
@@ -56,9 +57,20 @@ ${typeInstruction}
 - priority: "1"=דחוף, "2"=בינוני, "3"=נמוך.
 - status: "תקין" / "לא תקין" / "תקין - דורש מעקב".
 - נתח גם תמונות שצורפו והוסף ממצאים שנראים בהן (מיקום, אלמנט, תיאור, המלצה).
+- כל תמונה מסומנת בהודעה במספרה ("תמונה 1:", "תמונה 2:" וכו', לפי סדר הצירוף). אם ממצא מסוים מבוסס על תמונה ספציפית או שהיא ממחישה אותו, מלא את photo_index שלו במספר הזה (1 = התמונה הראשונה). אם אין תמונה מתאימה — השאר null. כל תמונה משויכת לכל היותר לממצא אחד; אל תשתמש באותו photo_index פעמיים.
 - אם doc_type הוא group6/group7/group8 (ללא טבלה) — אל תמלא findings; מלא את "notes" בפריטי ממצא/פסקאות (שורה אחת = פריט אחד) ואת "conclusion" במסקנות.
 - אם פרט לא קיים בהקלט — השאר מחרוזת ריקה, אל תמציא נתונים.
 - findings יכול להיות מערך ריק אם אין ממצאים בטבלה.`;
+}
+
+// A finding whose photo_index Claude matched to one of the attached photos
+// gets a plain-text pointer into the existing "תמונות" column of its type's
+// table (group3/group5 are the only types with one) — e.g. "ראה תמונה 2".
+// The photo itself still appears in the נספח תמונות appendix; this is just
+// the cross-reference that links a table row to the photo that illustrates it.
+function photoRef(f) {
+  const n = Number(f.photo_index);
+  return n >= 1 ? `ראה תמונה ${n}` : '';
 }
 
 // ── Map generic findings[] → per-type table rows (ported from nir-reports AIWriter.jsx) ──
@@ -79,7 +91,7 @@ function toTableRows(findings, docType) {
     case 'group5':
       return findings.map((f, i) => [
         String(i + 1), f.location_detail || '', f.element || '', f.dimensions || '',
-        f.status || 'לא תקין', f.priority || '1', '',
+        f.status || 'לא תקין', f.priority || '1', photoRef(f),
       ]);
     default:
       return findings.map((f) => [f.location_detail || f.element || '', f.description || '', f.recommendation || '']);
@@ -90,9 +102,9 @@ function toDefectsRows(findings, docType) {
   const defects = findings.filter((f) => f.status && f.status !== 'תקין');
   switch (docType) {
     case 'group3':
-      return defects.map((f) => [f.location_detail || '', f.description || '', f.recommendation || '', '', f.priority || '1']);
+      return defects.map((f) => [f.location_detail || '', f.description || '', f.recommendation || '', photoRef(f), f.priority || '1']);
     case 'group5':
-      return defects.map((f, i) => [String(i + 1), f.location_detail || '', f.description || '', '', f.priority || '1']);
+      return defects.map((f, i) => [String(i + 1), f.location_detail || '', f.description || '', photoRef(f), f.priority || '1']);
     default:
       return [];
   }
@@ -100,11 +112,14 @@ function toDefectsRows(findings, docType) {
 
 async function callClaude(systemPrompt, textContent, photos) {
   const content = [
-    ...photos.slice(0, 15).map((ph) => {
+    ...photos.slice(0, 15).flatMap((ph, i) => {
       const match = ph.data.match(/^data:([^;]+);base64,(.+)$/);
-      if (!match) return null;
-      return { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } };
-    }).filter(Boolean),
+      if (!match) return [];
+      return [
+        { type: 'text', text: `תמונה ${i + 1}:` },
+        { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } },
+      ];
+    }),
     { type: 'text', text: textContent || 'נתח את התמונות שצורפו וכתוב דוח מלא על סמך מה שנראה בהן.' },
   ];
 
@@ -158,6 +173,20 @@ export async function classifyAndBuild(session, forcedTypeId) {
     ? result.notes.split('\n').map((s) => s.trim()).filter(Boolean)
     : (Array.isArray(result.notes) ? result.notes : []);
 
+  // Findings Claude tied to a specific photo (via photo_index, 1-based) give
+  // that photo a caption describing what it shows — the same link surfaced
+  // the other way for types whose table has no photo column of its own
+  // (group1/group2/group4/group6/group7/group8), so the appendix still reads
+  // as "photo N — this finding" instead of a bare, unlabeled image.
+  const photoCaptions = new Map();
+  findings.forEach((f) => {
+    const idx = Number(f.photo_index);
+    if (idx >= 1 && idx <= photos.length && !photoCaptions.has(idx)) {
+      const label = [f.location_detail, f.element].filter(Boolean).join(' – ');
+      photoCaptions.set(idx, [label, f.description || ''].filter(Boolean).join(': '));
+    }
+  });
+
   const payload = {
     doc_type: docType,
     client: result.client || '',
@@ -170,7 +199,7 @@ export async function classifyAndBuild(session, forcedTypeId) {
     intro_extra: result.intro_extra || '',
     conclusion_custom: result.conclusion || '',
     notes_custom: notesLines,
-    photos: photos.map((p) => ({ data: p.data, caption: p.caption || '' })),
+    photos: photos.map((p, i) => ({ data: p.data, caption: p.caption || photoCaptions.get(i + 1) || '' })),
   };
 
   if (typeMeta.kind === 'table') {

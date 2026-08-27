@@ -14,8 +14,21 @@ const STATUS_OPTIONS = ['תקין', 'לא תקין', 'תקין - דורש מעק
 const PRIORITY_OPTIONS = ['1', '2', '3'];
 const PRIORITY_OPTIONS_GAP = ['0', '1', '2']; // group2 (סקר פערי בטיחות) uses a 0-2 scale
 
+// Institutions/companies most new reports are addressed to, so the field
+// engineer can pick a number instead of retyping the same long name every
+// visit. Sourced from the client's own real Drive reports — these two
+// account for the large majority of documents. Free text always still works
+// for anything else, and "אחר – פרט" makes that option visible up front too.
+const OTHER_LABEL = 'אחר – פרט';
+const CLIENT_OPTIONS = [
+  "החברה למוסדות חינוך ותרבות ת''א",
+  "החברה לתרבות פנאי וספורט בת ים",
+  "מגלקום פתרונות טכנולוגיים בע''מ",
+  OTHER_LABEL,
+];
+
 const HEADER_FIELDS = [
-  { key: 'לקוח', label: 'מי הלקוח/המוסד?' },
+  { key: 'לקוח', label: 'מי מזמין העבודה / הלקוח?', options: CLIENT_OPTIONS },
   { key: 'מיקום', label: 'מה שם המיקום/המתחם?' },
   { key: 'כתובת', label: 'מה הכתובת?' },
   { key: 'תאריך', label: 'תאריך הביקור? (למשל 20.8.2026 — או "-" להיום)' },
@@ -114,6 +127,37 @@ export function cancelWizard() {
   wizard = null;
 }
 
+// Shared by the 'header' and 'header-other' stages: records one header
+// field's final answer, then either asks the next header question or hands
+// off to whatever comes after the header (row/findings/freeform), depending
+// on the chosen document type's kind.
+function recordHeaderAnswer(field, answer) {
+  if (answer && answer !== '-') addText(`${field.key}: ${answer}`);
+
+  wizard.headerIndex++;
+  if (wizard.headerIndex < HEADER_FIELDS.length) {
+    return { prompt: promptFor(HEADER_FIELDS[wizard.headerIndex]) };
+  }
+
+  const type = DOC_TYPES[wizard.docTypeId];
+  if (type.kind === 'table') {
+    wizard.stage = 'row';
+    wizard.fieldIndex = 0;
+    wizard.rowAnswers = {};
+    return { prompt: `📋 ממצא מס' ${wizard.rowIndex}:\n\n${promptFor(rowFields(wizard.docTypeId)[0])}` };
+  }
+  if (type.kind === 'opinion') {
+    wizard.stage = 'findings';
+    return { prompt: '📋 ממצא/נתון ראשון (תיאור חופשי) — או שלח "סיום" כדי לעבור למסקנות:' };
+  }
+  // freeform (group7) — no structured fields at all, hand off to free text
+  wizard = null;
+  return {
+    done: true,
+    prompt: '✅ הפרטים הכלליים נקלטו. סוג המסמך הזה הוא טקסט חופשי — המשך לכתוב את תוכן המסמך כטקסט רגיל, ואז שלח "צור דוח".',
+  };
+}
+
 /** Feed the user's reply to the current question. @returns {{prompt?: string, done?: boolean}} */
 export function answerWizard(raw) {
   if (!wizard) return {};
@@ -133,30 +177,18 @@ export function answerWizard(raw) {
   if (wizard.stage === 'header') {
     const field = HEADER_FIELDS[wizard.headerIndex];
     const answer = resolveAnswer(field, raw);
-    if (answer && answer !== '-') addText(`${field.key}: ${answer}`);
+    if (field.options && answer === OTHER_LABEL) {
+      wizard.stage = 'header-other';
+      return { prompt: `✍️ כתוב את השם:` };
+    }
+    return recordHeaderAnswer(field, answer);
+  }
 
-    wizard.headerIndex++;
-    if (wizard.headerIndex < HEADER_FIELDS.length) {
-      return { prompt: promptFor(HEADER_FIELDS[wizard.headerIndex]) };
-    }
-
-    const type = DOC_TYPES[wizard.docTypeId];
-    if (type.kind === 'table') {
-      wizard.stage = 'row';
-      wizard.fieldIndex = 0;
-      wizard.rowAnswers = {};
-      return { prompt: `📋 ממצא מס' ${wizard.rowIndex}:\n\n${promptFor(rowFields(wizard.docTypeId)[0])}` };
-    }
-    if (type.kind === 'opinion') {
-      wizard.stage = 'findings';
-      return { prompt: '📋 ממצא/נתון ראשון (תיאור חופשי) — או שלח "סיום" כדי לעבור למסקנות:' };
-    }
-    // freeform (group7) — no structured fields at all, hand off to free text
-    wizard = null;
-    return {
-      done: true,
-      prompt: '✅ הפרטים הכלליים נקלטו. סוג המסמך הזה הוא טקסט חופשי — המשך לכתוב את תוכן המסמך כטקסט רגיל, ואז שלח "צור דוח".',
-    };
+  // ── Stage: free-text follow-up after picking "אחר – פרט" on a header field ─
+  if (wizard.stage === 'header-other') {
+    const field = HEADER_FIELDS[wizard.headerIndex];
+    wizard.stage = 'header';
+    return recordHeaderAnswer(field, raw.trim());
   }
 
   // ── Stage: table-based finding rows (group1-5) ──────────────────────────
