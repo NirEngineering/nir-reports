@@ -132,7 +132,11 @@ async function callClaude(systemPrompt, textContent, photos) {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 4096,
+      // A busy visit (many findings, several photos, the new photo_index
+      // field on each finding) can push the JSON response well past 4096
+      // tokens; a response cut off mid-string used to fail as a cryptic
+      // "Unterminated string in JSON" error. Comfortable headroom instead.
+      max_tokens: 8192,
       system: systemPrompt,
       messages: [{ role: 'user', content }],
     }),
@@ -144,9 +148,18 @@ async function callClaude(systemPrompt, textContent, photos) {
   }
 
   const data = await res.json();
+  if (data.stop_reason === 'max_tokens') {
+    throw new Error('הדוח מכיל יותר מדי ממצאים/תמונות בבת אחת — פצל לכמה דוחות קטנים יותר, או שלח "צור דוח" כדי לייצר את מה שכבר נאסף.');
+  }
+
   const raw = data.content?.[0]?.text || '';
   const clean = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  return JSON.parse(clean);
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error('Claude returned non-JSON or malformed JSON:', clean);
+    throw new Error('הניתוח של הבינה המלאכותית לא חזר בפורמט תקין — נסה שוב "צור דוח".');
+  }
 }
 
 /**
