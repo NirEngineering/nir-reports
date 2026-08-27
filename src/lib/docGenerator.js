@@ -62,9 +62,9 @@ const DOC_TYPES = {
   group2: {
     name: 'סקר פערי בטיחות',
     layout: 'gap-survey',
-    titleSize: 16,
-    bodySize: 10,
-    headingSize: 10,
+    titleSize: 15,
+    bodySize: 9,
+    headingSize: 9,
     tableHdrSize: 9,
     tableDataSize: 9,
     titleSuffix: true,  // subject includes "– {location}"
@@ -102,7 +102,7 @@ const DOC_TYPES = {
   group3: {
     name: 'תקרות תותב',
     layout: 'survey',
-    titleSize: 16,
+    titleSize: 15,
     bodySize: 8.5,
     headingSize: 9,
     tableHdrSize: 8.5,
@@ -187,9 +187,9 @@ const DOC_TYPES = {
   group4: {
     name: 'סקר תקופתי',
     layout: 'simple',
-    titleSize: 16,
-    bodySize: 10,
-    headingSize: 10,
+    titleSize: 15,
+    bodySize: 9,
+    headingSize: 9,
     tableHdrSize: 8,
     tableDataSize: 8,
     titleSuffix: true,  // subject INCLUDES "– {location}"
@@ -213,7 +213,7 @@ const DOC_TYPES = {
   group5: {
     name: 'סקקות',
     layout: 'survey',
-    titleSize: 16,
+    titleSize: 15,
     bodySize: 8.5,
     headingSize: 9,
     tableHdrSize: 9,
@@ -255,9 +255,9 @@ const DOC_TYPES = {
   group6: {
     name: 'חוות דעת הנדסיות',
     layout: 'opinion',
-    titleSize: 16,
-    bodySize: 10,
-    headingSize: 10,
+    titleSize: 15,
+    bodySize: 9,
+    headingSize: 9,
     titleSuffix: true,
     introBold: false,
     introTemplate: (d) =>
@@ -273,9 +273,9 @@ const DOC_TYPES = {
   group7: {
     name: 'מסמך כללי',
     layout: 'freeform',
-    titleSize: 16,
-    bodySize: 10,
-    headingSize: 10,
+    titleSize: 15,
+    bodySize: 9,
+    headingSize: 9,
     titleSuffix: false,
     hasDefectsTable: false,
   },
@@ -284,9 +284,9 @@ const DOC_TYPES = {
   group8: {
     name: 'אישור מבנים ארעיים',
     layout: 'opinion',
-    titleSize: 16,
-    bodySize: 10,
-    headingSize: 10,
+    titleSize: 15,
+    bodySize: 9,
+    headingSize: 9,
     titleSuffix: true,
     introBold: true,
     introTemplate: (d) =>
