@@ -355,11 +355,14 @@ function mkRun(text, opts = {}) {
 
 /**
  * Create a RTL paragraph. bidirectional:true sets paragraph direction to RTL.
- * Default alignment RIGHT anchors Hebrew body text to the physical right margin.
+ * Default is AlignmentType.LEFT, not RIGHT — counterintuitive, but confirmed
+ * against a real generated document opened in Word: for a bidirectional
+ * paragraph, docx's "right" justification renders on the PHYSICAL LEFT of
+ * the page and "left" renders on the physical right.
  */
 function mkPara(children = [], opts = {}) {
   const {
-    alignment = AlignmentType.RIGHT,
+    alignment = AlignmentType.LEFT,
     spacing   = undefined,
     pageBreak = false,
   } = opts;
@@ -480,6 +483,10 @@ function mkSignatureBlock(bodySize) {
     new Table({
       layout: TableLayoutType.FIXED,
       width: { size: cm(7.7) * 2, type: WidthType.DXA },
+      // Nudged left of its default position — starting point for matching
+      // the real letterhead's stamp placement; confirm against the actual
+      // rendered Word doc and adjust further if it's still not lined up.
+      indent: { size: -850, type: WidthType.DXA },
       columnWidths: [cm(7.7), cm(7.7)],
       rows: [new TableRow({ children: [
         new TableCell({
@@ -546,10 +553,14 @@ export async function generateDocument(data) {
 
   // ── 2. Build header (page num + logo) and footer (logo only) ─────────────
 
+  // Pulled past the page margin (1418 twip / 2.5cm) so it sits 3mm (170 twip)
+  // from the physical right edge, per the real client doc's own page-number
+  // placement, instead of sitting flush with the body's right margin.
   const pageNumPara = new Paragraph({
     alignment: AlignmentType.LEFT,
     bidirectional: true,
     spacing: { after: 0 },
+    indent: { left: -1248, right: -1248 },
     children: [
       new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2 }),
       new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 7 * 2 }),
@@ -1126,7 +1137,7 @@ export async function generateDocument(data) {
           quickFormat: true,
           paragraph: {
             bidirectional: true,
-            alignment: AlignmentType.RIGHT,
+            alignment: AlignmentType.LEFT,
           },
           run: { font: { name: FONT } },
         },
@@ -1137,20 +1148,19 @@ export async function generateDocument(data) {
         properties: {
           page: {
             size: { width: mm(210), height: mm(297) },
-            // Exact twip (DXA) values read straight from <w:pgMar> in two independent,
-            // current real Drive documents (verified identical in both) — NOT derived
-            // via mm() to avoid rounding drift from the real standard.
             // Exact twip (DXA) values read straight from <w:pgMar> of a genuine
             // field report from Drive (13.8.2026, מרכז דניאל לחתירה) — symmetric
             // left/right (2.5cm each), unlike the earlier asymmetric values which
             // came from a self-generated sample and drifted from the real standard.
+            // footer: 4mm (227 twip) from the physical bottom edge, per the
+            // field engineer's own measurement against the real Word doc.
             margin: {
               top:    2552,
               bottom: 567,
               left:   1418,
               right:  1418,
               header: 142,
-              footer: 472,
+              footer: 227,
             },
           },
           bidi: true,  // RTL section — all paragraphs inherit right-to-left direction

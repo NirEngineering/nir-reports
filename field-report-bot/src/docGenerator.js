@@ -291,8 +291,14 @@ function mkRun(text, opts = {}) {
   });
 }
 
+// Default is AlignmentType.LEFT, not RIGHT — counterintuitive, but confirmed
+// against the real generated document opened in Word: for a bidirectional
+// (RTL) paragraph, docx's "right" justification renders on the PHYSICAL LEFT
+// of the page and "left" renders on the physical right. pageNumPara already
+// relied on this; every other default-aligned paragraph (intro text,
+// headings, notes, "לכבוד"/client) was rendering mirrored until now.
 function mkPara(children = [], opts = {}) {
-  const { alignment = AlignmentType.RIGHT, spacing = undefined, pageBreak = false } = opts;
+  const { alignment = AlignmentType.LEFT, spacing = undefined, pageBreak = false } = opts;
   return new Paragraph({ children, alignment, spacing, pageBreakBefore: pageBreak, bidirectional: true });
 }
 
@@ -364,6 +370,10 @@ function mkSignatureBlock() {
     new Table({
       layout: TableLayoutType.FIXED,
       width: { size: cm(7.7) * 2, type: WidthType.DXA },
+      // Nudged left of its default position — starting point for matching
+      // the real letterhead's stamp placement; confirm against the actual
+      // rendered Word doc and adjust further if it's still not lined up.
+      indent: { size: -850, type: WidthType.DXA },
       columnWidths: [cm(7.7), cm(7.7)],
       rows: [new TableRow({ children: [
         new TableCell({ width: { size: cm(7.7), type: WidthType.DXA }, borders: NO_BORDER, children: sig }),
@@ -408,10 +418,14 @@ export async function generateDocument(data) {
   const headerLogoBuffer = loadAsset('header-logo.jpg');
   const footerLogoBuffer = loadAsset('footer-logo.png');
 
+  // Pulled past the page margin (1418 twip / 2.5cm) so it sits 3mm (170 twip)
+  // from the physical right edge, per the real client doc's own page-number
+  // placement, instead of sitting flush with the body's right margin.
   const pageNumPara = new Paragraph({
     alignment: AlignmentType.LEFT,
     bidirectional: true,
     spacing: { after: 0 },
+    indent: { left: -1248, right: -1248 },
     children: [
       new TextRun({ text: 'עמוד ', font: FONT, size: 7 * 2 }),
       new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 7 * 2 }),
@@ -620,7 +634,7 @@ export async function generateDocument(data) {
       default: { document: { run: { font: { name: FONT } } } },
       paragraphStyles: [{
         id: 'Normal', name: 'Normal', quickFormat: true,
-        paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
+        paragraph: { bidirectional: true, alignment: AlignmentType.LEFT },
         run: { font: { name: FONT } },
       }],
     },
@@ -632,7 +646,7 @@ export async function generateDocument(data) {
           // field report from Drive (13.8.2026, מרכז דניאל לחתירה) — symmetric
           // left/right (2.5cm each), unlike the earlier asymmetric values which
           // came from a self-generated sample and drifted from the real standard.
-          margin: { top: 2552, bottom: 567, left: 1418, right: 1418, header: 142, footer: 472 },
+          margin: { top: 2552, bottom: 567, left: 1418, right: 1418, header: 142, footer: 227 },
         },
         bidi: true,
       },
