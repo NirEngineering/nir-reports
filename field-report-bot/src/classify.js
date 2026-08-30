@@ -186,20 +186,6 @@ export async function classifyAndBuild(session, forcedTypeId) {
     ? result.notes.split('\n').map((s) => s.trim()).filter(Boolean)
     : (Array.isArray(result.notes) ? result.notes : []);
 
-  // Findings Claude tied to a specific photo (via photo_index, 1-based) give
-  // that photo a caption describing what it shows — the same link surfaced
-  // the other way for types whose table has no photo column of its own
-  // (group1/group2/group4/group6/group7/group8), so the appendix still reads
-  // as "photo N — this finding" instead of a bare, unlabeled image.
-  const photoCaptions = new Map();
-  findings.forEach((f) => {
-    const idx = Number(f.photo_index);
-    if (idx >= 1 && idx <= photos.length && !photoCaptions.has(idx)) {
-      const label = [f.location_detail, f.element].filter(Boolean).join(' – ');
-      photoCaptions.set(idx, [label, f.description || ''].filter(Boolean).join(': '));
-    }
-  });
-
   const payload = {
     doc_type: docType,
     client: result.client || '',
@@ -212,7 +198,7 @@ export async function classifyAndBuild(session, forcedTypeId) {
     intro_extra: result.intro_extra || '',
     conclusion_custom: result.conclusion || '',
     notes_custom: notesLines,
-    photos: photos.map((p, i) => ({ data: p.data, caption: p.caption || photoCaptions.get(i + 1) || '' })),
+    photos: photos.map((p) => ({ data: p.data, caption: p.caption || '' })),
   };
 
   if (typeMeta.kind === 'table') {

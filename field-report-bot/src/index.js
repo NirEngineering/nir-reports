@@ -191,6 +191,11 @@ async function handleGenerate(msg, typeHint) {
 
     resetSession();
     clearLastKnownDocType();
+
+    // Straight into the next report's wizard — the field engineer doesn't
+    // need to remember to type "שאלון" again between visits.
+    const nextWizard = startWizard(null);
+    if (nextWizard.ok) await reply(msg, nextWizard.prompt);
   } catch (e) {
     console.error('Report generation failed:', e);
     await reply(msg, `❌ שגיאה ביצירת הדוח: ${e.message}\n\nההערות והתמונות נשמרו — נסה שוב "${GENERATE_KEYWORD}".`);

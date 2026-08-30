@@ -18,6 +18,8 @@ import {
   UnderlineType,
   convertMillimetersToTwip as mm,
   TableLayoutType,
+  LevelFormat,
+  VerticalMergeType,
 } from 'docx';
 
 // ── Font constant ─────────────────────────────────────────────────────────────
@@ -42,7 +44,7 @@ const DOC_TYPES = {
     tableHdrSize: 10,
     tableDataSize: 9,
     titleSuffix: false,  // subject does NOT include "– {location}"
-    introBold: true,
+    introBold: false,
     introTemplate: (d) =>
       `בתאריך ${d.inspection_date} ערכתי סיור בדיקה ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות האלמנטים והמתקנים התלויים.`,
     tableColumns: ['מיקום', 'האלמנט/המתקן', 'נתונים וממצאים', 'הערות'],
@@ -52,7 +54,7 @@ const DOC_TYPES = {
       'אין להעמיס עומסים על האלמנטים שנבדקו שאינם מיועדים לכך.',
       'הבדיקה הינה ויזואלית ונכונה ליום הבדיקה.',
     ],
-    hasValidityLine: true,  // validity line appended after notes
+    validityDays: 365,
     conclusionOk: 'האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
     conclusionDefects: 'נמצאו מספר ליקויים והערות שיש לתקנם ולטפלם. שאר האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
     hasDefectsTable: false,
@@ -129,11 +131,10 @@ const DOC_TYPES = {
       "קדימות 2 – ''ליקוי בינוני'' בהגדרתו - ליקוי/מפגע המחייב טיפול בתכנית עבודה עד 3 חודשים מתאריך דו''ח זה.",
       "קדימות 3 – ''ליקוי קל'' בהגדרתו - ליקוי/מפגע המחייב טיפול בתכנית עבודה עד 6 חודשים מתאריך דו''ח זה.",
     ],
-    hasValidityLine: false,
+    validityDays: 1825,
     defaultInstructions: [
       "על כל שינוי קונסטרוקטיבי בתקרות ורכיביהן, הוספה ו/או הפחתת רכיבים, עיוותים באופן חיבור, קורוזיה, כפף, שבר, סדק, תזוזות וכו' – יש לזמן לבדיקה חוזרת וטיפול מתאים עפ''י הממצאים.",
       'אין לטפס, להיתלות ו/או להעמיס עומסים על התקרות שנבדקו.',
-      "תוקף הדו''ח הינו לחמש שנים מיום הבדיקה בכפוף למסקנות הבדיקה.",
     ],
     conclusionOk: 'התקרות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
     conclusionDefects: 'נמצאו ליקויים בתקרות התותב. יש לטפל בליקויים בהתאם לטבלת הליקויים המצורפת. שאר התקרות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
@@ -193,7 +194,7 @@ const DOC_TYPES = {
     tableHdrSize: 8,
     tableDataSize: 8,
     titleSuffix: true,  // subject INCLUDES "– {location}"
-    introBold: true,
+    introBold: false,
     introTemplate: (d) =>
       `בתאריך ${d.inspection_date} ביקרתי ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות האלמנטים והמבנים.`,
     tableColumns: ['האלמנט/המבנה הנבדק', 'נתונים ופירוט', 'הערות', 'תקין/לא תקין', 'קדימות ליקוי'],
@@ -203,7 +204,6 @@ const DOC_TYPES = {
       'אין להעמיס עומסים על האלמנטים שנבדקו שאינם מיועדים לכך.',
       'הבדיקה הינה ויזואלית ונכונה ליום הבדיקה.',
     ],
-    hasValidityLine: false,
     conclusionOk: 'האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
     conclusionDefects: 'נמצאו מספר ליקויים והערות שיש לתקנם ולטפלם. שאר האלמנטים שנבדקו נמצאו יציבים ובטוחים לשימוש נכון ליום הבדיקה.',
     hasDefectsTable: false,
@@ -238,12 +238,11 @@ const DOC_TYPES = {
       "קדימות 2 – ''ליקוי בינוני'' בהגדרתו - ליקוי/מפגע המחייב טיפול בתכנית עבודה עד 3 חודשים מתאריך דו''ח זה.",
       "קדימות 3 – ''ליקוי קל'' בהגדרתו - ליקוי/מפגע המחייב טיפול בתכנית עבודה עד 6 חודשים מתאריך דו''ח זה.",
     ],
-    hasValidityLine: false,
+    validityDays: 365,
     defaultInstructions: [
       'על כל שינוי קונסטרוקטיבי בסככות ורכיביהן, הוספה ו/או הפחתת רכיבים, עיוותים באופן חיבור, קורוזיה וכד\', יש לדווח לח\'\'מ מיד.',
       'אין לטפס, להיתלות, לפרוש שלטים/מפרשי רוח ו/או להעמיס עומסים על הסככות שנבדקו.',
       'הסככות נבדקו מבדיקה ויזואלית לתקינות ושלמות כללית.',
-      "תוקף הדו''ח הינו לשנה מיום הבדיקה בכפוף למסקנות הבדיקה.",
     ],
     conclusionOk: 'הסככות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
     conclusionDefects: 'נמצאו ליקויים בסככות. יש לטפל בליקויים בהתאם לטבלת הליקויים המצורפת. שאר הסככות שנבדקו נמצאו יציבות ובטוחות לשימוש נכון ליום הבדיקה.',
@@ -288,7 +287,7 @@ const DOC_TYPES = {
     bodySize: 9,
     headingSize: 9,
     titleSuffix: true,
-    introBold: true,
+    introBold: false,
     introTemplate: (d) =>
       `בתאריך ${d.inspection_date} ערכתי סיור בדיקה ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את יציבות ובטיחות המבנה/המתקן הארעי המפורט לעיל.`,
     findingsSectionHeading: 'נתונים טכניים וממצאים:',
@@ -350,6 +349,11 @@ function mkRun(text, opts = {}) {
     color,
     italics: italic,
     underline: underline ? { type: UnderlineType.SINGLE } : undefined,
+    // Every run in the real documents carries <w:rtl/> (run-level RTL) in
+    // addition to the paragraph's own bidi flag — without it, an embedded
+    // Latin/digit sequence (dates, numbers) at the end of a Hebrew sentence
+    // can throw off the ordering of trailing punctuation.
+    rightToLeft: true,
   });
 }
 
@@ -374,6 +378,34 @@ function mkPara(children = [], opts = {}) {
     pageBreakBefore: pageBreak,
     bidirectional: true,
   });
+}
+
+// The list numbers under "מסקנות והערות:" / "מסקנות:" used to be a plain
+// "1. " string glued onto the Hebrew line — a real Word numbered list is
+// what actually keeps the digit on the right and the sentence flowing
+// right-to-left instead of the two fighting over which side is "first".
+const NUMBERING_REFERENCE = 'auto-numbered-list';
+function mkNumberedPara(text, opts = {}) {
+  const { size = 8.5, spacing = undefined } = opts;
+  return new Paragraph({
+    children: [mkRun(text, { size })],
+    alignment: AlignmentType.LEFT,
+    spacing,
+    bidirectional: true,
+    numbering: { reference: NUMBERING_REFERENCE, level: 0 },
+  });
+}
+
+// Shared by the 'simple' and 'survey' layouts: an explicit expiry date
+// (computed from the visit date, not just "valid for N years" prose) for
+// the types that carry one — 1 year for hanging-element/canopy inspections,
+// 5 years for ceiling surveys.
+function mkValidityLine(cfg, data, spacing) {
+  if (!cfg.validityDays) return null;
+  const validUntil = addDays(data.inspection_date, cfg.validityDays);
+  if (!validUntil) return null;
+  const years = cfg.validityDays >= 1825 ? 'חמש שנים' : 'שנה';
+  return mkPara([mkRun(`תוקף הדו''ח הינו ל${years} מיום הבדיקה ועד לתאריך ${validUntil} בכפוף למסקנות הבדיקה.`, { size: cfg.bodySize })], { spacing });
 }
 
 /** No-border spec used for photo tables */
@@ -420,7 +452,7 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
   const headerRow = new TableRow({ children: headerCells, tableHeader: true });
 
   // Data rows – all white (no alternating tint)
-  const dataRows = rows.map((row) => {
+  const dataRows = rows.map((row, rowIdx) => {
     const cells = row.map((cellText, colIdx) => {
       const text = String(cellText ?? '');
       const isNotOk   = text === 'לא תקין'          || text.startsWith('לא תקין');
@@ -431,13 +463,25 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
       if (isNotOk)        { color = 'C00000'; bold = true; }
       else if (isWatchOk) { color = 'C55A11'; bold = true; }
 
+      // Consecutive rows repeating the same value in a column (typically
+      // מיקום/סוג האלמנט when one location has several findings) merge into
+      // one spanning cell instead of repeating the text on every row.
+      const prevText = rowIdx > 0 ? String(rows[rowIdx - 1][colIdx] ?? '') : null;
+      const nextText = rowIdx < rows.length - 1 ? String(rows[rowIdx + 1][colIdx] ?? '') : null;
+      const continuesFromAbove = text !== '' && text === prevText;
+      const continuesBelow     = text !== '' && text === nextText;
+      const verticalMerge = continuesFromAbove
+        ? VerticalMergeType.CONTINUE
+        : (continuesBelow ? VerticalMergeType.RESTART : undefined);
+
       return new TableCell({
         width:         { size: colWidths[colIdx] ?? colWidths[colWidths.length - 1], type: WidthType.DXA },
         verticalAlign: VerticalAlign.CENTER,
         shading:       { type: ShadingType.CLEAR, fill: 'FFFFFF' },
         borders:       THIN_BORDER,
+        verticalMerge,
         children: [mkPara(
-          [mkRun(text, { size: dataSize ?? 8.5, bold, color })],
+          [mkRun(continuesFromAbove ? '' : text, { size: dataSize ?? 8.5, bold, color })],
           { alignment: AlignmentType.CENTER }
         )],
       });
@@ -457,49 +501,29 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
   });
 }
 
-/** Signature block: text centered within a left-side column */
-function mkSignatureBlock(bodySize) {
-  const sig = [
+// Plain physically-left paragraphs, not the 2-column table this used to be —
+// a table's position under RTL bidi was too unreliable to land precisely in
+// the page's bottom-left corner. AlignmentType.RIGHT is not a typo: per the
+// convention established above, that's what renders on the physical left.
+function mkSignatureBlock() {
+  return [
     new Paragraph({
       children: [mkRun('ניר בן דוד', { size: 9, bold: true })],
-      alignment: AlignmentType.CENTER,
+      alignment: AlignmentType.RIGHT,
       spacing: { before: 240, after: 0 },
       bidirectional: true,
     }),
     new Paragraph({
       children: [mkRun('מהנדס מבנים B.sc', { size: 9 })],
-      alignment: AlignmentType.CENTER,
+      alignment: AlignmentType.RIGHT,
       spacing: { after: 0 },
       bidirectional: true,
     }),
     new Paragraph({
       children: [mkRun('מ.ר 28566561', { size: 9 })],
-      alignment: AlignmentType.CENTER,
+      alignment: AlignmentType.RIGHT,
       spacing: { after: 0 },
       bidirectional: true,
-    }),
-  ];
-  return [
-    new Table({
-      layout: TableLayoutType.FIXED,
-      width: { size: cm(7.7) * 2, type: WidthType.DXA },
-      // Nudged left of its default position — starting point for matching
-      // the real letterhead's stamp placement; confirm against the actual
-      // rendered Word doc and adjust further if it's still not lined up.
-      indent: { size: -850, type: WidthType.DXA },
-      columnWidths: [cm(7.7), cm(7.7)],
-      rows: [new TableRow({ children: [
-        new TableCell({
-          width: { size: cm(7.7), type: WidthType.DXA },
-          borders: NO_BORDER,
-          children: sig,
-        }),
-        new TableCell({
-          width: { size: cm(7.7), type: WidthType.DXA },
-          borders: NO_BORDER,
-          children: [new Paragraph({ children: [] })],
-        }),
-      ]})],
     }),
   ];
 }
@@ -527,10 +551,15 @@ function getImageDimensions(dataUrl) {
 export async function generateDocument(data) {
   const cfg = DOC_TYPES[data.doc_type] ?? DOC_TYPES.group4;
 
-  // Use client name as fallback when location is empty
-  const effectiveData = (data.location || '').trim()
-    ? data
-    : { ...data, location: (data.client || '').trim() };
+  // Use client name as fallback when location is empty. inspection_date
+  // feeds directly into the intro sentence template below — formatDate() is
+  // a no-op on an already-formatted string, so this is safe whether the
+  // caller supplied strict ISO or DD.MM.YYYY.
+  const effectiveData = {
+    ...data,
+    location: (data.location || '').trim() || (data.client || '').trim(),
+    inspection_date: formatDate(data.inspection_date),
+  };
 
   // ── 1. Fetch logos ────────────────────────────────────────────────────────
   // header-logo.jpg: 8.91 × 3.52 cm (landscape letterhead)
@@ -608,7 +637,7 @@ export async function generateDocument(data) {
 
   // ── 5. Client block ───────────────────────────────────────────────────────
   const toLabel    = mkPara([mkRun('לכבוד',                 { size: 8 })],                        { spacing: { after: 0 } });
-  const clientPara = mkPara([mkRun(data.client ?? '',        { size: 8 })],                        { spacing: { after: 0 } });
+  const clientPara = mkPara([mkRun(data.client ?? '',        { size: 8, underline: true })],       { spacing: { after: 0 } });
   const orgPara    = mkPara([mkRun(data.organization ?? '',  { size: 8, underline: true })],       { spacing: { after: 0 } });
 
   // ── 6. Subject paragraph (CENTER, bold, cfg.titleSize) ───────────────────
@@ -679,22 +708,13 @@ export async function generateDocument(data) {
       ? data.notes_custom
       : [...cfg.defaultNotes];
 
-    notesSource.forEach((note, i) => {
-      bodyChildren.push(
-        mkPara([mkRun(`${i + 1}. ${note}`, { size: cfg.bodySize })], { spacing: SP_BODY })
-      );
+    notesSource.forEach((note) => {
+      bodyChildren.push(mkNumberedPara(note, { size: cfg.bodySize, spacing: SP_BODY }));
     });
 
-    // Validity line (group1 only)
-    if (cfg.hasValidityLine) {
-      const validUntil = addDays(data.inspection_date, 365);
-      bodyChildren.push(
-        mkPara(
-          [mkRun(`תוקף האישור לשנה מיום הבדיקה ועד לתאריך ${validUntil} בכפוף למסקנות.`, { size: cfg.bodySize })],
-          { spacing: SP_BODY }
-        )
-      );
-    }
+    // Validity line — computed expiry date, per type (group1/group3/group5)
+    const validityLine = mkValidityLine(cfg, data, SP_BODY);
+    if (validityLine) bodyChildren.push(validityLine);
 
     bodyChildren.push(
       mkPara(
@@ -796,6 +816,9 @@ export async function generateDocument(data) {
         mkPara([mkRun(inst, { size: cfg.bodySize })], { spacing: SP_BODY })
       );
     });
+
+    const surveyValidityLine = mkValidityLine(cfg, data, SP_BODY);
+    if (surveyValidityLine) bodyChildren.push(surveyValidityLine);
 
     // "מסקנות הבדיקה:" heading (bold, cfg.headingSize)
     bodyChildren.push(
@@ -899,10 +922,8 @@ export async function generateDocument(data) {
       : '';
 
     if (conclusionsRaw) {
-      conclusionsRaw.split('\n').forEach((line, i) => {
-        bodyChildren.push(
-          mkPara([mkRun(`${i + 1}. ${line}`, { size: cfg.bodySize })], { spacing: SP_BODY })
-        );
+      conclusionsRaw.split('\n').forEach((line) => {
+        bodyChildren.push(mkNumberedPara(line, { size: cfg.bodySize, spacing: SP_BODY }));
       });
     }
 
@@ -1037,9 +1058,10 @@ export async function generateDocument(data) {
           dispH = natH > 0 ? (natH / natW) * dispW : 4.5;
         }
 
-        const caption = photo.caption
-          ? `תמונה ${i + 1} - ${photo.caption}`
-          : `תמונה ${i + 1}`;
+        // Short by design — which finding a photo illustrates is already
+        // cross-referenced from the table ("ראה תמונה N"), so the appendix
+        // itself just needs the number, not a repeated description.
+        const caption = `תמונה ${i + 1}`;
 
         loadedPhotos.push({ imgData, dispW, dispH, caption, index: i + 1 });
       } catch (_) {
@@ -1124,6 +1146,23 @@ export async function generateDocument(data) {
 
   // ── Build Document ────────────────────────────────────────────────────────
   const doc = new Document({
+    numbering: {
+      config: [{
+        reference: NUMBERING_REFERENCE,
+        levels: [{
+          level: 0,
+          format: LevelFormat.DECIMAL,
+          text: '%1.',
+          // The real template's own numPr uses lvlJc=left/ind-left here,
+          // but that rendered with the digit on the physical LEFT of the
+          // sentence — confirmed wrong against the actual generated report.
+          // Mirrored to the opposite side, matching the physical-right
+          // digit placement that was asked for.
+          alignment: AlignmentType.RIGHT,
+          style: { paragraph: { indent: { right: 340, hanging: 340 } } },
+        }],
+      }],
+    },
     styles: {
       default: {
         document: {

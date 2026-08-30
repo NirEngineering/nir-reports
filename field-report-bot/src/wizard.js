@@ -50,7 +50,12 @@ function rowFields(docTypeId) {
   ];
 }
 
-const TYPE_LIST = Object.values(DOC_TYPES); // stable order: group1..group8
+// group7 (מסמך כללי, shown as "אחר") moved to the end of the list, so it
+// reads as the catch-all "other" option rather than sitting in the middle.
+const TYPE_LIST = [
+  ...Object.values(DOC_TYPES).filter((t) => t.id !== 'group7'),
+  ...Object.values(DOC_TYPES).filter((t) => t.id === 'group7'),
+];
 
 function promptFor(field) {
   let text = `❓ ${field.label}`;
@@ -61,9 +66,16 @@ function promptFor(field) {
   return text;
 }
 
+// group7 (מסמך כללי) is the catch-all for anything that isn't one of the
+// other 7 defined types, so it's labeled "אחר" here — the last option in
+// the list, same spot a field engineer would expect an "other" choice.
+function typeLabel(t) {
+  return t.id === 'group7' ? 'אחר' : t.name;
+}
+
 function typePrompt() {
   return '❓ איזה סוג מסמך?\n' +
-    TYPE_LIST.map((t, i) => `${i + 1}) ${t.name}`).join('\n') +
+    TYPE_LIST.map((t, i) => `${i + 1}) ${typeLabel(t)}`).join('\n') +
     '\n(אפשר גם להקליד את הסוג בעצמו)';
 }
 
