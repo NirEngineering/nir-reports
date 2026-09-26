@@ -37,7 +37,7 @@ ${typeInstruction}
 
 החזר JSON תקני בלבד (ללא markdown, ללא \`\`\`json, רק JSON נקי) עם המבנה הבא:
 {
-  "doc_type": "group1..group11",
+  "doc_type": "group1..group12",
   "client": "שם הלקוח או המוסד",
   "organization": "שם הארגון (אם קיים, אחרת השאר ריק)",
   "location": "שם המיקום/הנכס",

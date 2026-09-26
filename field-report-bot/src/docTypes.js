@@ -97,6 +97,13 @@ export const DOC_TYPES = {
     subjectDefault: 'אישור בטיחות שנתי',
     aliases: ['אישור בטיחות קייטנה', 'בטיחות קייטנה', 'קייטנה', 'אישור בטיחות שנתי'],
   },
+  group12: {
+    id: 'group12',
+    name: 'דוח יציבות מבנה כללי',
+    kind: 'opinion',
+    subjectDefault: "דו''ח יציבות מבנה כללי",
+    aliases: ['יציבות מבנה', 'יציבות מבנה כללי', 'דוח יציבות מבנה', 'בדיקת יציבות מבנה', 'מבנה כללי'],
+  },
 };
 
 // Fixed 15-item safety checklist (group11, קייטנה) — identical wording in

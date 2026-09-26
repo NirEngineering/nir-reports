@@ -323,6 +323,33 @@ const DOC_TYPES = {
     defectsColWidths: [0.9, 2.6, 2.1, 3.0, 4.7, 2.1],
     approvalsHeading: 'ריכוז בדיקות בטיחות:',
   },
+  group12: {
+    name: "דו''ח יציבות מבנה כללי",
+    layout: 'opinion',
+    titleSize: 15, bodySize: 9, headingSize: 9,
+    titleSuffix: false,
+    introBold: false,
+    introTemplate: (d) =>
+      `בתאריך ${d.inspection_date} ערכתי סיור בדיקה במבנה ${d.location}${d.address ? ', ' + d.address : ''}, ונדרשתי לבחון את יציבות המבנה בבדיקה ויזואלית בפן הקונסטרוקטיבי כגון שקיעות יסודות ואלמנטים, הופעת סדקים עיוותים, דפורמציות ושינויים מבניים למיניהם.`,
+    findingsSectionHeading: 'ממצאי הבדיקה:',
+    defaultFindings: [],
+    alwaysAppendFindings: [
+      "יש להיות במעקב ולבצע בדיקות תקופתיות בהתאם לת''י 1525 על כל חלקיו.",
+    ],
+    instructionsSectionHeading: 'הערות והנחיות:',
+    defaultInstructions: [
+      'אין לבצע שינויים, תוספות, הפחתות במבנה על כל חלקיו ורכיביו.',
+      "על כל פגיעה או שינוי קונסטרוקטיבי במבנה כגון הפחתות/תוספות במבנה, סדקים, שקיעות, עיוותים למיניהם, קורוזיה, תזוזות, ניתוקי רכיבים, דפורמציות וכו', יש לדווח על כך ולזמן לביקורת נוספת לטיפול מתאים עפ''י הממצאים החדשים.",
+      "תוקף האישור הינו לחמש שנים מיום הבדיקה בכפוף למסקנות הבדיקה או על כל שינוי מיבני שחל.",
+    ],
+    conclusionSectionHeading: 'מסקנות הבדיקה:',
+    bulletConclusions: true,
+    defaultConclusions: [
+      "יש להיות במעקב ולבצע בדיקות ועבודות תחזוקה בהתאם לת''י 1525 על כל חלקיו.",
+      'מבדיקה ויזואלית, נמצא כי המבנה יציב ובטוח לשימוש נכון ליום הבדיקה.',
+    ],
+    hasDefectsTable: false,
+  },
 };
 
 // The "ריכוז בדיקות בטיחות" table — external certifications/inspections the
@@ -749,17 +776,36 @@ export async function generateDocument(data) {
     if (cfg.findingsSectionHeading) {
       bodyChildren.push(mkPara([mkRun(cfg.findingsSectionHeading, { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION }));
     }
-    const findingsSource = Array.isArray(data.notes_custom) && data.notes_custom.length > 0 ? data.notes_custom : cfg.defaultFindings;
+    const findingsBase = Array.isArray(data.notes_custom) && data.notes_custom.length > 0 ? data.notes_custom : cfg.defaultFindings;
+    // Some types (יציבות מבנה כללי) end their findings with a fixed ת"י 1525
+    // line that must appear regardless of whatever real findings were typed —
+    // unlike defaultFindings, this isn't just a fallback for when there are none.
+    const findingsSource = cfg.alwaysAppendFindings ? [...findingsBase, ...cfg.alwaysAppendFindings] : findingsBase;
     findingsSource.forEach((item) => {
       const text = String(item).replace(/^[•\-]\s*/, '');
       const prefix = cfg.plainFindings ? '' : '• ';
       bodyChildren.push(mkPara([mkRun(`${prefix}${text}`, { size: cfg.bodySize })], { spacing: SP_BODY }));
     });
 
+    // A few types (יציבות מבנה כללי) have a separate "הערות והנחיות:" section
+    // of fixed structural warnings between the findings and the conclusion —
+    // always shown as-is, not something the field engineer fills in.
+    if (cfg.instructionsSectionHeading) {
+      bodyChildren.push(mkPara([mkRun(cfg.instructionsSectionHeading, { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION }));
+      (cfg.defaultInstructions || []).forEach((line) => bodyChildren.push(mkPara([mkRun(`• ${line}`, { size: cfg.bodySize })], { spacing: SP_BODY })));
+    }
+
     bodyChildren.push(mkPara([mkRun(cfg.conclusionSectionHeading, { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION }));
     const conclusionsRaw = (data.conclusion_custom && String(data.conclusion_custom).trim()) || '';
     const conclusionLines = conclusionsRaw ? conclusionsRaw.split('\n') : (cfg.defaultConclusions || []);
-    conclusionLines.forEach((line) => bodyChildren.push(mkNumberedPara(line, { size: cfg.bodySize, spacing: SP_BODY })));
+    conclusionLines.forEach((line) => {
+      // Most opinion types (group6/8/9/10) use a native "1./2." numbered list
+      // for conclusions; group12 (יציבות מבנה כללי) uses plain "•" bullets
+      // instead, matching its real documents' formatting.
+      bodyChildren.push(cfg.bulletConclusions
+        ? mkPara([mkRun(`• ${line}`, { size: cfg.bodySize })], { spacing: SP_BODY })
+        : mkNumberedPara(line, { size: cfg.bodySize, spacing: SP_BODY }));
+    });
 
     bodyChildren.push(...mkSignatureBlock());
   } else if (cfg.layout === 'checklist') {
