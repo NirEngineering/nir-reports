@@ -5,8 +5,12 @@
 // the session as a plain labeled text line (e.g. "סטטוס: לא תקין"), so it
 // flows into the exact same Claude extraction step as ordinary free-typed
 // notes — no changes needed anywhere else in the pipeline.
-import { DOC_TYPES, matchTypeHint } from './docTypes.js';
-import { addText } from './session.js';
+import { DOC_TYPES, matchTypeHint, CAMP_CHECKLIST_ITEMS, CAMP_CHECKLIST_STATUS_OPTIONS } from './docTypes.js';
+import { addText, setStructured } from './session.js';
+
+// Checklist statuses (group11) that flag a problem needing a follow-up note —
+// "קיים" and "לא רלוונטי, לא קיים" are fine-as-is, everything else isn't.
+const CAMP_CHECKLIST_OK_STATUSES = new Set(['קיים', 'לא רלוונטי, לא קיים']);
 
 // Same canonical option lists used in the nir-reports manual app's dropdowns
 // (src/constants.js STATUS_OPTIONS / PRIORITY_OPTIONS / PRIORITY_OPTIONS_GAP).
@@ -24,6 +28,8 @@ const CLIENT_OPTIONS = [
   "החברה למוסדות חינוך ותרבות ת''א",
   "החברה לתרבות פנאי וספורט בת ים",
   "מגלקום פתרונות טכנולוגיים בע''מ",
+  "עזריאל ע.י. סחור ושיווק בע''מ",
+  "רשת קהילה ופנאי חולון",
   OTHER_LABEL,
 ];
 
@@ -77,6 +83,13 @@ function typePrompt() {
   return '❓ איזה סוג מסמך?\n' +
     TYPE_LIST.map((t, i) => `${i + 1}) ${typeLabel(t)}`).join('\n') +
     '\n(אפשר גם להקליד את הסוג בעצמו)';
+}
+
+// group11 (אישור בטיחות לקייטנה) — one survey question per fixed checklist item.
+function checklistPrompt(index) {
+  return `☑️ פריט ${index + 1}/${CAMP_CHECKLIST_ITEMS.length}:\n${CAMP_CHECKLIST_ITEMS[index]}\n` +
+    CAMP_CHECKLIST_STATUS_OPTIONS.map((o, i) => `${i + 1}) ${o}`).join('\n') +
+    '\n(אפשר גם להקליד תשובה חופשית)';
 }
 
 function resolveAnswer(field, raw) {
@@ -161,6 +174,12 @@ function recordHeaderAnswer(field, answer) {
   if (type.kind === 'opinion') {
     wizard.stage = 'findings';
     return { prompt: '📋 ממצא/נתון ראשון (תיאור חופשי) — או שלח "סיום" כדי לעבור למסקנות:' };
+  }
+  if (type.kind === 'checklist') {
+    wizard.stage = 'checklist';
+    wizard.checklistIndex = 0;
+    wizard.checklistAnswers = [];
+    return { prompt: checklistPrompt(0) };
   }
   // freeform (group7) — no structured fields at all, hand off to free text
   wizard = null;
@@ -265,5 +284,48 @@ export function answerWizard(raw) {
     return { prompt: '📝 מסקנה/הערה נוספת — או שלח "סיום" לסיים את השאלון:' };
   }
 
+  // ── Stage: fixed 15-item safety checklist (group11 — "checklist") ────────
+  if (wizard.stage === 'checklist') {
+    const trimmed = raw.trim();
+    const n = parseInt(trimmed, 10);
+    const status = (!isNaN(n) && n >= 1 && n <= CAMP_CHECKLIST_STATUS_OPTIONS.length && String(n) === trimmed)
+      ? CAMP_CHECKLIST_STATUS_OPTIONS[n - 1]
+      : trimmed;
+
+    wizard.checklistAnswers[wizard.checklistIndex] = { status };
+    addText(`בדיקה ${wizard.checklistIndex + 1} (${CAMP_CHECKLIST_ITEMS[wizard.checklistIndex]}) - סטטוס: ${status}`);
+
+    if (!CAMP_CHECKLIST_OK_STATUSES.has(status)) {
+      wizard.stage = 'checklist-note';
+      return { prompt: '✍️ מה הליקוי/הערה לגבי סעיף זה?' };
+    }
+    return advanceChecklist();
+  }
+
+  if (wizard.stage === 'checklist-note') {
+    const note = raw.trim();
+    wizard.checklistAnswers[wizard.checklistIndex].note = note;
+    addText(`בדיקה ${wizard.checklistIndex + 1} - הערה: ${note}`);
+    wizard.stage = 'checklist';
+    return advanceChecklist();
+  }
+
   return {};
+}
+
+// Shared by the 'checklist' and 'checklist-note' stages: moves to the next
+// checklist item, or finalizes the wizard once all 15 are answered — the
+// full answer set is handed to session.js as structured data (see its
+// comment) rather than left for Claude to reconstruct from prose.
+function advanceChecklist() {
+  wizard.checklistIndex++;
+  if (wizard.checklistIndex < CAMP_CHECKLIST_ITEMS.length) {
+    return { prompt: checklistPrompt(wizard.checklistIndex) };
+  }
+  setStructured('checklist_items', wizard.checklistAnswers);
+  wizard = null;
+  return {
+    done: true,
+    prompt: '✅ סיימנו את רשימת הבדיקה! אפשר עכשיו גם להוסיף תמונות או הערות בכתיבה חופשית, ואז לשלוח "צור דוח".',
+  };
 }

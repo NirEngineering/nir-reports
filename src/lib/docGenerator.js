@@ -94,9 +94,9 @@ const DOC_TYPES = {
       "פירוט הממצאים והליקויים מפורטים בהמשך הדו''ח.",
       "יש להציג אישורים ומסמכים נדרשים רלוונטיים עפ''י המפורט בהמשך.",
     ],
-    // Approvals checklist table (fixed template, appended after main table)
-    approvalsTableHeaders: ["מס'", 'תחום הבדיקה', 'תדירות', 'הגוף המקצועי הבודק והמאשר', 'הוצג/לא הוצג'],
-    approvalsColWidths: [1.0, 3.6, 2.6, 5.1, 3.1],
+    // Presence of this flag (not its content — see mkApprovalsTable) triggers
+    // rendering the ריכוז בדיקות בטיחות table for this type.
+    approvalsTableHeaders: true,
     hasDefectsTable: false,
   },
 
@@ -304,7 +304,129 @@ const DOC_TYPES = {
     ],
     hasDefectsTable: false,
   },
+
+  // group9: אישור ביצוע חיזוק — 'opinion' layout, execution-of-strengthening-works approval
+  group9: {
+    name: 'אישור ביצוע חיזוק',
+    layout: 'opinion',
+    titleSize: 15,
+    bodySize: 9,
+    headingSize: 9,
+    titleSuffix: false,
+    subjectLocationLine: true,
+    introBold: false,
+    introTemplate: (d) =>
+      `בתאריך ${d.inspection_date} ביקרתי ב${d.location}${d.address ? ', ' + d.address : ''} ובדקתי את ביצוע עבודות החיזוק המפורטות לעיל.`,
+    findingsSectionHeading: 'העבודות כללו:',
+    plainFindings: true,
+    conclusionSectionHeading: 'הערות:',
+    defaultFindings: [],
+    defaultConclusions: [
+      'האישור מתייחס לביצוע עבודות המפורטות במסמך זה בלבד.',
+      'אין לבצע שינויים קונסטרוקטיבים, אין להחסיר ו/או להוסיף רכיבים.',
+      "על כל שינוי קונסטרוקטיבי ועיוותים כלשהם (סדקים, עיוותים, שקיעות, ניתוקים, חלודה, אלמנטים רופפים, חוסרים/תוספות וכדומה) יש לדווח על כך לבדיקה חוזרת וטיפול מתאים עפ''י הממצאים.",
+      "תוקף המסמך בהתאם לת''י 1525 לחמש שנים מיום כתיבתו ו/או עד ביצוע שינויים מיבניים או בתכולה המצוינת לעיל – המוקדם מביניהם.",
+    ],
+    hasDefectsTable: false,
+  },
+
+  // group10: אישור רשת הגנה — 'opinion' layout, falling-object safety-net stability approval
+  group10: {
+    name: 'אישור רשת הגנה',
+    layout: 'opinion',
+    titleSize: 15,
+    bodySize: 9,
+    headingSize: 9,
+    titleSuffix: false,
+    subjectLocationLine: true,
+    introBold: false,
+    introTemplate: () =>
+      'נבדקה התקנת רשת הגנה ובלימת נפילת חפצים באתר שבנדון, שבוצעה על ידי צוות המתקינים.',
+    findingsSectionHeading: null,
+    plainFindings: true,
+    conclusionSectionHeading: 'הערות:',
+    defaultFindings: [],
+    defaultConclusions: [
+      'יש לפנות במיידי חפצ/ים שנפל/ו על חלקי ורכיבי מערכת ההגנה.',
+      'במקרה הצורך יש לבצע חיזוקים ומתיחות בהתאם כנדרש.',
+      "על כל שינוי במערכת ההגנה והאחיזה יש לזמן לביקורת נוספת וטיפול מתאים עפ''י הממצאים.",
+      'אין להעמיס עומסים ולבצע שינויים תוספות/הפחתות על מערכת ההגנה שבוצעה.',
+      'תוקף המסמך הינו לשנה מיום כתיבתו.',
+    ],
+    hasDefectsTable: false,
+  },
+
+  // group11: אישור בטיחות לקייטנה — 'checklist' layout, fixed 15-item safety checklist
+  group11: {
+    name: 'אישור בטיחות לקייטנה',
+    layout: 'checklist',
+    titleSize: 15,
+    bodySize: 9,
+    headingSize: 9,
+    tableHdrSize: 9,
+    tableDataSize: 8,
+    titleSuffix: false,
+    introTemplate: (d) => [
+      `הנני מאשר כי ערכתי מבדק בטיחות בשטח הקייטנה במבנה ${d.location}${d.address ? ', ' + d.address : ''}, הכולל את תשתית המבנה, מצורפת רשימת עזר לבדיקת בטיחות וטבלת ריכוז אישורים נדרשים וליקויים שנתגלו שיש לטפלם לפני תחילת הקייטנה.`,
+      'אישור הבטיחות מותנה בהצגת כלל האישורים הרלוונטיים הנדרשים המפורטים בסוף המסמך.',
+    ],
+    checklistHeading: 'רשימת עזר לבדיקת הבטיחות:',
+    checklistColumns: ["מס'", 'נושא הבדיקה', 'קיים/חסר/בוצע/לא בוצע', 'הערות'],
+    checklistColWidths: [0.9, 8.8, 3.0, 2.7],
+    defectsHeading: 'טבלת ליקויים לטיפול',
+    defectsColumns: ['', 'תחום הבדיקה', 'סעיף ברשימת המבדק', 'הדרישה', 'הממצא, מהותו ומיקומו', 'קדימות הליקוי'],
+    defectsColWidths: [0.9, 2.6, 2.1, 3.0, 4.7, 2.1],
+    approvalsHeading: 'ריכוז בדיקות בטיחות:',
+  },
 };
+
+// ── Fixed 15-item safety checklist (group11, קייטנה) — identical wording in
+// every real Drive sample found; only the status/הערות per item vary per site.
+const CAMP_CHECKLIST_ITEMS = [
+  'קיים רכז בטיחות ותברואה לקייטנה. (בקייטנה קטנה אפשר שמנהל הקייטנה ישמש תפקיד זה).',
+  "המדריכים קיבלו הדרכה בנושא הבטיחות ולמדו את ההוראות הייחודיות לכל סוג פעילות (טיולים, רחצה בבריכה, רחצה בפארק מים, מתקנים, מתנפחים וכו') הממפורטות בחוזר מנכ''ל.",
+  'נקבעו בעלי תפקידים למקרה של שרפה והם תודרכו.',
+  'בקייטנה מצוי תיק בטיחות ובו מרוכזים כל האישורים והוראות הבטיחות המחייבות.',
+  "בקייטנה מצוי חוזר המנכ''ל המעודכן של משרד החינוך לבטיחות בקייטנות.",
+  'קיים אישור טכנאי גז למערכות הגז במטבח (אם קיים גז).',
+  'מתקני החשמל במבנה ובחצר נבדקו בידי חשמלאי מוסמך.',
+  'כלי העבודה למלאכה ולאומנויות והחומרים שנעשה בהם שימוש בחוגים נמצאו תקינים.',
+  'ציוד העזרה הראשונה תקין.',
+  'ציוד כיבוי האש תקין ומתאים לסוג הפעילויות.',
+  'קיימים מעקות ומאחזי יד בכל המקומות הנדרשים.',
+  'בדלתות המבנה קיימים אמצעים המגנים מפני פגיעה באצבעות (אמצעי הגנה בין הדלת למשקוף, גלגל להאטת הדלת ותפס בסוף מהלך הפתיחה).',
+  'הרחבות, השבילים ומקומות המשחק בשטח החצר נקיים מבורות ושקעים ואין מכשולים בקרבתם.',
+  'מתקני המשחק תקינים (בדיקת המשחקים תיהיה ויזואלית).',
+  'מתקני הספורט והמגרשים תקינים ושלמים, ללא שקעים ובורות, עם ריפוד והגנה.',
+];
+
+// The "ריכוז בדיקות בטיחות" table — external certifications/inspections the
+// client must be able to present. Domain/frequency/checking-body text is
+// fixed boilerplate verified verbatim against real Drive samples; only the
+// הוצג/לא הוצג status column is filled in per visit (left blank by default,
+// matching most rows in the real samples). Shared by group2 (סקר פערי
+// בטיחות) and group11 (אישור בטיחות לקייטנה), which use the identical table.
+const SAFETY_APPROVALS_ROWS = [
+  { domain: 'יציבות ותקינות המבנים (לרבות מבנים יבילים)', freq: 'במקרה ונצפו כשלי יציבות דוגמת שקיעות וסדקים.\nמבנה יביל – אחת לחמש שנים', checker: 'מהנדס מבנים' },
+  { domain: 'יציבות ותקינות סככות', freq: 'בהקמה ואחת לחמש שנים.\nלפי הצורך (שקיעות, קורוזיה, סדקים)', checker: 'מהנדס/הנדסאי מבנים' },
+  { domain: 'יציבות עמודי תאורה', freq: 'בהקמה ואחת לחמש שנים.\nלפי הצורך (שקיעות, קורוזיה, סדקים)', checker: 'מהנדס/הנדסאי מבנים' },
+  { domain: 'תקרות תלויות', freq: 'בהקמה ואחת לחמש שנים.\nלפי הצורך (שקיעות, קורוזיה, סדקים)', checker: 'מהנדס/הנדסאי מבנים' },
+  { domain: 'מנשאים תלויים למזגנים', freq: 'בהקמה ואחת לחמש שנים.\nלפי הצורך (שקיעות, קורוזיה, סדקים, ריקבון)', checker: 'מהנדס/הנדסאי מבנים' },
+  { domain: 'תחנת הסעה ומסופים להסעות\nסידורי בטיחות בתחנת איסוף והורדת ילדים ובמסופי הסעה הצמודים למוסד חינוכי', freq: 'בהקמה ולאחר שינוי', checker: 'מהנדס תנועה' },
+  { domain: 'מתקני משחקים', freq: 'בהתאם לדרישות תקן מתקני משחק 1498', checker: 'הצגת אישור לתחזוקת מתקני המשחקים בתו תקן ממכון התקנים לפי ת"י 1498' },
+  { domain: 'מתקני כושר בשטחי חוץ', freq: 'בהתאם לדרישות תקן מתקני כושר 1497', checker: 'אישור מעבדה - התאמה לתקן ישראלי 1497' },
+  { domain: 'וילונות חלוקה באולמות', freq: 'בהתאם לדרישות תקן וילונות חלוקה 5517', checker: 'אישור מעבדה – התאמה לתקן 5517' },
+  { domain: 'מתקני סל וספורט \nבמגרשים ובאולמות.', freq: 'בהקמה ואחת לשנה', checker: 'אישור מעבדה – התאמה לתקן 5515' },
+  { domain: 'מוצג', freq: 'בהקמה ולפי הצורך', checker: 'הנדסאי מבנים,\nבמוצג המשלב חשמל אישור בודק חשמל' },
+  { domain: 'חשמל', domainGroup: true, sub: 'מערכת חשמל', freq: 'בתום חמש שנים מקבלת טופס 4 ובתדירות של אחת לחמש שנים.', checker: 'חשמלאי בודק מתאים' },
+  { domain: 'חשמל', domainGroup: true, sub: 'ציוד ומכשירי חשמל (ויזואלית בלבד)', freq: 'שנתית', checker: 'חשמלאי מוסמך' },
+  { domain: 'מערכת גז', freq: 'בהקמה ואחת לחמש שנים', checker: 'התאמה לתקן 158 – טכנאי גז סוג 2' },
+  { domain: 'ציוד וכלים טעוני בדיקה: \n(מעליות, מתקני הרמה, אבזרי הרמה, מתקני לחץ, דודי קיטור, קולטי קיטור, אוטוקלבים)', freq: 'על פי פקודת הבטיחות בעבודה-1970: למעליות כל 6 חודשים\nלמכונת ההרמה כל 14 חודשים\nלאבזרי ההרמה כל 6 חודשים\nלמתקני הלחץ כל 26 חודשים\nלדודי הקיטור ולקולטי קיטור כל 26 חודשים', checker: 'אישור בדיקה בתוקף מבודק מוסמך (כהגדרתו בפקודת הבטיחות בעבודה לכל סוג של מתקן בהתאמה) \n\nמהנדס מבנים' },
+  { domain: 'מדידת קרינה אלקטרומגנטית (מדידת קרינה בתחום תדרי הרדיו) בתחום תדרי הרדיו RF באזורי שהייה.\nקרינה סלולרית\nאינטרנט אלחוטי', freq: 'בהתקנה ובמידה ויש שינוי ברשת ובהיקף הציוד ומכשירי הקצה.', checker: 'בודק ובעל ציוד המוסמך ע"י המשרד להגנת הסביבה.\nביצוע על פי הנחיות המשרד להגנת הסביבה מספר 09-04-01' },
+  { domain: 'מדידת שדות מגנטיים וחשמליים בתחום תדר רשת החשמל ELF באזורי שהייה\nשנאי חברת חשמל\nקווי חשמל תת קרקעיים\nארונות חשמל\nמחשבים\nציוד חשמלי', freq: 'בהתקנה ובמידה ויש שינוי ברשת ובהיקף הציוד ומכשירי הקצה.', checker: 'בודק ובעל ציוד המוסמך ע"י המשרד להגנת הסביבה.\nביצוע על פי הנחיות המשרד להגנת הסביבה מספר 09-04-01' },
+  { domain: 'יציבות עצים וענפים\n(בתחום בית הספר ובסמוך לגדרות מבחוץ)', freq: 'שנתית', checker: 'אגרונום או גוזם עצים מוסמך' },
+  { domain: 'מוכנות ותקינות ציוד כיבוי אש', freq: 'שנתית', checker: 'חברה המאושרת לביקורת ותחזוקה לציוד גילוי וכיבוי אש' },
+];
 
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -431,7 +553,7 @@ const THIN_BORDER = {
  * opts: { headerBg, hdrSize, dataSize }
  */
 function mkTable(headers, rows, colWidthsCm, opts = {}) {
-  const { headerBg = 'EAF1DD', hdrSize, dataSize } = opts;
+  const { headerBg = 'EAF1DD', hdrSize, dataSize, noMerge = false } = opts;
   const FINDINGS_COLS = new Set(['נתונים וממצאים', 'נתונים ופירוט', "מידות (מ') ונתונים", 'ממצאים וליקויים', 'ממצאי הסיור', 'ממצאי ליקויים ודרישות', 'הממצא, מהותו ומיקומו', 'הערות/פירוט ליקוי כולל סעיף', 'ממצאי ליקויים ודרישות']);
   const colWidths = colWidthsCm.map((w) => cm(w));
 
@@ -465,11 +587,14 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
 
       // Consecutive rows repeating the same value in a column (typically
       // מיקום/סוג האלמנט when one location has several findings) merge into
-      // one spanning cell instead of repeating the text on every row.
+      // one spanning cell instead of repeating the text on every row. Fixed
+      // checklists (e.g. group11) disable this via noMerge — there, a
+      // repeated status value like "קיים" across unrelated rows must NOT
+      // visually merge them together.
       const prevText = rowIdx > 0 ? String(rows[rowIdx - 1][colIdx] ?? '') : null;
       const nextText = rowIdx < rows.length - 1 ? String(rows[rowIdx + 1][colIdx] ?? '') : null;
-      const continuesFromAbove = text !== '' && text === prevText;
-      const continuesBelow     = text !== '' && text === nextText;
+      const continuesFromAbove = !noMerge && text !== '' && text === prevText;
+      const continuesBelow     = !noMerge && text !== '' && text === nextText;
       const verticalMerge = continuesFromAbove
         ? VerticalMergeType.CONTINUE
         : (continuesBelow ? VerticalMergeType.RESTART : undefined);
@@ -499,6 +624,85 @@ function mkTable(headers, rows, colWidthsCm, opts = {}) {
     columnWidths: colWidths,
     rows: [headerRow, ...dataRows],
   });
+}
+
+// One or more stacked paragraphs for a table cell whose text contains
+// embedded newlines (SAFETY_APPROVALS_ROWS' תדירות/checker text is often
+// multi-line) — a single mkPara/mkRun pair can't represent a line break.
+function mkCellLines(text, opts = {}) {
+  const { size = 8, bold = false, alignment = AlignmentType.CENTER } = opts;
+  const lines = String(text ?? '').split('\n');
+  return lines.map((line) => mkPara([mkRun(line, { size, bold })], { alignment, spacing: { after: 0 } }));
+}
+
+// The "ריכוז בדיקות בטיחות" table (see SAFETY_APPROVALS_ROWS). Built by hand
+// rather than through mkTable(): it needs a 2-way column split (domain-group
+// label vs. specific sub-item) only for the two "חשמל" rows, via columnSpan/
+// verticalMerge — not something the generic per-column merge logic supports.
+// statusByIndex optionally supplies the הוצג/לא הוצג value per row (0-based);
+// left blank by default, matching most rows in the real Drive samples.
+function mkApprovalsTable(statusByIndex = {}) {
+  const w = [0.8, 1.8, 2.4, 2.6, 4.7, 3.1].map((v) => cm(v));
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: [
+      new TableCell({ width: { size: w[0], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, shading: { type: ShadingType.CLEAR, fill: 'EAF1DD' }, borders: THIN_BORDER, children: mkCellLines("מס'", { size: 8.5, bold: true }) }),
+      new TableCell({ width: { size: w[1] + w[2], type: WidthType.DXA }, columnSpan: 2, verticalAlign: VerticalAlign.CENTER, shading: { type: ShadingType.CLEAR, fill: 'EAF1DD' }, borders: THIN_BORDER, children: mkCellLines('תחום הבדיקה', { size: 8.5, bold: true }) }),
+      new TableCell({ width: { size: w[3], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, shading: { type: ShadingType.CLEAR, fill: 'EAF1DD' }, borders: THIN_BORDER, children: mkCellLines('תדירות', { size: 8.5, bold: true }) }),
+      new TableCell({ width: { size: w[4], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, shading: { type: ShadingType.CLEAR, fill: 'EAF1DD' }, borders: THIN_BORDER, children: mkCellLines('הגוף המקצועי הבודק והמאשר', { size: 8.5, bold: true }) }),
+      new TableCell({ width: { size: w[5], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, shading: { type: ShadingType.CLEAR, fill: 'EAF1DD' }, borders: THIN_BORDER, children: mkCellLines('הוצג/לא הוצג', { size: 8.5, bold: true }) }),
+    ],
+  });
+
+  const dataRows = SAFETY_APPROVALS_ROWS.map((row, i) => {
+    const isElectric = !!row.domainGroup;
+    const prevSameGroup = isElectric && SAFETY_APPROVALS_ROWS[i - 1]?.domainGroup && SAFETY_APPROVALS_ROWS[i - 1].domain === row.domain;
+
+    const noCell = new TableCell({ width: { size: w[0], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, borders: THIN_BORDER, children: mkCellLines('') });
+
+    const cells = [noCell];
+    if (isElectric) {
+      cells.push(new TableCell({
+        width: { size: w[1], type: WidthType.DXA },
+        verticalAlign: VerticalAlign.CENTER,
+        borders: THIN_BORDER,
+        verticalMerge: prevSameGroup ? VerticalMergeType.CONTINUE : VerticalMergeType.RESTART,
+        children: prevSameGroup ? [] : mkCellLines(row.domain),
+      }));
+      cells.push(new TableCell({ width: { size: w[2], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, borders: THIN_BORDER, children: mkCellLines(row.sub, { alignment: AlignmentType.LEFT }) }));
+    } else {
+      cells.push(new TableCell({ width: { size: w[1] + w[2], type: WidthType.DXA }, columnSpan: 2, verticalAlign: VerticalAlign.CENTER, borders: THIN_BORDER, children: mkCellLines(row.domain, { alignment: AlignmentType.LEFT }) }));
+    }
+    cells.push(new TableCell({ width: { size: w[3], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, borders: THIN_BORDER, children: mkCellLines(row.freq, { alignment: AlignmentType.LEFT }) }));
+    cells.push(new TableCell({ width: { size: w[4], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, borders: THIN_BORDER, children: mkCellLines(row.checker, { alignment: AlignmentType.LEFT }) }));
+    cells.push(new TableCell({ width: { size: w[5], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, borders: THIN_BORDER, children: mkCellLines(statusByIndex[i] ?? '') }));
+
+    return new TableRow({ children: cells });
+  });
+
+  const totalWidth = w.reduce((sum, v) => sum + v, 0);
+  return new Table({
+    visuallyRightToLeft: true,
+    layout: TableLayoutType.FIXED,
+    alignment: AlignmentType.CENTER,
+    width: { size: totalWidth, type: WidthType.DXA },
+    columnWidths: w,
+    rows: [headerRow, ...dataRows],
+  });
+}
+
+// group11 (קייטנה) signature/fill-in line — unlike every other type's plain
+// mkSignatureBlock(), the real documents use a single packed line with
+// underscore-filled blanks for the inspector's identity, followed by a
+// plain (non-bold) label row underneath. חתימה is always left blank.
+function mkCampSignatureBlock(dateStr) {
+  const fill = (val) => `____${val}____`;
+  const line1 = `${fill('ניר')}          ${fill('בן דוד')}         ${fill('70382')}         ${fill(dateStr)}             __________________`;
+  const line2 = '                שם פרטי                  שם משפחה                   מספר תעודה                             תאריך                                        חתימה';
+  return [
+    mkPara([mkRun(line1, { size: 9 })], { alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 } }),
+    mkPara([mkRun(line2, { size: 8 })], { alignment: AlignmentType.CENTER, spacing: { after: 0 } }),
+  ];
 }
 
 // Plain physically-left paragraphs, not the 2-column table this used to be —
@@ -651,6 +855,12 @@ export async function generateDocument(data) {
     { alignment: AlignmentType.CENTER, spacing: { before: 480, after: 0 } }
   );
 
+  // A few types (אישור ביצוע, רשת הגנה) put the project/site name on its own
+  // centered line right under the subject, instead of appended to it with "–".
+  const subjectLocationPara = cfg.subjectLocationLine
+    ? mkPara([mkRun(effectiveData.location, { size: cfg.titleSize, bold: true })], { alignment: AlignmentType.CENTER, spacing: { after: 0 } })
+    : null;
+
   // ── 7. Table (shared between layouts) ────────────────────────────────────
   const tableRows = Array.isArray(data.table_rows) ? data.table_rows : [];
   const mainTable = tableRows.length > 0
@@ -667,6 +877,7 @@ export async function generateDocument(data) {
     clientPara,
     orgPara,
     subjectPara,
+    ...(subjectLocationPara ? [subjectLocationPara] : []),
   ];
 
   if (cfg.layout === 'simple') {
@@ -889,12 +1100,16 @@ export async function generateDocument(data) {
     });
 
     // "נתונים כלליים וממצאים:" heading
-    bodyChildren.push(
-      mkPara(
-        [mkRun(cfg.findingsSectionHeading, { size: cfg.headingSize, bold: true })],
-        { spacing: SP_SECTION }
-      )
-    );
+    // Some types (רשת הגנה) have no separate findings heading at all — the
+    // technical description just flows on as plain paragraphs after the intro.
+    if (cfg.findingsSectionHeading) {
+      bodyChildren.push(
+        mkPara(
+          [mkRun(cfg.findingsSectionHeading, { size: cfg.headingSize, bold: true })],
+          { spacing: SP_SECTION }
+        )
+      );
+    }
 
     // Findings as bullet paragraphs
     const findingsSource = Array.isArray(data.notes_custom) && data.notes_custom.length > 0
@@ -903,8 +1118,9 @@ export async function generateDocument(data) {
 
     findingsSource.forEach((item) => {
       const text = String(item).replace(/^[•\-]\s*/, '');
+      const prefix = cfg.plainFindings ? '' : '• ';
       bodyChildren.push(
-        mkPara([mkRun(`• ${text}`, { size: cfg.bodySize })], { spacing: SP_BODY })
+        mkPara([mkRun(`${prefix}${text}`, { size: cfg.bodySize })], { spacing: SP_BODY })
       );
     });
 
@@ -920,14 +1136,40 @@ export async function generateDocument(data) {
     const conclusionsRaw = data.conclusion_custom && String(data.conclusion_custom).trim()
       ? String(data.conclusion_custom).trim()
       : '';
-
-    if (conclusionsRaw) {
-      conclusionsRaw.split('\n').forEach((line) => {
-        bodyChildren.push(mkNumberedPara(line, { size: cfg.bodySize, spacing: SP_BODY }));
-      });
-    }
+    const conclusionLines = conclusionsRaw ? conclusionsRaw.split('\n') : (cfg.defaultConclusions || []);
+    conclusionLines.forEach((line) => {
+      bodyChildren.push(mkNumberedPara(line, { size: cfg.bodySize, spacing: SP_BODY }));
+    });
 
     bodyChildren.push(...mkSignatureBlock(cfg.bodySize));
+
+  } else if (cfg.layout === 'checklist') {
+    // ── 'checklist' layout: group11 (אישור בטיחות לקייטנה) ────────────────
+    // Fixed 15-item checklist + optional ליקויים/ריכוז בדיקות tables, closing
+    // with the underscore fill-in line instead of the usual signature block.
+    const introParts = typeof cfg.introTemplate === 'function' ? cfg.introTemplate(effectiveData) : [];
+    const effectiveIntroParts = data.intro_extra ? [...introParts, data.intro_extra] : introParts;
+    effectiveIntroParts.forEach((line, idx) => {
+      bodyChildren.push(mkPara([mkRun(line, { size: cfg.bodySize })], { spacing: idx === 0 ? { ...SP_BODY, before: 360 } : SP_BODY }));
+    });
+
+    bodyChildren.push(mkPara([mkRun(cfg.checklistHeading, { size: cfg.bodySize })], { spacing: SP_SECTION }));
+    const checklistAnswers = Array.isArray(data.checklist_items) ? data.checklist_items : [];
+    const checklistRows = CAMP_CHECKLIST_ITEMS.map((item, i) => [
+      String(i + 1), item, checklistAnswers[i]?.status || '', checklistAnswers[i]?.note || '',
+    ]);
+    bodyChildren.push(mkTable(cfg.checklistColumns, checklistRows, cfg.checklistColWidths, { hdrSize: cfg.tableHdrSize, dataSize: cfg.tableDataSize, noMerge: true }));
+
+    bodyChildren.push(mkPara([mkRun(cfg.defectsHeading, { size: cfg.bodySize })], { spacing: SP_SECTION }));
+    const campDefectsRows = Array.isArray(data.defects_rows) && data.defects_rows.length > 0
+      ? data.defects_rows
+      : [['--', '--', '--', '--', '--', '--']];
+    bodyChildren.push(mkTable(cfg.defectsColumns, campDefectsRows, cfg.defectsColWidths, { hdrSize: cfg.tableHdrSize, dataSize: cfg.tableDataSize, noMerge: true }));
+
+    bodyChildren.push(mkPara([mkRun(cfg.approvalsHeading, { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION }));
+    bodyChildren.push(mkApprovalsTable(data.approvals_status || {}));
+
+    bodyChildren.push(...mkCampSignatureBlock(effectiveData.inspection_date || formatDate(data.date)));
 
   } else {
     // ── 'gap-survey' layout: group2 (סקר פערי בטיחות) ─────────────────────
@@ -971,20 +1213,12 @@ export async function generateDocument(data) {
     );
     if (mainTable) bodyChildren.push(mainTable);
 
-    // Approvals checklist table (fixed template rows — empty, user fills in Word)
+    // Approvals checklist table — fixed real content, see SAFETY_APPROVALS_ROWS
     if (cfg.approvalsTableHeaders) {
       bodyChildren.push(
         mkPara([mkRun('ריכוז בדיקות בטיחות:', { size: cfg.headingSize, bold: true })], { spacing: SP_SECTION })
       );
-      const emptyApprovalsRows = Array.from({ length: 20 }, () =>
-        Array(cfg.approvalsTableHeaders.length).fill('')
-      );
-      bodyChildren.push(
-        mkTable(cfg.approvalsTableHeaders, emptyApprovalsRows, cfg.approvalsColWidths, {
-          hdrSize: cfg.tableHdrSize,
-          dataSize: cfg.tableDataSize,
-        })
-      );
+      bodyChildren.push(mkApprovalsTable(data.approvals_status || {}));
     }
 
     // Conclusion heading + fixed lines

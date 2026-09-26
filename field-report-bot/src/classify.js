@@ -3,14 +3,23 @@
 // extraction approach as nir-reports' AIWriter.jsx, extended to (a) pick the
 // document type itself when the field engineer didn't name one, and (b)
 // cover all 8 document types, not just the 5 table-based ones.
-import { DOC_TYPES } from './docTypes.js';
+import { DOC_TYPES, CAMP_CHECKLIST_ITEMS } from './docTypes.js';
+
+// Same "fine as-is" statuses as wizard.js's CAMP_CHECKLIST_OK_STATUSES —
+// anything else on a group11 checklist item is a defect worth surfacing in
+// the ליקויים table.
+const CAMP_CHECKLIST_OK_STATUSES = new Set(['קיים', 'לא רלוונטי, לא קיים']);
 
 const MODEL = 'claude-sonnet-4-6';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 function buildSystemPrompt(forcedTypeId) {
   const typeList = Object.values(DOC_TYPES)
-    .map((t) => `- ${t.id} — "${t.name}"${t.kind === 'table' ? ` (טבלת ממצאים: ${t.tableColumns.filter(Boolean).join(' | ')})` : ' (טקסט חופשי, ללא טבלה)'}`)
+    .map((t) => {
+      if (t.kind === 'table') return `- ${t.id} — "${t.name}" (טבלת ממצאים: ${t.tableColumns.filter(Boolean).join(' | ')})`;
+      if (t.kind === 'checklist') return `- ${t.id} — "${t.name}" (רשימת בדיקה קבועה — אינה נגזרת מהטקסט)`;
+      return `- ${t.id} — "${t.name}" (טקסט חופשי, ללא טבלה)`;
+    })
     .join('\n');
 
   const typeInstruction = forcedTypeId
@@ -28,7 +37,7 @@ ${typeInstruction}
 
 החזר JSON תקני בלבד (ללא markdown, ללא \`\`\`json, רק JSON נקי) עם המבנה הבא:
 {
-  "doc_type": "group1..group8",
+  "doc_type": "group1..group11",
   "client": "שם הלקוח או המוסד",
   "organization": "שם הארגון (אם קיים, אחרת השאר ריק)",
   "location": "שם המיקום/הנכס",
@@ -58,7 +67,7 @@ ${typeInstruction}
 - status: "תקין" / "לא תקין" / "תקין - דורש מעקב".
 - נתח גם תמונות שצורפו והוסף ממצאים שנראים בהן (מיקום, אלמנט, תיאור, המלצה).
 - כל תמונה מסומנת בהודעה במספרה ("תמונה 1:", "תמונה 2:" וכו', לפי סדר הצירוף). אם ממצא מסוים מבוסס על תמונה ספציפית או שהיא ממחישה אותו, מלא את photo_index שלו במספר הזה (1 = התמונה הראשונה). אם אין תמונה מתאימה — השאר null. כל תמונה משויכת לכל היותר לממצא אחד; אל תשתמש באותו photo_index פעמיים.
-- אם doc_type הוא group6/group7/group8 (ללא טבלה) — אל תמלא findings; מלא את "notes" בפריטי ממצא/פסקאות (שורה אחת = פריט אחד) ואת "conclusion" במסקנות.
+- אם סוג המסמך הוא מסוג "טקסט חופשי, ללא טבלה" (לפי הרשימה למעלה) — אל תמלא findings; מלא את "notes" בפריטי ממצא/פסקאות (שורה אחת = פריט אחד) ואת "conclusion" במסקנות.
 - אם פרט לא קיים בהקלט — השאר מחרוזת ריקה, אל תמציא נתונים.
 - findings יכול להיות מערך ריק אם אין ממצאים בטבלה.`;
 }
@@ -205,6 +214,19 @@ export async function classifyAndBuild(session, forcedTypeId) {
     payload.table_rows = toTableRows(findings, docType);
     payload.defects_rows = toDefectsRows(findings, docType);
     payload.has_defects = findings.some((f) => f.status && f.status !== 'תקין');
+  } else if (typeMeta.kind === 'checklist') {
+    // The 15-item checklist itself is wizard-collected structured data (see
+    // session.js), not something to re-derive from Claude's free text — a
+    // status/note pulled from prose could easily land on the wrong item.
+    const checklistItems = Array.isArray(session.structured?.checklist_items) ? session.structured.checklist_items : [];
+    payload.checklist_items = checklistItems;
+    payload.table_rows = [];
+    payload.defects_rows = checklistItems
+      .map((a, i) => ({ a, i }))
+      .filter(({ a }) => a?.status && !CAMP_CHECKLIST_OK_STATUSES.has(a.status))
+      .map(({ a, i }) => ['', '', '', '', `${CAMP_CHECKLIST_ITEMS[i]}${a.note ? ' — ' + a.note : ''}`, '']);
+    payload.has_defects = payload.defects_rows.length > 0;
+    payload.approvals_status = {};
   } else {
     payload.table_rows = [];
     payload.defects_rows = [];
