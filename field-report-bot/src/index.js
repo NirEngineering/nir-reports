@@ -240,7 +240,12 @@ client.on('message_create', async (msg) => {
       resetSession();
       cancelWizard();
       clearLastKnownDocType();
-      await reply(msg, '🆕 האוסף אופס. שלח טקסט ותמונות מהביקור, ואז "' + GENERATE_KEYWORD + '", או "' + WIZARD_KEYWORD + '" לשאלון מודרך.');
+      await reply(msg, '🆕 האוסף אופס.');
+      // Straight into the wizard — the field engineer shouldn't need to
+      // remember to type "שאלון" to get the first survey-style question
+      // (which document type) after starting a new visit.
+      const freshWizard = startWizard(null);
+      if (freshWizard.ok) await reply(msg, freshWizard.prompt);
       return;
     }
 
@@ -268,6 +273,7 @@ client.on('message_create', async (msg) => {
     }
 
     // Not a command — buffer as field data
+    const wasEmptyBeforeThisMessage = isEmpty();
     if (msg.hasMedia) {
       const media = await msg.downloadMedia().catch(() => null);
       if (media?.mimetype?.startsWith('image/')) {
@@ -275,6 +281,16 @@ client.on('message_create', async (msg) => {
       }
     } else if (body) {
       addText(body);
+    }
+
+    // This was the very first message of a fresh visit (nothing buffered yet,
+    // no wizard already running) — rather than silently absorbing it and
+    // waiting for the engineer to remember to type "שאלון", greet them with
+    // the survey-style "which document type" question right away. Their
+    // message is already buffered above, so nothing is lost either way.
+    if (wasEmptyBeforeThisMessage && !isWizardActive()) {
+      const freshWizard = startWizard(null);
+      if (freshWizard.ok) await reply(msg, freshWizard.prompt);
     }
   } catch (e) {
     console.error('Failed to handle incoming WhatsApp message:', e);
