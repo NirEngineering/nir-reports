@@ -23,6 +23,12 @@ const PRIORITY_OPTIONS_GAP = ['0', '1', '2']; // group2 (סקר פערי בטי�
 // visit. Sourced from the client's own real Drive reports — these two
 // account for the large majority of documents. Free text always still works
 // for anything else, and "אחר – פרט" makes that option visible up front too.
+// Shown after every multiple-choice prompt so the field engineer always sees
+// the way out, not just the numbered options — picking a number is always a
+// shortcut, never a requirement, and "בטל שאלון" hands the whole session back
+// to plain free-text note-taking (already handled globally in index.js).
+const CANCEL_HINT = '\nבכל שלב אפשר לשלוח "בטל שאלון" כדי לעבור לכתיבה חופשית.';
+
 const OTHER_LABEL = 'אחר – פרט';
 const CLIENT_OPTIONS = [
   "החברה למוסדות חינוך ותרבות ת''א",
@@ -69,7 +75,7 @@ function promptFor(field) {
     text += '\n' + field.options.map((o, i) => `${i + 1}) ${o}`).join('\n');
     text += '\n(אפשר גם להקליד תשובה חופשית במקום לבחור מספר)';
   }
-  return text;
+  return text + CANCEL_HINT;
 }
 
 // group7 (מסמך כללי) is the catch-all for anything that isn't one of the
@@ -82,14 +88,14 @@ function typeLabel(t) {
 function typePrompt() {
   return '❓ איזה סוג מסמך?\n' +
     TYPE_LIST.map((t, i) => `${i + 1}) ${typeLabel(t)}`).join('\n') +
-    '\n(אפשר גם להקליד את הסוג בעצמו)';
+    '\n(אפשר גם להקליד את הסוג בעצמו)' + CANCEL_HINT;
 }
 
 // group11 (אישור בטיחות לקייטנה) — one survey question per fixed checklist item.
 function checklistPrompt(index) {
   return `☑️ פריט ${index + 1}/${CAMP_CHECKLIST_ITEMS.length}:\n${CAMP_CHECKLIST_ITEMS[index]}\n` +
     CAMP_CHECKLIST_STATUS_OPTIONS.map((o, i) => `${i + 1}) ${o}`).join('\n') +
-    '\n(אפשר גם להקליד תשובה חופשית)';
+    '\n(אפשר גם להקליד תשובה חופשית)' + CANCEL_HINT;
 }
 
 function resolveAnswer(field, raw) {
@@ -173,7 +179,7 @@ function recordHeaderAnswer(field, answer) {
   }
   if (type.kind === 'opinion') {
     wizard.stage = 'findings';
-    return { prompt: '📋 ממצא/נתון ראשון (תיאור חופשי) — או שלח "סיום" כדי לעבור למסקנות:' };
+    return { prompt: '📋 ממצא/נתון ראשון (תיאור חופשי) — או שלח "סיום" כדי לעבור למסקנות:' + CANCEL_HINT };
   }
   if (type.kind === 'checklist') {
     wizard.stage = 'checklist';
@@ -210,7 +216,7 @@ export function answerWizard(raw) {
     const answer = resolveAnswer(field, raw);
     if (field.options && answer === OTHER_LABEL) {
       wizard.stage = 'header-other';
-      return { prompt: `✍️ כתוב את השם:` };
+      return { prompt: `✍️ כתוב את השם:` + CANCEL_HINT };
     }
     return recordHeaderAnswer(field, answer);
   }
@@ -238,7 +244,7 @@ export function answerWizard(raw) {
       return { prompt: promptFor(fields[wizard.fieldIndex]) };
     }
     wizard.stage = 'more';
-    return { prompt: '➕ להוסיף ממצא נוסף?\n1) כן\n2) לא, זהו' };
+    return { prompt: '➕ להוסיף ממצא נוסף?\n1) כן\n2) לא, זהו' + CANCEL_HINT };
   }
 
   if (wizard.stage === 'more') {
@@ -263,11 +269,11 @@ export function answerWizard(raw) {
     const trimmed = raw.trim();
     if (trimmed === 'סיום' || trimmed === 'סיים') {
       wizard.stage = 'conclusions';
-      return { prompt: '📝 מסקנה/הערה ראשונה — או שלח "סיום" לסיים את השאלון:' };
+      return { prompt: '📝 מסקנה/הערה ראשונה — או שלח "סיום" לסיים את השאלון:' + CANCEL_HINT };
     }
     wizard.findingsCount++;
     addText(`נתון/ממצא: ${trimmed}`);
-    return { prompt: `📋 ממצא/נתון נוסף — או שלח "סיום" כדי לעבור למסקנות:` };
+    return { prompt: `📋 ממצא/נתון נוסף — או שלח "סיום" כדי לעבור למסקנות:` + CANCEL_HINT };
   }
 
   if (wizard.stage === 'conclusions') {
@@ -281,7 +287,7 @@ export function answerWizard(raw) {
     }
     wizard.conclusionsCount++;
     addText(`מסקנה: ${trimmed}`);
-    return { prompt: '📝 מסקנה/הערה נוספת — או שלח "סיום" לסיים את השאלון:' };
+    return { prompt: '📝 מסקנה/הערה נוספת — או שלח "סיום" לסיים את השאלון:' + CANCEL_HINT };
   }
 
   // ── Stage: fixed 15-item safety checklist (group11 — "checklist") ────────
@@ -297,7 +303,7 @@ export function answerWizard(raw) {
 
     if (!CAMP_CHECKLIST_OK_STATUSES.has(status)) {
       wizard.stage = 'checklist-note';
-      return { prompt: '✍️ מה הליקוי/הערה לגבי סעיף זה?' };
+      return { prompt: '✍️ מה הליקוי/הערה לגבי סעיף זה?' + CANCEL_HINT };
     }
     return advanceChecklist();
   }
