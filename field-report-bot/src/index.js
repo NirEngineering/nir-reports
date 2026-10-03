@@ -13,7 +13,7 @@ import { classifyAndBuild } from './classify.js';
 import { generateDocument } from './docGenerator.js';
 import { isWizardActive, startWizard, cancelWizard, answerWizard, getLastKnownDocType, clearLastKnownDocType } from './wizard.js';
 
-const { Client, LocalAuth, MessageMedia } = pkg;
+const { Client, LocalAuth, MessageMedia, Poll } = pkg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -121,14 +121,45 @@ client.on('disconnected', (reason) => {
 // new field data.
 const ownMessageIds = new Set();
 
-async function reply(msg, ...args) {
-  const sent = await msg.reply(...args);
+// Sends into the single watched chat directly (client.sendMessage) rather
+// than via msg.reply() (which just adds a quoted-reply UI touch on top of
+// the same call) — needed because poll votes and some wizard follow-ups
+// aren't triggered by an incoming message to reply to in the first place.
+async function send(...args) {
+  const sent = await client.sendMessage(targetChatId, ...args);
   const id = sent?.id?.id;
   if (id) {
     ownMessageIds.add(id);
     setTimeout(() => ownMessageIds.delete(id), 5 * 60 * 1000).unref?.();
   }
   return sent;
+}
+async function reply(_msg, ...args) {
+  return send(...args);
+}
+
+// The WhatsApp message ID of the most recently sent, still-unanswered wizard
+// poll — a vote_update is only applied if it names this exact poll, so a tap
+// on a stale/superseded poll (the wizard has already moved on) is ignored.
+let activePollMessageId = null;
+
+// Sends a wizard step's text prompt (unchanged, always sent — free typing a
+// number or answer always still works) and, when the step offers a fixed set
+// of choices, additionally sends a real tappable WhatsApp poll alongside it.
+// A poll-send failure (bad chat type, transient API hiccup) is swallowed —
+// the text prompt already carries the question either way.
+async function sendWizardStep(result) {
+  if (result.prompt) await reply(null, result.prompt);
+  if (result.poll) {
+    try {
+      const sent = await client.sendMessage(targetChatId, new Poll(result.poll.question, result.poll.options));
+      activePollMessageId = sent?.id?._serialized || null;
+    } catch (e) {
+      console.error('Failed to send wizard poll:', e.message);
+    }
+  } else {
+    activePollMessageId = null;
+  }
 }
 
 function parseCommand(body) {
@@ -187,7 +218,7 @@ async function handleGenerate(msg, typeHint) {
       buffer.toString('base64'),
       filename
     );
-    await reply(msg, media, undefined, { caption: `✅ ${typeMeta.name}${payload.client ? ' — ' + payload.client : ''}` });
+    await reply(msg, media, { caption: `✅ ${typeMeta.name}${payload.client ? ' — ' + payload.client : ''}` });
 
     resetSession();
     clearLastKnownDocType();
@@ -195,7 +226,7 @@ async function handleGenerate(msg, typeHint) {
     // Straight into the next report's wizard — the field engineer doesn't
     // need to remember to type "שאלון" again between visits.
     const nextWizard = startWizard(null);
-    if (nextWizard.ok) await reply(msg, nextWizard.prompt);
+    if (nextWizard.ok) await sendWizardStep(nextWizard);
   } catch (e) {
     console.error('Report generation failed:', e);
     await reply(msg, `❌ שגיאה ביצירת הדוח: ${e.message}\n\nההערות והתמונות נשמרו — נסה שוב "${GENERATE_KEYWORD}".`);
@@ -223,6 +254,7 @@ client.on('message_create', async (msg) => {
     if (command?.type === 'cancel_wizard') {
       if (isWizardActive()) {
         cancelWizard();
+        activePollMessageId = null;
         await reply(msg, '❌ השאלון בוטל. מה שכבר נענה נשאר שמור, אפשר להמשיך בכתיבה חופשית.');
       }
       return;
@@ -231,8 +263,9 @@ client.on('message_create', async (msg) => {
     // While a wizard is in progress, every message is an answer to the
     // current question — free text always works too, not just numbers.
     if (isWizardActive() && !msg.hasMedia) {
-      const { prompt, done } = await answerWizard(body);
-      if (prompt) await reply(msg, prompt);
+      activePollMessageId = null; // a typed answer supersedes any open poll for this question
+      const result = await answerWizard(body);
+      await sendWizardStep(result);
       return;
     }
 
@@ -240,12 +273,13 @@ client.on('message_create', async (msg) => {
       resetSession();
       cancelWizard();
       clearLastKnownDocType();
+      activePollMessageId = null;
       await reply(msg, '🆕 האוסף אופס.');
       // Straight into the wizard — the field engineer shouldn't need to
       // remember to type "שאלון" to get the first survey-style question
       // (which document type) after starting a new visit.
       const freshWizard = startWizard(null);
-      if (freshWizard.ok) await reply(msg, freshWizard.prompt);
+      if (freshWizard.ok) await sendWizardStep(freshWizard);
       return;
     }
 
@@ -263,7 +297,7 @@ client.on('message_create', async (msg) => {
         await reply(msg, `❓ לא זיהיתי את הסוג "${command.typeHint}".\n\n${listTypesMessage()}`);
         return;
       }
-      await reply(msg, result.prompt);
+      await sendWizardStep(result);
       return;
     }
 
@@ -290,10 +324,32 @@ client.on('message_create', async (msg) => {
     // message is already buffered above, so nothing is lost either way.
     if (wasEmptyBeforeThisMessage && !isWizardActive()) {
       const freshWizard = startWizard(null);
-      if (freshWizard.ok) await reply(msg, freshWizard.prompt);
+      if (freshWizard.ok) await sendWizardStep(freshWizard);
     }
   } catch (e) {
     console.error('Failed to handle incoming WhatsApp message:', e);
+  }
+});
+
+// Fires when the field engineer taps an option on a wizard poll (see
+// sendWizardStep). Only applied if it's a vote on the one poll the wizard is
+// actually still waiting on — anything else (a vote on an old, superseded
+// poll; a deselect-all) is ignored. The tapped option's 0-based position is
+// converted to the same "1", "2", ... string a typed numbered reply would
+// have been, so it flows through answerWizard()'s existing resolution logic
+// unchanged.
+client.on('vote_update', async (vote) => {
+  if (!isReady || !isWizardActive() || !activePollMessageId) return;
+  try {
+    if (vote.parentMsgKey?._serialized !== activePollMessageId) return;
+    if (!vote.selectedOptions || vote.selectedOptions.length === 0) return;
+
+    activePollMessageId = null; // consume — a late duplicate vote_update must not re-answer
+    const position = String(vote.selectedOptions[0].localId + 1);
+    const result = await answerWizard(position);
+    await sendWizardStep(result);
+  } catch (e) {
+    console.error('Failed to handle poll vote:', e);
   }
 });
 

@@ -30,6 +30,29 @@ const PRIORITY_OPTIONS_GAP = ['0', '1', '2']; // group2 (סקר פערי בטי�
 // to plain free-text note-taking (already handled globally in index.js).
 const CANCEL_HINT = '\nבכל שלב אפשר לשלוח "בטל שאלון" כדי לעבור לכתיבה חופשית.';
 
+// Every numbered-option prompt also carries { poll: {question, options} } so
+// index.js can additionally send a real WhatsApp poll (tap to answer) next
+// to the plain-text version — the text prompt (with its own numbered list
+// and free-text/cancel hint) is still sent either way, so nothing regresses
+// if a poll fails to send or the engineer just prefers typing.
+// WhatsApp native polls support at most 12 tappable options and cap each
+// option's text length — pollFor() returns null above that so the caller
+// falls back to text-only instead of sending a malformed/rejected poll.
+const MAX_POLL_OPTIONS = 12;
+const MAX_POLL_OPTION_CHARS = 95;
+const MAX_POLL_QUESTION_CHARS = 250;
+function pollFor(question, options) {
+  if (!Array.isArray(options) || options.length < 2 || options.length > MAX_POLL_OPTIONS) return null;
+  const truncate = (s, max) => (s.length > max ? s.slice(0, max - 1) + '…' : s);
+  return {
+    question: truncate(question, MAX_POLL_QUESTION_CHARS),
+    options: options.map((o) => truncate(String(o), MAX_POLL_OPTION_CHARS)),
+  };
+}
+function fieldPoll(field) {
+  return field.options ? pollFor(field.label, field.options) : null;
+}
+
 const OTHER_LABEL = 'אחר – פרט';
 const CLIENT_OPTIONS = [
   "החברה למוסדות חינוך ותרבות ת''א",
@@ -91,12 +114,18 @@ function typePrompt() {
     TYPE_LIST.map((t, i) => `${i + 1}) ${typeLabel(t)}`).join('\n') +
     '\n(אפשר גם להקליד את הסוג בעצמו)' + CANCEL_HINT;
 }
+function typePoll() {
+  return pollFor('איזה סוג מסמך?', TYPE_LIST.map(typeLabel));
+}
 
 // group11 (אישור בטיחות לקייטנה) — one survey question per fixed checklist item.
 function checklistPrompt(index) {
   return `☑️ פריט ${index + 1}/${CAMP_CHECKLIST_ITEMS.length}:\n${CAMP_CHECKLIST_ITEMS[index]}\n` +
     CAMP_CHECKLIST_STATUS_OPTIONS.map((o, i) => `${i + 1}) ${o}`).join('\n') +
     '\n(אפשר גם להקליד תשובה חופשית)' + CANCEL_HINT;
+}
+function checklistPoll(index) {
+  return pollFor(CAMP_CHECKLIST_ITEMS[index], CAMP_CHECKLIST_STATUS_OPTIONS);
 }
 
 function resolveAnswer(field, raw) {
@@ -121,7 +150,10 @@ function resolveTypeAnswer(raw) {
 
 function firstPromptForType(docTypeId) {
   const type = DOC_TYPES[docTypeId];
-  return `📝 שאלון עבור "${type.name}":\n\n${promptFor(HEADER_FIELDS[0])}`;
+  return {
+    prompt: `📝 שאלון עבור "${type.name}":\n\n${promptFor(HEADER_FIELDS[0])}`,
+    poll: fieldPoll(HEADER_FIELDS[0]),
+  };
 }
 
 // Remembers the last document type the wizard settled on, so that a bare
@@ -139,20 +171,20 @@ export function isWizardActive() {
   return wizard !== null;
 }
 
-/** @returns {{ok: boolean, prompt?: string}} */
+/** @returns {{ok: boolean, prompt?: string, poll?: {question: string, options: string[]}}} */
 export function startWizard(typeHint) {
   const docTypeId = typeHint ? matchTypeHint(typeHint) : null;
 
   if (docTypeId) {
     lastKnownDocType = docTypeId;
     wizard = { docTypeId, stage: 'header', headerIndex: 0, rowIndex: 1, fieldIndex: 0, rowAnswers: {}, findingsCount: 0, conclusionsCount: 0 };
-    return { ok: true, prompt: firstPromptForType(docTypeId) };
+    return { ok: true, ...firstPromptForType(docTypeId) };
   }
 
   if (typeHint) return { ok: false }; // hint given but not recognized
 
   wizard = { docTypeId: null, stage: 'doctype' };
-  return { ok: true, prompt: `📝 שאלון מודרך — ${typePrompt()}` };
+  return { ok: true, prompt: `📝 שאלון מודרך — ${typePrompt()}`, poll: typePoll() };
 }
 
 export function cancelWizard() {
@@ -166,7 +198,7 @@ export function cancelWizard() {
 // jumps straight here instead of re-asking a field already filled in.
 function continueHeaderFlow() {
   if (wizard.headerIndex < HEADER_FIELDS.length) {
-    return { prompt: promptFor(HEADER_FIELDS[wizard.headerIndex]) };
+    return { prompt: promptFor(HEADER_FIELDS[wizard.headerIndex]), poll: fieldPoll(HEADER_FIELDS[wizard.headerIndex]) };
   }
 
   const type = DOC_TYPES[wizard.docTypeId];
@@ -184,7 +216,7 @@ function continueHeaderFlow() {
     wizard.stage = 'checklist';
     wizard.checklistIndex = 0;
     wizard.checklistAnswers = [];
-    return { prompt: checklistPrompt(0) };
+    return { prompt: checklistPrompt(0), poll: checklistPoll(0) };
   }
   // freeform (group7) — no structured fields at all, hand off to free text
   wizard = null;
@@ -198,13 +230,23 @@ function continueHeaderFlow() {
 // first — queried from the same Google Sheet the document-validity dashboard
 // (nir-dashboard-new) tracks. A hit lets the engineer confirm this visit is
 // a continuation of a known site instead of typing its location from scratch.
+const PRIOR_DECLINE_LABEL = 'לא, דוח חדש';
+
+// The decline choice is the LAST positional option (not a special "0"), so a
+// tapped poll vote (which only ever reports a 0-based position) and a typed
+// number resolve through the exact same 1-based logic below.
+function priorOptionLabels(matches) {
+  return [
+    ...matches.map((m) => `${m.location || '—'} — ${m.docType || '—'}${m.docDate ? ' (' + m.docDate + ')' : ''}`),
+    PRIOR_DECLINE_LABEL,
+  ];
+}
+
 function formatPriorPrompt(matches) {
-  const lines = matches.map((m, i) =>
-    `${i + 1}) ${m.location || '—'} — ${m.docType || '—'}${m.docDate ? ' (' + m.docDate + ')' : ''}`
-  );
+  const labels = priorOptionLabels(matches);
+  const lines = labels.map((l, i) => `${i + 1}) ${l}`);
   return '📂 נמצאו דוחות קודמים עבור הלקוח הזה — זה המשך לאחד מהם?\n' +
-    lines.join('\n') +
-    '\n0) לא, דוח חדש — אמשיך לשאלה הבאה' + CANCEL_HINT;
+    lines.join('\n') + CANCEL_HINT;
 }
 
 // Shared by the 'header' and 'header-other' stages: records one header
@@ -222,7 +264,7 @@ async function recordHeaderAnswer(field, answer) {
     if (matches.length > 0) {
       wizard.stage = 'prior-pick';
       wizard.priorMatches = matches;
-      return { prompt: formatPriorPrompt(matches) };
+      return { prompt: formatPriorPrompt(matches), poll: pollFor('דוח קודם קיים — להמשיך אחד מהם?', priorOptionLabels(matches)) };
     }
   }
 
@@ -237,11 +279,11 @@ export async function answerWizard(raw) {
   if (wizard.stage === 'doctype') {
     const docTypeId = resolveTypeAnswer(raw);
     if (!docTypeId) {
-      return { prompt: `❓ לא זיהיתי את הסוג. ${typePrompt()}` };
+      return { prompt: `❓ לא זיהיתי את הסוג. ${typePrompt()}`, poll: typePoll() };
     }
     lastKnownDocType = docTypeId;
     wizard = { docTypeId, stage: 'header', headerIndex: 0, rowIndex: 1, fieldIndex: 0, rowAnswers: {}, findingsCount: 0, conclusionsCount: 0 };
-    return { prompt: firstPromptForType(docTypeId) };
+    return firstPromptForType(docTypeId);
   }
 
   // ── Stage: header fields (client / location / address / date) ──────────
@@ -266,18 +308,21 @@ export async function answerWizard(raw) {
   if (wizard.stage === 'prior-pick') {
     const trimmed = raw.trim();
     const n = parseInt(trimmed, 10);
-    const picked = (!isNaN(n) && n >= 1 && n <= wizard.priorMatches.length && String(n) === trimmed)
-      ? wizard.priorMatches[n - 1]
-      : null;
+    const matches = wizard.priorMatches;
+    // Positions 1..matches.length pick a match; position matches.length+1 is
+    // the trailing "לא, דוח חדש" choice — same 1-based positions a tapped
+    // poll option (converted from its 0-based localId) resolves through too.
+    const validN = !isNaN(n) && n >= 1 && n <= matches.length + 1 && String(n) === trimmed;
+    const picked = validN && n <= matches.length ? matches[n - 1] : null;
 
-    if (trimmed !== '0' && picked) {
+    if (picked) {
       addText(`מיקום: ${picked.location}`);
       addText(`המשך לדוח קודם מתאריך ${picked.docDate || '—'} (סוג: ${picked.docType || '—'}${picked.expiry ? ', בתוקף עד ' + picked.expiry : ''})`);
       wizard.headerIndex = 2; // skip "מיקום" (index 1) — already filled from the match
     }
-    // "0", free text, or anything unrecognized: decline the suggestion and
-    // fall through to asking "מיקום" normally — the wizard.headerIndex stays
-    // at 1, same as if no prior match had ever been found.
+    // The decline position, free text, or anything unrecognized: decline the
+    // suggestion and fall through to asking "מיקום" normally — headerIndex
+    // stays at 1, same as if no prior match had ever been found.
     wizard.stage = 'header';
     wizard.priorMatches = null;
     return continueHeaderFlow();
@@ -296,10 +341,10 @@ export async function answerWizard(raw) {
       wizard.fieldIndex++;
     }
     if (wizard.fieldIndex < fields.length) {
-      return { prompt: promptFor(fields[wizard.fieldIndex]) };
+      return { prompt: promptFor(fields[wizard.fieldIndex]), poll: fieldPoll(fields[wizard.fieldIndex]) };
     }
     wizard.stage = 'more';
-    return { prompt: '➕ להוסיף ממצא נוסף?\n1) כן\n2) לא, זהו' + CANCEL_HINT };
+    return { prompt: '➕ להוסיף ממצא נוסף?\n1) כן\n2) לא, זהו' + CANCEL_HINT, poll: pollFor('להוסיף ממצא נוסף?', ['כן', 'לא, זהו']) };
   }
 
   if (wizard.stage === 'more') {
@@ -381,7 +426,7 @@ export async function answerWizard(raw) {
 function advanceChecklist() {
   wizard.checklistIndex++;
   if (wizard.checklistIndex < CAMP_CHECKLIST_ITEMS.length) {
-    return { prompt: checklistPrompt(wizard.checklistIndex) };
+    return { prompt: checklistPrompt(wizard.checklistIndex), poll: checklistPoll(wizard.checklistIndex) };
   }
   setStructured('checklist_items', wizard.checklistAnswers);
   wizard = null;
