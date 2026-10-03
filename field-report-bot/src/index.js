@@ -231,7 +231,7 @@ client.on('message_create', async (msg) => {
     // While a wizard is in progress, every message is an answer to the
     // current question — free text always works too, not just numbers.
     if (isWizardActive() && !msg.hasMedia) {
-      const { prompt, done } = answerWizard(body);
+      const { prompt, done } = await answerWizard(body);
       if (prompt) await reply(msg, prompt);
       return;
     }

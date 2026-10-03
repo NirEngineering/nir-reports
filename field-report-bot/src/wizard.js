@@ -7,6 +7,7 @@
 // notes — no changes needed anywhere else in the pipeline.
 import { DOC_TYPES, matchTypeHint, CAMP_CHECKLIST_ITEMS, CAMP_CHECKLIST_STATUS_OPTIONS } from './docTypes.js';
 import { addText, setStructured } from './session.js';
+import { findPastReportsByClient } from './sheetLookup.js';
 
 // Checklist statuses (group11) that flag a problem needing a follow-up note —
 // "קיים" and "לא רלוונטי, לא קיים" are fine-as-is, everything else isn't.
@@ -158,14 +159,12 @@ export function cancelWizard() {
   wizard = null;
 }
 
-// Shared by the 'header' and 'header-other' stages: records one header
-// field's final answer, then either asks the next header question or hands
-// off to whatever comes after the header (row/findings/freeform), depending
-// on the chosen document type's kind.
-function recordHeaderAnswer(field, answer) {
-  if (answer && answer !== '-') addText(`${field.key}: ${answer}`);
-
-  wizard.headerIndex++;
+// Shared tail of the header stage: either asks the next header question or
+// hands off to whatever comes after the header (row/findings/checklist/
+// freeform), depending on the chosen document type's kind. Called both from
+// the normal header flow and after a "prior report" pick/decline, which
+// jumps straight here instead of re-asking a field already filled in.
+function continueHeaderFlow() {
   if (wizard.headerIndex < HEADER_FIELDS.length) {
     return { prompt: promptFor(HEADER_FIELDS[wizard.headerIndex]) };
   }
@@ -195,8 +194,43 @@ function recordHeaderAnswer(field, answer) {
   };
 }
 
-/** Feed the user's reply to the current question. @returns {{prompt?: string, done?: boolean}} */
-export function answerWizard(raw) {
+// Up to 5 non-archived past reports for the client just named, most recent
+// first — queried from the same Google Sheet the document-validity dashboard
+// (nir-dashboard-new) tracks. A hit lets the engineer confirm this visit is
+// a continuation of a known site instead of typing its location from scratch.
+function formatPriorPrompt(matches) {
+  const lines = matches.map((m, i) =>
+    `${i + 1}) ${m.location || '—'} — ${m.docType || '—'}${m.docDate ? ' (' + m.docDate + ')' : ''}`
+  );
+  return '📂 נמצאו דוחות קודמים עבור הלקוח הזה — זה המשך לאחד מהם?\n' +
+    lines.join('\n') +
+    '\n0) לא, דוח חדש — אמשיך לשאלה הבאה' + CANCEL_HINT;
+}
+
+// Shared by the 'header' and 'header-other' stages: records one header
+// field's final answer, then either asks the next header question, offers a
+// matching prior report (right after the client field), or hands off to
+// whatever comes after the header, depending on the chosen document type's kind.
+async function recordHeaderAnswer(field, answer) {
+  if (answer && answer !== '-') addText(`${field.key}: ${answer}`);
+
+  const justAnsweredClient = field.key === 'לקוח';
+  wizard.headerIndex++;
+
+  if (justAnsweredClient && answer && answer !== '-') {
+    const matches = await findPastReportsByClient(answer);
+    if (matches.length > 0) {
+      wizard.stage = 'prior-pick';
+      wizard.priorMatches = matches;
+      return { prompt: formatPriorPrompt(matches) };
+    }
+  }
+
+  return continueHeaderFlow();
+}
+
+/** Feed the user's reply to the current question. @returns {Promise<{prompt?: string, done?: boolean}>} */
+export async function answerWizard(raw) {
   if (!wizard) return {};
 
   // ── Stage: which document type ─────────────────────────────────────────
@@ -218,14 +252,35 @@ export function answerWizard(raw) {
       wizard.stage = 'header-other';
       return { prompt: `✍️ כתוב את השם:` + CANCEL_HINT };
     }
-    return recordHeaderAnswer(field, answer);
+    return await recordHeaderAnswer(field, answer);
   }
 
   // ── Stage: free-text follow-up after picking "אחר – פרט" on a header field ─
   if (wizard.stage === 'header-other') {
     const field = HEADER_FIELDS[wizard.headerIndex];
     wizard.stage = 'header';
-    return recordHeaderAnswer(field, raw.trim());
+    return await recordHeaderAnswer(field, raw.trim());
+  }
+
+  // ── Stage: pick a matching prior report, or decline and continue normally ─
+  if (wizard.stage === 'prior-pick') {
+    const trimmed = raw.trim();
+    const n = parseInt(trimmed, 10);
+    const picked = (!isNaN(n) && n >= 1 && n <= wizard.priorMatches.length && String(n) === trimmed)
+      ? wizard.priorMatches[n - 1]
+      : null;
+
+    if (trimmed !== '0' && picked) {
+      addText(`מיקום: ${picked.location}`);
+      addText(`המשך לדוח קודם מתאריך ${picked.docDate || '—'} (סוג: ${picked.docType || '—'}${picked.expiry ? ', בתוקף עד ' + picked.expiry : ''})`);
+      wizard.headerIndex = 2; // skip "מיקום" (index 1) — already filled from the match
+    }
+    // "0", free text, or anything unrecognized: decline the suggestion and
+    // fall through to asking "מיקום" normally — the wizard.headerIndex stays
+    // at 1, same as if no prior match had ever been found.
+    wizard.stage = 'header';
+    wizard.priorMatches = null;
+    return continueHeaderFlow();
   }
 
   // ── Stage: table-based finding rows (group1-5) ──────────────────────────
